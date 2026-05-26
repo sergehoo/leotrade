@@ -39,6 +39,9 @@ celerybeat.pid
 Thumbs.db
 ~$*
 
+# Markdown
+*.md
+
 # Testing
 .pytest_cache/
 pytest-cache-files*/
