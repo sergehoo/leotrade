@@ -134,9 +134,15 @@ class PortfolioAccountingService:
         if amount <= 0:
             raise ValueError("Le montant à verrouiller doit être positif.")
 
+        # SELECT FOR UPDATE — verrouille la ligne portfolio pour toute la transaction.
+        # Sans ce lock, deux workers concurrents peuvent lire le même available_cash
+        # et tous les deux approuver un débit, conduisant à un solde négatif.
+        portfolio = Portfolio.objects.select_for_update().get(pk=portfolio.pk)
         portfolio = PortfolioService.recompute_cash_state(portfolio)
         if portfolio.available_cash < amount:
-            raise ValueError("Cash disponible insuffisant pour verrouillage.")
+            raise ValueError(
+                f"Cash disponible insuffisant : {portfolio.available_cash} < {amount}"
+            )
 
         PortfolioAccountingService.add_ledger_entry(
             portfolio=portfolio,

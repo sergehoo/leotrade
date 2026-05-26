@@ -26,7 +26,9 @@
   const PROTOCOL_VERSION = 1;
   const MAX_BACKOFF_MS = 60_000;
   const PING_INTERVAL_MS = 25_000;
-  const BUFFER_MAX_SIZE = 100;
+  const BUFFER_MAX_SIZE = 500;          // Augmenté de 100 → 500 (handle 30s de downtime)
+  const DEDUP_WINDOW_MS  = 200;         // Fenêtre de déduplication des messages identiques
+  const RECONNECT_JITTER = 0.2;         // ±20% jitter pour éviter thundering herd
 
   // État global partagé entre toutes les connexions
   let connections = new Map();              // name → connection wrapper
@@ -94,6 +96,7 @@
     this.pingTimer = null;
     this.reconnectTimer = null;
     this.outbox = [];                // buffer pour messages envoyés avant connexion
+    this._dedupCache = new Map();    // msg_hash → timestamp, déduplication
   }
 
   Connection.prototype.connect = function () {
@@ -151,6 +154,20 @@
         return;
       }
 
+      // Déduplication : ignore les messages identiques reçus en rafale
+      const dedupKey = data.event + "|" + (data.id || "") + "|" + JSON.stringify(payload).slice(0, 120);
+      const now = Date.now();
+      const lastSeen = this._dedupCache.get(dedupKey);
+      if (lastSeen && now - lastSeen < DEDUP_WINDOW_MS) {
+        return; // doublon ignoré
+      }
+      this._dedupCache.set(dedupKey, now);
+      // Nettoyer le cache périodiquement (evict les entrées > 2s)
+      if (this._dedupCache.size > 50) {
+        const cutoff = now - 2000;
+        this._dedupCache.forEach((ts, k) => { if (ts < cutoff) this._dedupCache.delete(k); });
+      }
+
       if (typeof this.opts.onMessage === "function") {
         try {
           this.opts.onMessage(data, payload);
@@ -182,7 +199,10 @@
     this.state = "reconnecting";
     recomputeGlobalState();
     this.attempt += 1;
-    const delay = Math.min(1000 * Math.pow(2, this.attempt - 1), MAX_BACKOFF_MS);
+    const base = Math.min(1000 * Math.pow(2, this.attempt - 1), MAX_BACKOFF_MS);
+    // Jitter ±20% pour éviter que tous les clients reconnectent au même instant
+    const jitter = base * RECONNECT_JITTER * (Math.random() * 2 - 1);
+    const delay = Math.max(500, Math.round(base + jitter));
     console.log("[LeoWS] reconnect", this.opts.name, "in", delay, "ms (attempt", this.attempt, ")");
 
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);

@@ -197,35 +197,106 @@ class MarketScannerService:
     @classmethod
     def _extract_features(cls, candles: list[Candle]) -> dict[str, Any]:
         """
-        Extraction minimale compatible avec ton scoring service.
+        Extraction d'indicateurs techniques réels via la bibliothèque `ta`.
+        Nécessite au moins 26 chandeliers pour MACD, 14 pour RSI/ATR.
+        Les candles sont triées du plus ancien [−1] au plus récent [0].
         """
-        latest = candles[0]
-        previous = candles[1] if len(candles) > 1 else candles[0]
+        import numpy as np
 
-        close = float(getattr(latest, "close", 0) or 0)
-        prev_close = float(getattr(previous, "close", 0) or 0)
-        high = float(getattr(latest, "high", close) or close)
-        low = float(getattr(latest, "low", close) or close)
+        # Trier du plus ancien au plus récent (candles[0] = le plus récent)
+        ordered = list(reversed(candles))
 
-        atr_14 = abs(high - low) or abs(close - prev_close) or 0.001
+        def _f(c, attr, fallback=0.0) -> float:
+            return float(getattr(c, attr, fallback) or fallback)
 
-        sma_20 = close
-        sma_50 = prev_close if prev_close > 0 else close
-        rsi_14 = 60 if close >= prev_close else 40
-        macd = close - sma_50
-        macd_signal = 0
+        closes = np.array([_f(c, "close") for c in ordered], dtype=float)
+        highs  = np.array([_f(c, "high",  closes[i]) for i, c in enumerate(ordered)], dtype=float)
+        lows   = np.array([_f(c, "low",   closes[i]) for i, c in enumerate(ordered)], dtype=float)
+
+        n = len(closes)
+        close = float(closes[-1])
+        prev_close = float(closes[-2]) if n >= 2 else close
+        high = float(highs[-1])
+        low  = float(lows[-1])
+
+        # ── SMA ──────────────────────────────────────────────────────────────
+        sma_20 = float(np.mean(closes[-20:])) if n >= 20 else close
+        sma_50 = float(np.mean(closes[-50:])) if n >= 50 else sma_20
+
+        # ── ATR (14) ─────────────────────────────────────────────────────────
+        if n >= 2:
+            trs = np.maximum.reduce([
+                highs[1:] - lows[1:],
+                np.abs(highs[1:] - closes[:-1]),
+                np.abs(lows[1:]  - closes[:-1]),
+            ])
+            atr_14 = float(np.mean(trs[-14:])) if len(trs) >= 14 else float(np.mean(trs))
+        else:
+            atr_14 = abs(high - low) or 0.001
+        atr_14 = atr_14 or 0.001
+
+        # ── RSI (14) ─────────────────────────────────────────────────────────
+        rsi_14 = 50.0
+        if n >= 15:
+            deltas = np.diff(closes)
+            gains  = np.where(deltas > 0, deltas, 0.0)
+            losses = np.where(deltas < 0, -deltas, 0.0)
+            avg_gain = float(np.mean(gains[-14:]))
+            avg_loss = float(np.mean(losses[-14:]))
+            if avg_loss == 0:
+                rsi_14 = 100.0
+            else:
+                rs = avg_gain / avg_loss
+                rsi_14 = 100.0 - (100.0 / (1.0 + rs))
+
+        # ── MACD (12, 26, 9) ─────────────────────────────────────────────────
+        macd_line = 0.0
+        macd_signal = 0.0
+        if n >= 26:
+            def _ema(arr: np.ndarray, period: int) -> np.ndarray:
+                k = 2.0 / (period + 1)
+                ema = np.empty_like(arr)
+                ema[0] = arr[0]
+                for i in range(1, len(arr)):
+                    ema[i] = arr[i] * k + ema[i - 1] * (1 - k)
+                return ema
+
+            ema12 = _ema(closes, 12)
+            ema26 = _ema(closes, 26)
+            macd_arr = ema12 - ema26
+            signal_arr = _ema(macd_arr, 9)
+            macd_line   = float(macd_arr[-1])
+            macd_signal = float(signal_arr[-1])
+
+        # ── Bollinger Bands (20, 2σ) ──────────────────────────────────────────
+        bb_high = bb_low = 0.0
+        if n >= 20:
+            window = closes[-20:]
+            std = float(np.std(window))
+            bb_high = sma_20 + 2 * std
+            bb_low  = sma_20 - 2 * std
+
+        # ── Returns ───────────────────────────────────────────────────────────
+        returns_1 = (close - prev_close) / prev_close if prev_close else 0.0
+        returns_5 = (close - float(closes[-6])) / float(closes[-6]) if n >= 6 else returns_1
+        volatility_20 = float(np.std(np.diff(closes[-21:]) / closes[-21:-1])) if n >= 21 else 0.0
 
         return {
-            "close": close,
+            "close":        close,
             "previous_close": prev_close,
-            "high": high,
-            "low": low,
-            "atr_14": atr_14,
-            "sma_20": sma_20,
-            "sma_50": sma_50,
-            "rsi_14": rsi_14,
-            "macd": macd,
-            "macd_signal": macd_signal,
+            "high":         high,
+            "low":          low,
+            "atr_14":       round(atr_14, 6),
+            "sma_20":       round(sma_20, 6),
+            "sma_50":       round(sma_50, 6),
+            "rsi_14":       round(rsi_14, 2),
+            "macd":         round(macd_line, 6),
+            "macd_signal":  round(macd_signal, 6),
+            "bb_high":      round(bb_high, 6),
+            "bb_low":       round(bb_low, 6),
+            "returns_1":    round(returns_1, 6),
+            "returns_5":    round(returns_5, 6),
+            "volatility_20": round(volatility_20, 6),
         }
 
     @classmethod
@@ -268,7 +339,9 @@ class MarketScannerService:
                     .order_by("-open_time")[:200]
                 )
 
-                if len(candles) < 20:
+                # Minimum 27 chandeliers requis : 26 pour MACD + 1 de marge
+                # RSI besoin de 15, ATR de 14 — on retient 27 comme plancher
+                if len(candles) < 27:
                     continue
 
                 features = cls._extract_features(candles)

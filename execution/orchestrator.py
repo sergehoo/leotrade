@@ -78,8 +78,21 @@ class ExecutionOrchestrator:
             )
             raise TradingDisabled("FEATURE_TRADING_ENABLED=False")
 
-        # 1. Idempotence : si déjà créé, on retourne l'Order existant
-        existing = Order.objects.filter(idempotency_key=intent.idempotency_key).first()
+        # 1. Idempotence atomique — SELECT FOR UPDATE évite la double création
+        #    sous concurrence (2 workers reçoivent le même intent simultanément).
+        #    On utilise select_for_update(skip_locked=False) dans un sous-select
+        #    pour obtenir un lock ligne avant la vérification.
+        try:
+            existing = (
+                Order.objects
+                .select_for_update(nowait=False)
+                .filter(idempotency_key=intent.idempotency_key)
+                .first()
+            )
+        except Exception:
+            # Fallback si le backend ne supporte pas SELECT FOR UPDATE ici
+            existing = Order.objects.filter(idempotency_key=intent.idempotency_key).first()
+
         if existing:
             log.info(
                 "orchestrator.idempotent_replay idempotency_key=%s order_id=%s",
@@ -177,25 +190,30 @@ def _evaluate_risk(intent: OrderIntent):
         engine = RiskEngine(portfolio)
         decision = engine.evaluate(signal_like)
     except Exception as exc:
-        log.warning(
-            "orchestrator.risk_engine_unavailable portfolio_id=%s err=%s — fallback approve",
+        log.error(
+            "orchestrator.risk_engine_error portfolio_id=%s err=%r — REJECT par sécurité",
             intent.portfolio_id, exc,
         )
-        # Fallback : on construit une décision approved minimaliste
-        approved_qty = intent.requested_quantity or Decimal("1")
-        approved_notional = intent.requested_stake_amount or (
-            (intent.requested_price or Decimal("1")) * approved_qty
-        )
+        # SÉCURITÉ CRITIQUE : le RiskEngine est indisponible.
+        # On REJETTE systématiquement plutôt que d'approuver sans contrôle.
+        # Un fallback "approve" silencieux permettrait des ordres sans garde-fou
+        # (ex: quantité illimitée, portefeuille en dépassement de drawdown).
         return RiskEngineDecision(
-            accepted=True, decision="APPROVE",
-            reason="risk_engine_fallback",
-            requested_stake=approved_notional, approved_stake=approved_notional,
-            requested_quantity=approved_qty, approved_quantity=approved_qty,
-            requested_notional=approved_notional, approved_notional=approved_notional,
-            expected_loss=Decimal("0"), expected_gain=Decimal("0"),
+            accepted=False,
+            decision="REJECT",
+            reason=f"risk_engine_unavailable: {type(exc).__name__}",
+            requested_stake=Decimal("0"),
+            approved_stake=Decimal("0"),
+            requested_quantity=Decimal("0"),
+            approved_quantity=Decimal("0"),
+            requested_notional=Decimal("0"),
+            approved_notional=Decimal("0"),
+            expected_loss=Decimal("0"),
+            expected_gain=Decimal("0"),
             risk_reward_ratio=Decimal("0"),
-            risk_profile_id=None, risk_decision_id=None,
-            payload={"fallback": True, "error": str(exc)},
+            risk_profile_id=None,
+            risk_decision_id=None,
+            payload={"fallback": False, "error": str(exc), "risk_engine_down": True},
         )
     return decision
 

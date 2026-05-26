@@ -1,10 +1,12 @@
+import json
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.views.generic import TemplateView, View
 
-from portfolio.models import Portfolio
+from portfolio.models import Portfolio, PortfolioSnapshot, PortfolioAllocation
 from dashboard.services import DashboardPremiumService
 from trading.models_ai import TradeRecommendation
 from trading.services.recommendation_actions import RecommendationActionService
@@ -38,6 +40,63 @@ class PremiumCockpitView(LoginRequiredMixin, TemplateView):
             .select_related("broker_account")
             .order_by("-is_default", "name")
         )
+
+        # ── Données graphiques pour le cockpit ─────────────────────────────
+        portfolio = context.get("portfolio")
+
+        # Snapshots P&L (30 derniers) pour le graphique courbe temps réel
+        pnl_snapshots = []
+        if portfolio:
+            try:
+                snaps = (
+                    PortfolioSnapshot.objects
+                    .filter(portfolio=portfolio)
+                    .order_by("-snapshot_time")[:30]
+                    .values("snapshot_time", "total_value", "equity", "unrealized_pnl")
+                )
+                pnl_snapshots = [
+                    {
+                        "snapshot_time": s["snapshot_time"].isoformat() if s["snapshot_time"] else "",
+                        "total_value": float(s["total_value"] or 0),
+                        "equity": float(s.get("equity") or s["total_value"] or 0),
+                    }
+                    for s in reversed(list(snaps))
+                ]
+            except Exception:
+                pnl_snapshots = []
+        context["pnl_snapshots_json"] = json.dumps(pnl_snapshots)
+
+        # Allocation par asset class pour le donut
+        allocation_data = {"labels": [], "values": []}
+        if portfolio:
+            try:
+                allocs = (
+                    PortfolioAllocation.objects
+                    .filter(portfolio=portfolio)
+                    .select_related("asset")
+                    .values("asset__symbol", "target_weight")[:8]
+                )
+                for a in allocs:
+                    symbol = a.get("asset__symbol") or "?"
+                    weight = float(a.get("target_weight") or 0) * 100
+                    if weight > 0:
+                        allocation_data["labels"].append(symbol)
+                        allocation_data["values"].append(round(weight, 1))
+            except Exception:
+                pass
+        context["allocation_json"] = json.dumps(allocation_data)
+
+        # Drawdown pour la jauge risque
+        risk_drawdown = 0.0
+        if portfolio:
+            try:
+                dd = float(getattr(portfolio, "current_drawdown_percent", 0) or 0)
+                max_dd = float(getattr(portfolio, "max_drawdown_percent", 100) or 100)
+                risk_drawdown = round(dd / max_dd, 4) if max_dd > 0 else 0.0
+            except Exception:
+                risk_drawdown = 0.0
+        context["risk_drawdown"] = risk_drawdown
+
         return context
 
 
@@ -113,7 +172,67 @@ class CockpitDataView(LoginRequiredMixin, View):
                 "reason_code": data["kill_switch"].reason_code,
                 "reason": data["kill_switch"].reason,
             } if data["kill_switch"] else None,
+            # ── Données graphiques ─────────────────────────────────────────
+            "pnl_snapshots": _build_pnl_snapshots(portfolio_obj),
+            "allocation":    _build_allocation(portfolio_obj),
+            "risk_drawdown": _build_risk_drawdown(portfolio_obj),
         })
+
+
+# ── Helpers graphiques ─────────────────────────────────────────────────────────
+
+def _build_pnl_snapshots(portfolio):
+    if not portfolio:
+        return []
+    try:
+        snaps = (
+            PortfolioSnapshot.objects
+            .filter(portfolio=portfolio)
+            .order_by("-snapshot_time")[:30]
+            .values("snapshot_time", "total_value", "equity")
+        )
+        return [
+            {
+                "snapshot_time": s["snapshot_time"].isoformat() if s["snapshot_time"] else "",
+                "total_value": float(s["total_value"] or 0),
+                "equity": float(s.get("equity") or s["total_value"] or 0),
+            }
+            for s in reversed(list(snaps))
+        ]
+    except Exception:
+        return []
+
+
+def _build_allocation(portfolio):
+    if not portfolio:
+        return {"labels": [], "values": []}
+    try:
+        allocs = (
+            PortfolioAllocation.objects
+            .filter(portfolio=portfolio)
+            .select_related("asset")
+            .values("asset__symbol", "target_weight")[:8]
+        )
+        labels, values = [], []
+        for a in allocs:
+            w = float(a.get("target_weight") or 0) * 100
+            if w > 0:
+                labels.append(a.get("asset__symbol") or "?")
+                values.append(round(w, 1))
+        return {"labels": labels, "values": values}
+    except Exception:
+        return {"labels": [], "values": []}
+
+
+def _build_risk_drawdown(portfolio):
+    if not portfolio:
+        return 0.0
+    try:
+        dd = float(getattr(portfolio, "current_drawdown_percent", 0) or 0)
+        max_dd = float(getattr(portfolio, "max_drawdown_percent", 100) or 100)
+        return round(dd / max_dd, 4) if max_dd > 0 else 0.0
+    except Exception:
+        return 0.0
 
 
 class RecommendationApproveView(LoginRequiredMixin, View):

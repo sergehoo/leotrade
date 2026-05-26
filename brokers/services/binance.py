@@ -13,6 +13,13 @@ class BinanceAPIError(Exception):
     pass
 
 
+class BinanceRateLimitError(BinanceAPIError):
+    """429 — Rate limit Binance. Contient le délai suggéré."""
+    def __init__(self, message: str, retry_after: int = 5):
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
 class BinanceClient:
     BASE_URL = "https://api.binance.com"
 
@@ -63,6 +70,18 @@ class BinanceClient:
         return params
 
     def _handle_response(self, response: httpx.Response) -> Any:
+        # Rate limit Binance : 429 → attendre et réessayer (max 3 tentatives)
+        if response.status_code == 429:
+            retry_after = int(response.headers.get("Retry-After", "5"))
+            retry_after = max(1, min(retry_after, 60))
+            raise BinanceRateLimitError(
+                f"Rate limit Binance (429). Réessayer dans {retry_after}s.",
+                retry_after=retry_after,
+            )
+        # Banissement temporaire Binance (418)
+        if response.status_code == 418:
+            raise BinanceAPIError("IP bannie temporairement par Binance (418). Réduire la fréquence des requêtes.")
+
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
@@ -71,6 +90,8 @@ class BinanceClient:
                 msg = payload.get("msg", str(exc))
                 code = payload.get("code")
                 raise BinanceAPIError(f"Binance API error {code}: {msg}") from exc
+            except BinanceAPIError:
+                raise
             except Exception:
                 raise BinanceAPIError(f"Binance HTTP error: {response.text}") from exc
 
@@ -78,6 +99,20 @@ class BinanceClient:
             return response.json()
         except Exception as exc:
             raise BinanceAPIError("Réponse Binance non JSON.") from exc
+
+    def _request_with_retry(self, method: str, path: str, max_retries: int = 3, **kwargs) -> Any:
+        """Exécute une requête HTTP avec retry automatique sur 429 (rate limit)."""
+        for attempt in range(max_retries):
+            try:
+                fn = getattr(self.client, method)
+                response = fn(path, **kwargs)
+                return self._handle_response(response)
+            except BinanceRateLimitError as e:
+                if attempt < max_retries - 1:
+                    wait = e.retry_after * (2 ** attempt)  # backoff exponentiel
+                    time.sleep(min(wait, 60))
+                else:
+                    raise
 
     # ------------------------------------------------------------------
     # PUBLIC / MARKET DATA

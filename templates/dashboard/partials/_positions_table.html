@@ -1,39 +1,177 @@
 <div class="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-    <div class="mb-4">
-        <div class="text-xs uppercase tracking-[0.18em] text-slate-400">Live Positions</div>
-        <h3 class="mt-1 text-xl font-bold">Positions ouvertes</h3>
+    <div class="mb-4 flex items-center justify-between">
+        <div>
+            <div class="text-xs uppercase tracking-widest text-slate-400">Live Positions</div>
+            <h3 class="mt-0.5 text-base font-bold">Positions ouvertes
+                <span class="ml-2 rounded-full bg-slate-800 px-2 py-0.5 text-xs font-normal text-slate-400"
+                      id="positions-count">{{ positions|length }}</span>
+            </h3>
+        </div>
+        <div class="flex items-center gap-1.5">
+            <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="text-xs text-slate-500">temps réel</span>
+        </div>
     </div>
 
     <div class="overflow-x-auto">
         <table class="min-w-full text-sm">
             <thead>
-                <tr class="border-b border-slate-800 text-left text-slate-400">
-                    <th class="px-3 py-3">Symbole</th>
-                    <th class="px-3 py-3">Side</th>
-                    <th class="px-3 py-3">Qté</th>
-                    <th class="px-3 py-3">Entrée</th>
-                    <th class="px-3 py-3">Current</th>
-                    <th class="px-3 py-3">PnL</th>
-                    <th class="px-3 py-3">PnL %</th>
+                <tr class="border-b border-slate-800 text-left">
+                    <th class="px-3 py-2 text-xs font-medium uppercase tracking-wider text-slate-500">Actif</th>
+                    <th class="px-3 py-2 text-xs font-medium uppercase tracking-wider text-slate-500">Side</th>
+                    <th class="px-3 py-2 text-xs font-medium uppercase tracking-wider text-slate-500">Qté</th>
+                    <th class="px-3 py-2 text-xs font-medium uppercase tracking-wider text-slate-500">Entrée</th>
+                    <th class="px-3 py-2 text-xs font-medium uppercase tracking-wider text-slate-500">Actuel</th>
+                    <th class="px-3 py-2 text-xs font-medium uppercase tracking-wider text-slate-500">P&L</th>
+                    <th class="px-3 py-2 text-xs font-medium uppercase tracking-wider text-slate-500">%</th>
+                    <th class="px-3 py-2 text-xs font-medium uppercase tracking-wider text-slate-500 w-20">Courbe</th>
                 </tr>
             </thead>
             <tbody id="positions-table-body">
                 {% for position in positions %}
-                <tr class="border-b border-slate-900 hover:bg-slate-950/50">
-                    <td class="px-3 py-3 font-semibold text-white">{{ position.symbol }}</td>
-                    <td class="px-3 py-3">{{ position.side }}</td>
-                    <td class="px-3 py-3">{{ position.quantity }}</td>
-                    <td class="px-3 py-3">{{ position.entry_price }}</td>
-                    <td class="px-3 py-3">{{ position.current_price }}</td>
-                    <td class="px-3 py-3">{{ position.pnl }}</td>
-                    <td class="px-3 py-3">{{ position.pnl_percent|floatformat:2 }}%</td>
+                <tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors"
+                    data-position-id="{{ position.id }}"
+                    data-position-symbol="{{ position.symbol }}">
+
+                    <td class="px-3 py-3">
+                        <div class="flex items-center gap-2">
+                            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 text-xs font-bold text-blue-400">
+                                {{ position.symbol|slice:":2"|upper }}
+                            </div>
+                            <span class="font-semibold text-white">{{ position.symbol }}</span>
+                        </div>
+                    </td>
+
+                    <td class="px-3 py-3">
+                        {% if position.side == "BUY" or position.side == "LONG" %}
+                            <span class="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-400">
+                                ↑ LONG
+                            </span>
+                        {% else %}
+                            <span class="inline-flex items-center gap-1 rounded-md bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-400">
+                                ↓ SHORT
+                            </span>
+                        {% endif %}
+                    </td>
+
+                    <td class="px-3 py-3 text-slate-300">{{ position.quantity }}</td>
+
+                    <td class="px-3 py-3 text-slate-400 font-mono text-xs">
+                        {{ position.entry_price }}
+                    </td>
+
+                    <td class="px-3 py-3 font-mono text-xs font-semibold text-white"
+                        data-position-current="{{ position.id }}">
+                        {{ position.current_price }}
+                    </td>
+
+                    <td class="px-3 py-3 font-mono text-sm font-bold"
+                        data-position-pnl="{{ position.id }}"
+                        {% if position.pnl >= 0 %}
+                        style="color: #00D4AA"
+                        {% else %}
+                        style="color: #FF4C6A"
+                        {% endif %}>
+                        {% if position.pnl >= 0 %}+{% endif %}{{ position.pnl }}
+                    </td>
+
+                    <td class="px-3 py-3 text-sm font-semibold"
+                        data-position-pct="{{ position.id }}"
+                        {% if position.pnl_percent >= 0 %}
+                        style="color: #00D4AA"
+                        {% else %}
+                        style="color: #FF4C6A"
+                        {% endif %}>
+                        {% if position.pnl_percent >= 0 %}+{% endif %}{{ position.pnl_percent|floatformat:2 }}%
+                    </td>
+
+                    <td class="px-3 py-3">
+                        <div class="relative h-8 w-20">
+                            <canvas id="sparkline-{{ position.id }}"></canvas>
+                        </div>
+                    </td>
                 </tr>
                 {% empty %}
-                <tr>
-                    <td colspan="7" class="px-3 py-6 text-center text-slate-400">Aucune position ouverte.</td>
+                <tr id="positions-empty-row">
+                    <td colspan="8" class="px-3 py-8 text-center text-slate-500">
+                        <div class="flex flex-col items-center gap-2">
+                            <svg class="h-8 w-8 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                            </svg>
+                            <span class="text-sm">Aucune position ouverte</span>
+                        </div>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
+
+<script>
+// Init sparklines pour chaque position (si LeoCharts disponible)
+document.addEventListener("DOMContentLoaded", function () {
+    {% for position in positions %}
+    if (window.LeoCharts) {
+        const positive = {{ position.pnl|default:0 }} >= 0;
+        window["_sparkline_{{ position.id }}"] = LeoCharts.miniSparkline(
+            "sparkline-{{ position.id }}",
+            [{{ position.pnl|default:0 }}],
+            positive
+        );
+    }
+    {% endfor %}
+});
+
+// Mise à jour live des positions via WebSocket portfolio
+if (window.LeoWS) {
+    document.addEventListener("DOMContentLoaded", function () {
+        LeoWS.connect(
+            window.LEOTRADE_COCKPIT && window.LEOTRADE_COCKPIT.wsPortfolioUrl,
+            {
+                name: "positions_table",
+                expectedEvent: "portfolio.update",
+                onMessage: function (_raw, payload) {
+                    const positions = payload.positions || [];
+                    if (!positions.length) return;
+
+                    positions.forEach(function (pos) {
+                        const id = pos.id;
+                        // Current price
+                        const cpEl = document.querySelector(`[data-position-current="${id}"]`);
+                        if (cpEl && pos.current_price !== undefined) {
+                            if (window.LeoAnim) LeoAnim.flashValue(cpEl, pos.current_price, cpEl.dataset.previousValue);
+                            cpEl.textContent = pos.current_price;
+                            cpEl.dataset.previousValue = String(pos.current_price);
+                        }
+                        // PnL
+                        const pnlEl = document.querySelector(`[data-position-pnl="${id}"]`);
+                        if (pnlEl && pos.pnl !== undefined) {
+                            const pnl = parseFloat(pos.pnl);
+                            const sign = pnl >= 0 ? "+" : "";
+                            pnlEl.textContent = sign + pnl.toFixed(2);
+                            pnlEl.style.color = pnl >= 0 ? "#00D4AA" : "#FF4C6A";
+                        }
+                        // PnL %
+                        const pctEl = document.querySelector(`[data-position-pct="${id}"]`);
+                        if (pctEl && pos.pnl_percent !== undefined) {
+                            const pct = parseFloat(pos.pnl_percent);
+                            const sign = pct >= 0 ? "+" : "";
+                            pctEl.textContent = `${sign}${pct.toFixed(2)}%`;
+                            pctEl.style.color = pct >= 0 ? "#00D4AA" : "#FF4C6A";
+                        }
+                        // Sparkline
+                        const spark = window[`_sparkline_${id}`];
+                        if (spark && pos.pnl !== undefined) spark.leoAddPoint(parseFloat(pos.pnl));
+                    });
+
+                    // Compte
+                    const countEl = document.getElementById("positions-count");
+                    if (countEl) countEl.textContent = positions.length;
+                },
+            }
+        );
+    });
+}
+</script>

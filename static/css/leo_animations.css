@@ -132,6 +132,50 @@
 .leo-toast-in  { animation: leo-toast-in  0.25s ease-out; }
 .leo-toast-out { animation: leo-toast-out 0.25s ease-in forwards; }
 
+/* ----- Highlight ligne de tableau (tick up/down en temps réel) ------------- */
+
+@keyframes leo-row-up {
+  0%   { background-color: rgba(0, 212, 170, 0.18); }
+  100% { background-color: transparent; }
+}
+
+@keyframes leo-row-down {
+  0%   { background-color: rgba(255, 76, 106, 0.18); }
+  100% { background-color: transparent; }
+}
+
+.leo-row-up   { animation: leo-row-up   0.8s ease-out; }
+.leo-row-down { animation: leo-row-down 0.8s ease-out; }
+
+/* ----- Candlestick tick (pour les charts en temps réel) -------------------- */
+
+@keyframes leo-candle-update {
+  0%   { opacity: 0.5; }
+  50%  { opacity: 1;   }
+  100% { opacity: 0.9; }
+}
+
+.leo-candle-live { animation: leo-candle-update 0.4s ease-out; }
+
+/* ----- Badge de connexion WS (dot pulsant) --------------------------------- */
+
+@keyframes leo-live-dot {
+  0%, 100% { transform: scale(1);   opacity: 1;   }
+  50%      { transform: scale(1.5); opacity: 0.6; }
+}
+
+.leo-live-dot { animation: leo-live-dot 2s ease-in-out infinite; }
+
+/* ----- Number counter animation (valeurs P&L) ------------------------------ */
+
+@keyframes leo-number-pop {
+  0%   { transform: scale(1);    }
+  30%  { transform: scale(1.08); }
+  100% { transform: scale(1);    }
+}
+
+.leo-number-pop { animation: leo-number-pop 0.25s ease-out; }
+
 /* ----- Respect des préférences utilisateur (accessibilité) ----------------- */
 
 @media (prefers-reduced-motion: reduce) {

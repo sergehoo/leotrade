@@ -3,30 +3,44 @@
 
 {% block title %}LeoTrade Premium Cockpit{% endblock %}
 
+{% block extra_head %}
+{# Chart.js via CDN — remplacer par local en production #}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="min-h-screen bg-slate-950 text-white">
     <div class="mx-auto max-w-7xl px-4 py-6">
+
+        {# ── Header ────────────────────────────────────────────────────────── #}
         <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-                <h1 class="text-3xl font-black tracking-tight">LeoTrade Premium Cockpit</h1>
-                <p class="mt-1 text-sm text-slate-400">
-                    Centre de pilotage AI-assisted trading · portefeuille · risque · exécution
-                </p>
+            <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 text-lg font-black">L</div>
+                <div>
+                    <h1 class="text-2xl font-black tracking-tight">LeoTrade Cockpit</h1>
+                    <p class="text-xs text-slate-400">AI-assisted trading · temps réel</p>
+                </div>
             </div>
 
-            <form method="get" class="flex items-center gap-3">
-                <select
-                    name="portfolio"
-                    class="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white"
-                    onchange="this.form.submit()"
-                >
-                    {% for p in all_portfolios %}
-                        <option value="{{ p.id }}" {% if portfolio and p.id == portfolio.id %}selected{% endif %}>
-                            {{ p.name }} · {{ p.broker_account.name }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </form>
+            <div class="flex items-center gap-3">
+                {# Badge connexion WS #}
+                <div data-leo-connection-badge class="flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs">
+                    <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" id="ws-dot"></span>
+                    <span class="leo-connection-text text-slate-300">Live</span>
+                </div>
+
+                <form method="get" class="flex items-center gap-2">
+                    <select name="portfolio"
+                        class="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                        onchange="this.form.submit()">
+                        {% for p in all_portfolios %}
+                            <option value="{{ p.id }}" {% if portfolio and p.id == portfolio.id %}selected{% endif %}>
+                                {{ p.name }} · {{ p.broker_account.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
         </div>
 
         {% if not portfolio %}
@@ -35,16 +49,67 @@
             </div>
         {% else %}
             {% include "dashboard/partials/_kill_switch_banner.html" %}
+
+            {# ── Hero stats ────────────────────────────────────────────────── #}
             {% include "dashboard/partials/_hero_stats.html" %}
 
             <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+
+                {# ── Colonne principale (2/3) ─────────────────────────────── #}
                 <div class="xl:col-span-2 space-y-6">
+
+                    {# Graphique P&L temps réel #}
+                    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+                        <div class="mb-4 flex items-center justify-between">
+                            <div>
+                                <div class="text-xs uppercase tracking-widest text-slate-400">Évolution P&L</div>
+                                <div class="mt-0.5 flex items-center gap-2">
+                                    <span class="text-lg font-bold" id="pnl-chart-label">—</span>
+                                    <span class="text-xs font-semibold" id="pnl-chart-pct"></span>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                {% for tf in "1h,4h,1d,1w"|split:"," %}
+                                <button class="leo-tf-btn rounded-lg px-2.5 py-1 text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+                                        data-tf="{{ tf }}">{{ tf }}</button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="relative h-52">
+                            <canvas id="pnl-chart"></canvas>
+                        </div>
+                    </div>
+
+                    {# AI Radar #}
                     {% include "dashboard/partials/_ai_radar.html" %}
+
+                    {# Positions avec sparklines temps réel #}
                     {% include "dashboard/partials/_positions_table.html" %}
+
+                    {# Tape des ordres #}
                     {% include "dashboard/partials/_orders_tape.html" %}
                 </div>
 
+                {# ── Colonne droite (1/3) ─────────────────────────────────── #}
                 <div class="space-y-6">
+
+                    {# Répartition portefeuille donut #}
+                    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+                        <div class="mb-3 text-xs uppercase tracking-widest text-slate-400">Répartition</div>
+                        <div class="relative h-44">
+                            <canvas id="allocation-donut"></canvas>
+                        </div>
+                    </div>
+
+                    {# Jauge de risque #}
+                    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+                        <div class="mb-1 text-xs uppercase tracking-widest text-slate-400">Risque drawdown</div>
+                        <div class="relative h-24">
+                            <canvas id="risk-gauge"></canvas>
+                        </div>
+                        <div class="mt-1 text-center text-xs text-slate-400" id="risk-gauge-label">—</div>
+                    </div>
+
                     {% include "dashboard/partials/_portfolio_panel.html" %}
                     {% include "dashboard/partials/_risk_center.html" %}
                     {% include "dashboard/partials/_activity_feed.html" %}
@@ -57,15 +122,23 @@
 {% if portfolio %}
 <script>
     window.LEOTRADE_COCKPIT = {
-        portfolioId: {{ portfolio.id }},
-        cockpitDataUrl: "{% url 'dashboard:premium_cockpit_data' %}",
-        wsPortfolioUrl: `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/portfolio/{{ portfolio.id }}/`,
-        wsOrdersUrl: `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/orders/`,
-        wsNotificationsUrl: `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/notifications/`,
-        wsDashboardUrl: `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/dashboard/live/`,
-        wsAiRadarUrl: `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/ai/radar/`,
+        portfolioId:      {{ portfolio.id }},
+        cockpitDataUrl:   "{% url 'dashboard:premium_cockpit_data' %}",
+        // Données initiales pour les graphiques
+        pnlSnapshots:     {{ pnl_snapshots_json|default:"[]"|safe }},
+        allocationData:   {{ allocation_json|default:"{}"|safe }},
+        riskDrawdown:     {{ risk_drawdown|default:"0" }},
+        // URLs WebSocket
+        wsPortfolioUrl:   `${location.protocol==="https:"?"wss":"ws"}://${location.host}/ws/portfolio/{{ portfolio.id }}/`,
+        wsOrdersUrl:      `${location.protocol==="https:"?"wss":"ws"}://${location.host}/ws/orders/`,
+        wsNotificationsUrl:`${location.protocol==="https:"?"wss":"ws"}://${location.host}/ws/notifications/`,
+        wsDashboardUrl:   `${location.protocol==="https:"?"wss":"ws"}://${location.host}/ws/dashboard/live/`,
+        wsAiRadarUrl:     `${location.protocol==="https:"?"wss":"ws"}://${location.host}/ws/ai/radar/`,
     };
 </script>
+<script src="{% static 'js/leo_websocket.js' %}"></script>
+<script src="{% static 'js/leo_animations.js' %}"></script>
+<script src="{% static 'js/leo_charts.js' %}"></script>
 <script src="{% static 'dashboard/js/cockpit.js' %}"></script>
 {% endif %}
 {% endblock %}
