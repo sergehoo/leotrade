@@ -310,23 +310,34 @@ class AssistantStreamService:
         """
         Générateur asynchrone qui yield des chunks de texte.
         Essaie DeepSeek en premier, puis Claude, puis heuristic synthétique.
+        En cas d'échec, les erreurs réelles sont surfacées à l'utilisateur.
         """
         primary = getattr(settings, "AI_PRIMARY_PROVIDER", "DEEPSEEK").upper()
         secondary = getattr(settings, "AI_SECONDARY_PROVIDER", "CLAUDE").upper()
 
-        for provider_name in (primary, secondary, "HEURISTIC"):
+        provider_errors: dict[str, str] = {}
+
+        for provider_name in (primary, secondary):
             try:
                 async for chunk in AssistantStreamService._try_provider(
                     provider_name, messages, system_prompt
                 ):
                     yield chunk
-                return  # success
+                return  # success — stop here
             except Exception as exc:
-                log.warning("assistant.stream.provider_failed provider=%s err=%s", provider_name, exc)
-                continue
+                err_msg = str(exc)
+                provider_errors[provider_name] = err_msg
+                log.warning(
+                    "assistant.stream.provider_failed provider=%s err=%s",
+                    provider_name,
+                    err_msg,
+                )
 
-        # Fallback ultime (ne devrait jamais arriver car heuristic est infaillible)
-        yield "Je rencontre des difficultés techniques. Veuillez réessayer dans quelques instants."
+        # Les deux LLMs ont échoué — construire un message de diagnostic avant le fallback
+        async for chunk in AssistantStreamService._heuristic_response(
+            messages, provider_errors=provider_errors
+        ):
+            yield chunk
 
     @staticmethod
     async def _try_provider(
@@ -437,19 +448,80 @@ class AssistantStreamService:
     # ── Heuristic (non streamé — simulé chunk par chunk) ──────────────────────
 
     @staticmethod
-    async def _heuristic_response(messages: list[dict]) -> AsyncIterator[str]:
-        """Réponse déterministe basique quand aucun LLM n'est disponible."""
+    async def _heuristic_response(
+        messages: list[dict],
+        provider_errors: dict[str, str] | None = None,
+    ) -> AsyncIterator[str]:
+        """
+        Réponse déterministe basique quand aucun LLM n'est disponible.
+        Lorsque provider_errors est fourni, affiche un diagnostic précis des échecs.
+        """
         import asyncio
 
-        last = messages[-1].get("content", "") if messages else ""
-        response = (
-            "Je suis temporairement en mode dégradé (LLMs indisponibles).\n\n"
-            "Je peux toujours vous aider à :\n"
-            "• Consulter vos positions et votre portefeuille\n"
-            "• Vérifier l'état du moteur de risque\n"
-            "• Accéder aux signaux IA actifs\n\n"
-            "Veuillez réessayer dans quelques instants pour une analyse complète."
-        )
+        # ── Construire le message de diagnostic ──────────────────────────────
+        lines: list[str] = []
+
+        if provider_errors:
+            lines.append("⚠️ **Les moteurs IA sont temporairement indisponibles.**\n")
+            lines.append("**Détail des erreurs :**\n")
+            for provider, err in provider_errors.items():
+                icon = "🔴"
+                # Enrichir le message selon le type d'erreur
+                if "402" in err or "solde insuffisant" in err.lower():
+                    detail = (
+                        f"{icon} **{provider}** — Solde insuffisant (402).\n"
+                        f"  → Rechargez votre compte sur "
+                        f"[platform.deepseek.com](https://platform.deepseek.com/top_up)\n"
+                    )
+                elif "401" in err or "invalide" in err.lower():
+                    detail = (
+                        f"{icon} **{provider}** — Clé API invalide (401).\n"
+                        f"  → Vérifiez `{provider}_API_KEY` dans votre fichier `.env`\n"
+                    )
+                elif "manquant" in err.lower() or "missing" in err.lower():
+                    # Mapper le nom provider vers la vraie variable d'environnement
+                    env_var_map = {
+                        "DEEPSEEK": "DEEPSEEK_API_KEY",
+                        "CLAUDE": "ANTHROPIC_API_KEY",
+                    }
+                    env_var = env_var_map.get(provider, f"{provider}_API_KEY")
+                    detail = (
+                        f"{icon} **{provider}** — Clé API absente.\n"
+                        f"  → Ajoutez `{env_var}=<votre_clé>` dans `.env`\n"
+                    )
+                elif "429" in err or "rate" in err.lower():
+                    detail = (
+                        f"{icon} **{provider}** — Quota dépassé (429). Réessayez dans quelques instants.\n"
+                    )
+                elif "non installé" in err.lower() or "importerror" in err.lower():
+                    detail = (
+                        f"{icon} **{provider}** — SDK non installé.\n"
+                        f"  → `pip install anthropic` ou `pip install httpx`\n"
+                    )
+                else:
+                    detail = f"{icon} **{provider}** — {err}\n"
+                lines.append(detail)
+
+            lines.append(
+                "\n---\n"
+                "En attendant, je peux vous aider avec les données locales :\n"
+                "• Consulter vos **positions** et votre **portefeuille**\n"
+                "• Vérifier l'état du **moteur de risque**\n"
+                "• Accéder aux **signaux IA actifs**\n"
+            )
+        else:
+            # Fallback générique (ne devrait pas arriver)
+            lines.append(
+                "Je suis temporairement en mode dégradé (LLMs indisponibles).\n\n"
+                "Je peux toujours vous aider à :\n"
+                "• Consulter vos positions et votre portefeuille\n"
+                "• Vérifier l'état du moteur de risque\n"
+                "• Accéder aux signaux IA actifs\n\n"
+                "Veuillez réessayer dans quelques instants pour une analyse complète."
+            )
+
+        response = "".join(lines)
+
         # Simulation de streaming chunk par chunk
         words = response.split(" ")
         for i, word in enumerate(words):
