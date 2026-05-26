@@ -37,6 +37,7 @@
     reconnectAttempts: 0,
     totalCostUsd: 0,
     pendingActionsCount: 0,
+    historyLoaded: false,   // ← true après le premier rendu de l'historique
     clientContext: {
       page: document.body.dataset.leoPage || "dashboard",
     },
@@ -100,6 +101,26 @@
         return;
       }
 
+      // Si un stream était en cours, marquer la bulle comme interrompue
+      if (state.currentMsgId) {
+        const bubble = document.querySelector(`[data-msg-id="${state.currentMsgId}"]`);
+        if (bubble && !bubble.dataset.raw) {
+          // Bulle vide (stream pas encore commencé) → supprimer le thinking + la bulle
+          removeThinking();
+          const wrapper = bubble.closest(".leo-ai-msg");
+          if (wrapper) wrapper.remove();
+        } else if (bubble) {
+          // Bulle partiellement remplie → ajouter une note de déconnexion
+          bubble.dataset.raw += "\n\n*[connexion interrompue — reconnexion en cours…]*";
+          bubble.innerHTML = renderMarkdown(bubble.dataset.raw);
+        }
+        state.currentMsgId = null;
+        state.isThinking = false;
+        setSendDisabled(false);
+      }
+
+      removeThinking();
+
       const delay = Math.min(
         RECONNECT_DELAY_BASE * Math.pow(1.5, state.reconnectAttempts),
         RECONNECT_DELAY_MAX
@@ -128,10 +149,16 @@
 
       case "session":
         state.sessionId = data.session_id;
-        if (data.history && data.history.length) {
-          renderHistory(data.history);
-        } else {
-          appendWelcome();
+        // N'affiche l'historique que lors de la PREMIÈRE connexion.
+        // Sur les reconnexions suivantes, on conserve le DOM en place pour
+        // éviter que les messages streamés en cours ou déjà affichés disparaissent.
+        if (!state.historyLoaded) {
+          state.historyLoaded = true;
+          if (data.history && data.history.length) {
+            renderHistory(data.history);
+          } else {
+            appendWelcome();
+          }
         }
         break;
 
@@ -481,6 +508,8 @@ Analyse les indicateurs, le R/R, les risques, et donne-moi un conseil.`;
     els.messages.innerHTML = "";
     appendWelcome();
     if (els.suggestions) els.suggestions.style.display = "";
+    // Permet de recharger l'historique (vide) à la prochaine reconnexion
+    state.historyLoaded = false;
     // Ferme la session côté serveur en en créant une nouvelle
     send({ type: "context_update", context: { ...state.clientContext, _new_session: true } });
   }

@@ -232,7 +232,9 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
 
     @sync_to_async
     def _load_history(self, session) -> list[dict]:
-        msgs = session.messages.order_by("-created_at")[:MAX_HISTORY_TURNS * 2]
+        # On exclut les messages vides (placeholders créés pendant le streaming
+        # et jamais finalisés, ex : déconnexion en cours de génération).
+        msgs = session.messages.exclude(content="").order_by("-created_at")[:MAX_HISTORY_TURNS * 2]
         result = []
         for m in reversed(list(msgs)):
             entry = {
