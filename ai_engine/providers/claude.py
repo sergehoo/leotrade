@@ -18,6 +18,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
+import threading
 import time
 from decimal import Decimal
 
@@ -56,23 +58,83 @@ Schéma de sortie OBLIGATOIRE :
 """
 
 
+_SAFE_REGIME = re.compile(r"^[A-Za-z0-9_\- ]{0,40}$")
+_SAFE_DIRECTION = re.compile(r"^(LONG|SHORT|NEUTRAL|none|aucune)?$", re.IGNORECASE)
+
+
+def _sanitize_indicators(indicators: dict) -> dict:
+    """
+    Sécurité : ne conserver que les valeurs numériques des indicateurs.
+    Tout string dans les valeurs pourrait injecter des instructions dans le
+    prompt Claude — on les supprime silencieusement.
+    """
+    safe: dict = {}
+    for k, v in (indicators or {}).items():
+        # Clé : identifiant Python simple uniquement
+        if not (isinstance(k, str) and re.match(r"^[A-Za-z_][A-Za-z0-9_]{0,49}$", k)):
+            continue
+        if isinstance(v, bool):
+            continue  # bool sous-classe de int — on l'exclut
+        if isinstance(v, (int, float)):
+            safe[k] = round(float(v), 8)
+        elif isinstance(v, Decimal):
+            safe[k] = round(float(v), 8)
+        else:
+            try:
+                safe[k] = round(float(str(v)), 8)
+            except (TypeError, ValueError):
+                pass  # valeur non numérique → ignorée
+    return safe
+
+
+def _sanitize_candle(c) -> dict | None:
+    """Sanitize a single candle dict — keep only known numeric fields."""
+    if not isinstance(c, dict):
+        return None
+    out = {}
+    for field in ("open_time", "open", "high", "low", "close", "volume"):
+        if field not in c:
+            continue
+        v = c[field]
+        if field == "open_time":
+            out[field] = str(v)[:32]  # ISO string max 32 chars
+        else:
+            try:
+                out[field] = round(float(str(v)), 8)
+            except (TypeError, ValueError):
+                pass
+    return out or None
+
+
 def _build_user_prompt(ctx: MarketContext) -> str:
+    regime = (ctx.regime or "inconnu")[:40]
+    if not _SAFE_REGIME.match(regime):
+        regime = "inconnu"
+
+    direction_hint = (ctx.direction_hint or "aucune")[:10]
+    if not _SAFE_DIRECTION.match(direction_hint):
+        direction_hint = "aucune"
+
+    safe_indicators = _sanitize_indicators(ctx.indicators)
+    safe_candles = [
+        sc for c in (ctx.recent_candles[-10:] or [])
+        if (sc := _sanitize_candle(c)) is not None
+    ]
+
     return (
         f"Symbole: {ctx.symbol}\n"
         f"Timeframe: {ctx.timeframe}\n"
-        f"Régime de marché: {ctx.regime or 'inconnu'}\n"
-        f"Direction suggérée par le système: {ctx.direction_hint or 'aucune'}\n"
+        f"Régime de marché: {regime}\n"
+        f"Direction suggérée par le système: {direction_hint}\n"
         f"Prix actuel: {ctx.last_price}\n"
-        f"\nIndicateurs techniques: {json.dumps(ctx.indicators, default=str)}\n"
-        f"\nDernières bougies (N={len(ctx.recent_candles)}): {json.dumps(ctx.recent_candles[-10:], default=str)}\n"
+        f"\nIndicateurs techniques: {json.dumps(safe_indicators)}\n"
+        f"\nDernières bougies (N={len(safe_candles)}): {json.dumps(safe_candles)}\n"
         f"\nÉtat du portefeuille:\n"
         f"- balance: {ctx.portfolio_balance}\n"
         f"- equity: {ctx.portfolio_equity}\n"
         f"- cash disponible: {ctx.available_cash}\n"
         f"- positions ouvertes: {ctx.current_open_positions}/{ctx.max_open_positions}\n"
         f"- max risque par trade: {ctx.max_risk_per_trade_pct}%\n"
-        f"\nObjectif utilisateur: {ctx.user_objective or '(non spécifié)'}\n"
-        f"Historique récent: {ctx.recent_outcomes[-10:] if ctx.recent_outcomes else 'aucun'}\n"
         f"\nProduis ton JSON maintenant."
     )
 
@@ -96,20 +158,23 @@ class ClaudeProvider(BaseAIProvider):
             or self.DEFAULT_MODEL
         )
         self.timeout = timeout
-        self._client = None
+        # Thread-local storage: each Celery worker thread gets its own client
+        # instance, évitant les race conditions sur self._client partagé.
+        self._local = threading.local()
 
     def is_available(self) -> bool:
         return bool(self.api_key)
 
     def _get_client(self):
-        if self._client is not None:
-            return self._client
+        client = getattr(self._local, "client", None)
+        if client is not None:
+            return client
         try:
             import anthropic  # type: ignore
         except ImportError as exc:
             raise ProviderUnavailable("SDK anthropic non installé.") from exc
-        self._client = anthropic.Anthropic(api_key=self.api_key, timeout=self.timeout)
-        return self._client
+        self._local.client = anthropic.Anthropic(api_key=self.api_key, timeout=self.timeout)
+        return self._local.client
 
     def advise(self, context: MarketContext) -> AIDecision:
         if not self.is_available():

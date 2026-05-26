@@ -278,13 +278,16 @@ class FillProcessingService:
                 from execution.services_close import PositionCloseService
                 PositionCloseService.apply_closing_fill_for_order(order=order, fill=fill)
             except Exception as exc:
-                # On ne fait pas échouer le fill (déjà persisté). On log + fallback open.
+                # On ne fait pas échouer le fill (déjà persisté) — MAIS on ne
+                # tombe PAS sur apply_fill_to_position car cela ouvrirait une
+                # position dans le sens OPPOSÉ (ex: SELL sur LONG → crée un SHORT).
+                # On loggue l'échec et on laisse la réconciliation corriger.
                 import logging
                 logging.getLogger("leotrade.execution.services").exception(
-                    "register_fill.close_failed order_id=%s err=%s — fallback open path",
+                    "register_fill.close_failed order_id=%s err=%s — "
+                    "position update skipped, reconcile will fix",
                     order.id, exc,
                 )
-                PositionService.apply_fill_to_position(order=order, fill=fill)
         else:
             PositionService.apply_fill_to_position(order=order, fill=fill)
 
@@ -345,6 +348,16 @@ class PositionService:
             new_qty = old_qty + fill_qty
 
             if new_qty <= 0:
+                # Le fill ferme (ou sur-ferme) la position → on la clôture proprement.
+                # Sans ce bloc, la position restait OPEN avec qty invalide et
+                # n'apparaissait plus dans l'accounting, causant une dérive du P&L.
+                position.quantity = Decimal("0")
+                position.status = "CLOSED"
+                position.closed_at = timezone.now()
+                position.current_price = q8(fill.price)
+                position.save(update_fields=[
+                    "quantity", "status", "closed_at", "current_price", "updated_at"
+                ])
                 return position
 
             old_cost = _d(position.average_entry_price) * old_qty

@@ -27,6 +27,7 @@ import time
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.cache import cache
 from django.utils import timezone
 
 from .models import AIDecisionLog
@@ -62,6 +63,34 @@ class AITradeAdvisor:
         if decision.decision == "EXECUTE":
             ExecutionOrchestrator.submit(OrderIntent(...))
     """
+
+    # Limite : N appels IA maximum par utilisateur sur une fenêtre glissante d'1h.
+    # Configurable via settings.AI_RATE_LIMIT_PER_HOUR (défaut 60).
+    # Evite la consommation abusive de tokens Claude (facturation) et les
+    # attaques par saturation du pipeline de trading.
+    _RATE_LIMIT_WINDOW = 3600  # 1 heure en secondes
+    _RATE_LIMIT_DEFAULT = 60   # appels max / heure / user
+
+    @classmethod
+    def _check_rate_limit(cls, user) -> bool:
+        """
+        Retourne True si l'utilisateur peut encore faire un appel IA.
+        Incrément atomique sur une clé Redis avec TTL.
+        """
+        if user is None:
+            return True  # appels système (tasks Celery sans user) non limités
+
+        limit = getattr(settings, "AI_RATE_LIMIT_PER_HOUR", cls._RATE_LIMIT_DEFAULT)
+        cache_key = f"ai_rate:{user.pk}"
+
+        count = cache.get(cache_key, 0)
+        if count >= limit:
+            return False
+
+        # Incrémente et (re)initialise le TTL si c'est le premier appel de la fenêtre
+        new_count = count + 1
+        cache.set(cache_key, new_count, cls._RATE_LIMIT_WINDOW)
+        return True
 
     @staticmethod
     def get_provider_chain() -> list:
@@ -100,6 +129,29 @@ class AITradeAdvisor:
         Demande un avis avec fallback automatique. Logge la décision finale
         et toutes les tentatives échouées.
         """
+        # ── Rate limiting ──────────────────────────────────────────────────────
+        if not cls._check_rate_limit(user):
+            limit = getattr(settings, "AI_RATE_LIMIT_PER_HOUR", cls._RATE_LIMIT_DEFAULT)
+            log.warning(
+                "ai_advisor.rate_limited user_id=%s symbol=%s limit=%d/h",
+                getattr(user, "pk", "?"), context.symbol, limit,
+            )
+            decision = AIDecision(
+                decision="ABSTAIN",
+                confidence=0.0,
+                rationale=f"Limite IA atteinte ({limit} appels/h). Réessayer dans la prochaine fenêtre.",
+                risks=["rate_limit_exceeded"],
+                provider="HEURISTIC",
+                model_name="rate-limited",
+            )
+            cls._record_decision(
+                decision=decision,
+                context=context, user=user, portfolio=portfolio, trade_idea=trade_idea,
+                fallback_used=True, fallback_reason="rate_limited",
+                attempt_logs=[],
+            )
+            return decision
+
         chain = cls.get_provider_chain()
         last_error = ""
         attempt_logs = []
@@ -191,19 +243,18 @@ class AITradeAdvisor:
         Persiste la décision pour audit et retraining.
         Sécurité : ne stocke PAS de secrets, jamais.
         """
+        # RGPD : on ne stocke PAS user_objective (données personnelles libres),
+        # ni recent_candles (volume de données inutile en base).
+        # On ne stocke pas non plus recent_outcomes qui peut contenir des PnL
+        # détaillés par trade — déjà tracés dans les modèles Trade/Position.
         prompt_inputs = {
             "symbol": context.symbol,
             "timeframe": context.timeframe,
-            "indicators": context.indicators,
             "regime": context.regime,
             "direction_hint": context.direction_hint,
-            "portfolio_balance": str(context.portfolio_balance) if context.portfolio_balance else None,
-            "portfolio_equity": str(context.portfolio_equity) if context.portfolio_equity else None,
-            "available_cash": str(context.available_cash) if context.available_cash else None,
             "max_risk_per_trade_pct": context.max_risk_per_trade_pct,
             "max_open_positions": context.max_open_positions,
             "current_open_positions": context.current_open_positions,
-            "user_objective": context.user_objective[:500] if context.user_objective else "",
             "attempt_logs": attempt_logs,
         }
         AIDecisionLog.objects.create(

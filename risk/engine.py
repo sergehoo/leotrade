@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional
 
+from django.core.cache import cache
 from django.db import transaction
 
 from brokers.models import BrokerConstraint
@@ -72,24 +73,46 @@ class RiskEngine:
     def _get_risk_profile(self) -> RiskProfile:
         return RiskGuardService.get_default_profile(self.portfolio)
 
+    # TTL du cache Redis des contraintes broker (15 minutes).
+    # Evite un appel réseau synchrone (~1-3s) à chaque évaluation de risque.
+    # La invalidation explicite est faite par BrokerConstraintSyncService après
+    # un sync réussi.
+    _CONSTRAINT_CACHE_TTL = 900
+
+    def _constraint_cache_key(self, symbol: str) -> str:
+        broker_id = getattr(self.portfolio.broker_account, "broker", "unknown")
+        return f"bc:{broker_id}:{symbol}"
+
     def _get_constraint(self, symbol: str):
         broker_account = self.portfolio.broker_account
+        cache_key = self._constraint_cache_key(symbol)
 
+        # 1. Tentative cache Redis (hit → 0 ms, pas de lock DB)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        # 2. Base de données locale
         constraint = BrokerConstraint.objects.filter(
             broker=broker_account.broker,
             symbol=symbol,
         ).first()
 
-        if constraint:
-            return constraint
+        if constraint is None:
+            # 3. Sync réseau vers le broker (peut être lent — seulement si DB miss)
+            try:
+                constraint = BrokerConstraintSyncService.sync_symbol_constraint(
+                    broker_account=broker_account,
+                    symbol=symbol,
+                )
+            except Exception:
+                pass
 
-        try:
-            return BrokerConstraintSyncService.sync_symbol_constraint(
-                broker_account=broker_account,
-                symbol=symbol,
-            )
-        except Exception:
-            return None
+        if constraint is not None:
+            # Stockage en cache — modèle Django serialisable via pickle par défaut
+            cache.set(cache_key, constraint, self._CONSTRAINT_CACHE_TTL)
+
+        return constraint
 
     def _extract_signal_payload(self, signal):
         strategy = getattr(signal, "strategy", None)
