@@ -407,10 +407,13 @@ SENTRY_PROFILES_SAMPLE_RATE = env("SENTRY_PROFILES_SAMPLE_RATE", 0.0, float)
 #   - "CLAUDE"    : Anthropic API (qualité top, payant, requiert ANTHROPIC_API_KEY)
 #   - "OLLAMA"    : LLM local via Ollama (souverain, gratuit, latence locale)
 #   - "HEURISTIC" : règles déterministes (toujours dispo, zéro coût, zéro IA)
-AI_PRIMARY_PROVIDER = env("AI_PRIMARY_PROVIDER", "CLAUDE")
-AI_SECONDARY_PROVIDER = env("AI_SECONDARY_PROVIDER", "OLLAMA")
-AI_FORCE_FALLBACK = env("AI_FORCE_FALLBACK", False, bool)
-
+# AI_PRIMARY_PROVIDER = env("AI_PRIMARY_PROVIDER", "CLAUDE")
+# AI_SECONDARY_PROVIDER = env("AI_SECONDARY_PROVIDER", "OLLAMA")
+# AI_FORCE_FALLBACK = env("AI_FORCE_FALLBACK", False, bool)
+AI_PRIMARY_PROVIDER   = "DEEPSEEK"
+AI_SECONDARY_PROVIDER = "CLAUDE"
+DEEPSEEK_API_KEY      = env("DEEPSEEK_API_KEY")
+AI_DEEPSEEK_MODEL     = "deepseek-chat"
 # Anthropic / Claude
 ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY", "")
 AI_CLAUDE_MODEL = env("AI_CLAUDE_MODEL", "claude-opus-4-5")
