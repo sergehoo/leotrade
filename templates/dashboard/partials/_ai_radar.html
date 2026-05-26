@@ -44,6 +44,25 @@
                 </div>
 
                 <div class="flex shrink-0 flex-wrap gap-2">
+                    {# ── LeoAI explain ── #}
+                    <button type="button"
+                            class="leo-quick-explain"
+                            data-leo-explain-opp
+                            data-id="{{ rec.opportunity.pk }}"
+                            data-direction="{{ rec.opportunity.direction }}"
+                            data-symbol="{{ rec.opportunity.symbol }}"
+                            data-timeframe="{{ rec.opportunity.timeframe_code|default:'' }}"
+                            data-score="{{ rec.opportunity.score|default:0 }}"
+                            data-confidence="{{ rec.ai_confidence|default:0 }}"
+                            onclick="if(window.LeoAssistant) LeoAssistant.explainOpportunity('{{ rec.opportunity.pk }}','{{ rec.opportunity.direction }}','{{ rec.opportunity.symbol }}','{{ rec.opportunity.timeframe_code|default:'' }}','{{ rec.opportunity.score|default:0 }}','{{ rec.ai_confidence|default:0 }}');"
+                            title="Demander une explication à LeoAI">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                        LeoAI
+                    </button>
+
                     <form method="post" action="{% url 'dashboard:recommendation_approve' rec.id %}">
                         {% csrf_token %}
                         <button class="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-400">

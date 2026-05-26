@@ -65,6 +65,25 @@
       </div>
 
       <div class="flex flex-wrap gap-3">
+        {# ── Bouton LeoAI ── #}
+        <button type="button"
+                class="leo-quick-explain px-4 py-2.5"
+                data-leo-explain-opp
+                data-id="{{ idea.pk }}"
+                data-direction="{{ idea.direction }}"
+                data-symbol="{{ idea.symbol }}"
+                data-timeframe="{{ idea.timeframe|default:'' }}"
+                data-score="{{ idea.overall_score|default:0 }}"
+                data-confidence="{{ idea.confidence_score|default:0 }}"
+                onclick="if(window.LeoAssistant) LeoAssistant.explainOpportunity('{{ idea.pk }}','{{ idea.direction }}','{{ idea.symbol }}','{{ idea.timeframe|default:'' }}','{{ idea.overall_score|default:0 }}','{{ idea.confidence_score|default:0 }}');"
+                title="Analyse complète par LeoAI">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          Analyser avec LeoAI
+        </button>
+
         <form method="post" action="{% url 'trading:trade-idea-approve' idea.pk %}">
           {% csrf_token %}
           <button type="submit" class="px-4 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/20 transition">

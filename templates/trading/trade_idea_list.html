@@ -375,10 +375,40 @@
                 </td>
 
                 <td class="px-4 py-4 text-right">
-                  <a :href="idea.detail_url"
-                     class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-xs mono hover:bg-white/10 transition">
-                    Voir
-                  </a>
+                  <div class="flex items-center justify-end gap-2">
+                    {# Bouton LeoAI — explication intelligente de l'opportunité #}
+                    <button
+                        type="button"
+                        class="leo-quick-explain"
+                        :data-id="idea.id"
+                        :data-direction="idea.direction"
+                        :data-symbol="idea.symbol"
+                        :data-timeframe="idea.timeframe"
+                        :data-score="idea.overall_score"
+                        :data-confidence="idea.confidence_score"
+                        data-leo-explain-opp
+                        title="Demander une explication à LeoAI"
+                        @click.stop="
+                          if (window.LeoAssistant) {
+                            LeoAssistant.explainOpportunity(
+                              idea.id, idea.direction, idea.symbol, idea.timeframe,
+                              idea.overall_score, idea.confidence_score
+                            );
+                          }
+                        ">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                      </svg>
+                      LeoAI
+                    </button>
+
+                    <a :href="idea.detail_url"
+                       class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-xs mono hover:bg-white/10 transition">
+                      Voir
+                    </a>
+                  </div>
                 </td>
               </tr>
             </template>
