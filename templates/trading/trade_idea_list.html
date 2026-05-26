@@ -23,12 +23,12 @@
         </div>
 
         <h2 class="text-white text-2xl xl:text-3xl font-semibold mt-4">
-          Opportunités IA basées sur les données réelles du marché
+          Opportunités IA basées sur les données de marché
         </h2>
 
         <p class="text-sm text-gray-400 mt-3 max-w-3xl leading-6">
-          Chaque opportunité est enrichie par les bougies récentes, le prix réel, la tendance,
-          la volatilité, le RSI, l’ATR, le régime marché et une décision IA explicable.
+          Chaque opportunité est enrichie par les bougies récentes, le prix, la tendance, la volatilité et une explication IA.
+          Aucune opportunité ne constitue une garantie de gain: validez toujours votre risque.
         </p>
 
         <div class="mt-5 flex flex-wrap items-center gap-3 text-xs mono">
@@ -96,13 +96,12 @@
           <div class="mt-4 max-w-2xl">
             <div class="flex items-center justify-between text-[11px] mono text-gray-500 mb-2">
               <span>Cycle d’analyse</span>
-              <span x-text="paused ? 'PAUSE' : `${scanProgress}%`"></span>
+              <span x-text="paused ? 'PAUSE' : `cycle #${cycleCount} · refresh ${nextRefreshIn}s`"></span>
             </div>
 
             <div class="h-2.5 rounded-full bg-white/10 overflow-hidden border border-white/10">
-              <div class="h-full rounded-full transition-all duration-500"
-                   :class="isLive && !paused ? 'bg-emerald-400' : 'bg-red-400'"
-                   :style="`width:${scanProgress}%`"></div>
+              <div class="h-full rounded-full"
+                   :class="isLive && !paused ? 'scan-bar-live' : 'bg-red-400/70'"></div>
             </div>
           </div>
         </div>
@@ -264,6 +263,7 @@
           <thead class="sticky top-0 z-10 backdrop-blur bg-[#0b1220]/95">
             <tr class="border-b border-white/10 text-left">
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Actif</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Âge</th>
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Prix réel</th>
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Variation</th>
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Régime</th>
@@ -271,6 +271,8 @@
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Volatilité</th>
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">RSI</th>
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">ATR</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Liquidité</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Exec Q</th>
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Signal EMA</th>
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Direction</th>
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Confiance</th>
@@ -300,6 +302,8 @@
                     </div>
                   </div>
                 </td>
+
+                <td class="px-4 py-4 text-xs mono text-gray-400" x-text="formatAge(idea.updated_at)"></td>
 
                 <td class="px-4 py-4 text-white mono" x-text="formatPrice(idea.last_price)"></td>
 
@@ -358,8 +362,10 @@
                         x-text="idea.ai_decision || 'WATCH'"></span>
                 </td>
 
-                <td class="px-4 py-4 text-xs text-gray-300 leading-5 max-w-[420px]">
-                  <span x-text="idea.ai_reason || 'Analyse IA indisponible.'"></span>
+                <td class="px-4 py-4 text-xs text-gray-300 leading-5 max-w-[520px] space-y-1">
+                  <div class="text-gray-200" x-text="idea.human_summary || (idea.ai_reason || 'Analyse IA indisponible.')"></div>
+                  <div class="text-amber-300" x-text="`Risque: ${idea.risk_warning || 'non défini'}`"></div>
+                  <div class="text-sky-300" x-text="`Action: ${idea.execution_hint || 'surveiller'}`"></div>
                 </td>
 
                 <td class="px-4 py-4">
@@ -409,6 +415,9 @@
 .matrix-loader-wrap { position:relative; width:72px; height:72px; display:grid; place-items:center; }
 .matrix-loader-wrap::after { content:""; position:absolute; inset:4px; border-radius:9999px; border-top:2px solid rgba(16,185,129,.95); border-right:2px solid rgba(16,185,129,.35); border-bottom:2px solid rgba(16,185,129,.12); border-left:2px solid transparent; animation:robotSpin 1.1s linear infinite; }
 .matrix-loader-core { width:44px; height:44px; border-radius:9999px; background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.25); animation:matrixPulse 1.5s ease-in-out infinite; }
+@keyframes scanFlow { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+.scan-bar-live { position: relative; background: rgba(16,185,129,.16); }
+.scan-bar-live::after { content: ""; position: absolute; inset: 0; width: 35%; border-radius: 9999px; background: linear-gradient(90deg, rgba(16,185,129,.10), rgba(52,211,153,.95), rgba(16,185,129,.10)); animation: scanFlow 1.2s linear infinite; }
 .table-row:hover { background:rgba(255,255,255,.03); }
 .pill-buy { background:rgba(16,185,129,.10); color:rgb(110,231,183); border-color:rgba(16,185,129,.20); }
 .pill-sell { background:rgba(239,68,68,.10); color:rgb(252,165,165); border-color:rgba(239,68,68,.20); }
@@ -424,9 +433,7 @@ function tradeIdeasRealtime() {
     errorMessage: "",
     lastUpdated: null,
     timer: null,
-    progressTimer: null,
     countdownTimer: null,
-    scanProgress: 0,
     cycleCount: 0,
     nextRefreshIn: 10,
 
@@ -443,7 +450,6 @@ function tradeIdeasRealtime() {
 
     init() {
       this.fetchIdeas(true);
-      this.startProgressLoop();
       this.startCountdownLoop();
 
       this.timer = setInterval(() => {
@@ -460,7 +466,6 @@ function tradeIdeasRealtime() {
 
       window.addEventListener("beforeunload", () => {
         if (this.timer) clearInterval(this.timer);
-        if (this.progressTimer) clearInterval(this.progressTimer);
         if (this.countdownTimer) clearInterval(this.countdownTimer);
         if (this.abortController) this.abortController.abort();
       });
@@ -491,7 +496,12 @@ function tradeIdeasRealtime() {
       if (this.aiDecisionFilter) rows = rows.filter(i => i.ai_decision === this.aiDecisionFilter);
       if (this.marketRegimeFilter) rows = rows.filter(i => i.market_regime === this.marketRegimeFilter);
 
-      rows.sort((a, b) => Number(b.overall_score || 0) - Number(a.overall_score || 0));
+      rows.sort((a, b) => {
+        const da = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+        const db = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+        if (db !== da) return db - da;
+        return Number(b.overall_score || 0) - Number(a.overall_score || 0);
+      });
       return rows;
     },
 
@@ -584,34 +594,22 @@ function tradeIdeasRealtime() {
         this.knownIds = new Set(incoming.map(i => i.id));
         this.isLive = true;
         this.errorMessage = "";
-        this.scanProgress = 100;
         this.cycleCount += 1;
         this.nextRefreshIn = 10;
         this.lastUpdated = new Date().toLocaleTimeString("fr-FR");
 
         setTimeout(() => {
           this.ideas = this.ideas.map(i => ({ ...i, isFresh: false }));
-          if (!this.paused) this.scanProgress = 0;
         }, 1500);
 
       } catch (error) {
         if (error.name === "AbortError") return;
         console.error("Erreur live feed IA:", error);
         this.isLive = false;
-        this.scanProgress = 15;
         this.errorMessage = "Impossible de récupérer le live feed IA.";
       } finally {
         this.loading = false;
       }
-    },
-
-    startProgressLoop() {
-      if (this.progressTimer) clearInterval(this.progressTimer);
-      this.progressTimer = setInterval(() => {
-        if (this.paused) return;
-        this.scanProgress += 2;
-        if (this.scanProgress >= 100) this.scanProgress = 0;
-      }, 100);
     },
 
     startCountdownLoop() {
@@ -661,6 +659,15 @@ function tradeIdeasRealtime() {
       return Number(value).toFixed(2);
     },
 
+    formatAge(isoTs) {
+      if (!isoTs) return "—";
+      const delta = Math.max(0, Math.floor((Date.now() - new Date(isoTs).getTime()) / 1000));
+      if (delta < 60) return `${delta}s`;
+      if (delta < 3600) return `${Math.floor(delta / 60)}m`;
+      if (delta < 86400) return `${Math.floor(delta / 3600)}h`;
+      return `${Math.floor(delta / 86400)}j`;
+    },
+
     scorePercent(value) {
       return Math.min(100, Math.max(0, Number(value || 0) * 100));
     },
@@ -708,6 +715,20 @@ function tradeIdeasRealtime() {
       if (value === "MEDIUM") return "bg-amber-500/10 text-amber-300 border-amber-400/20";
       if (value === "LOW") return "bg-sky-500/10 text-sky-300 border-sky-400/20";
       return "bg-white/5 text-gray-300 border-white/10";
+    },
+
+    liquidityClass(value) {
+      if (value === "HIGH") return "bg-emerald-500/10 text-emerald-300 border-emerald-400/20";
+      if (value === "MEDIUM") return "bg-amber-500/10 text-amber-300 border-amber-400/20";
+      if (value === "LOW") return "bg-red-500/10 text-red-300 border-red-400/20";
+      return "bg-white/5 text-gray-300 border-white/10";
+    },
+
+    executionQualityClass(value) {
+      const n = Number(value || 0);
+      if (n >= 75) return "bg-emerald-500/10 text-emerald-300 border-emerald-400/20";
+      if (n >= 55) return "bg-amber-500/10 text-amber-300 border-amber-400/20";
+      return "bg-red-500/10 text-red-300 border-red-400/20";
     },
 
     rsiClass(value) {

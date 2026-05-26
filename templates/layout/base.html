@@ -302,6 +302,7 @@
         }
     </style>
 
+    <link rel="stylesheet" href="{% static 'css/leo_assistant.css' %}"/>
     {% block extra_head %}{% endblock %}
 </head>
 
@@ -775,5 +776,11 @@
     })();
 </script>
 {% block extra_js %}{% endblock %}
+
+{# ── Panel IA LeoAI (inclus sur toutes les pages authentifiées) ── #}
+{% if request.user.is_authenticated %}
+    {% include "assistant/_panel.html" %}
+    <script src="{% static 'js/leo_assistant.js' %}"></script>
+{% endif %}
 </body>
 </html>

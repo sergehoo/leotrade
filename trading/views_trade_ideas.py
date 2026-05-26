@@ -27,7 +27,7 @@ class TradeIdeaFilterMixin:
             .select_related("asset", "timeframe", "strategy", "signal", "scan_run")
             .prefetch_related()
             .filter(user=self.request.user)
-            .order_by("-overall_score", "-created_at")
+            .order_by("-created_at", "-overall_score")
         )
 
         status_filter = self.request.GET.get("status", "").strip()
@@ -930,7 +930,7 @@ class TradeIdeaLiveFeedView(LoginRequiredMixin, TradeIdeaFilterMixin, View):
         qs = (
             self.get_filtered_queryset()
             .select_related("asset", "timeframe")
-            .order_by("-updated_at")[:50]
+            .order_by("-created_at", "-updated_at")[:50]
         )
 
         ideas = []
@@ -953,6 +953,7 @@ class TradeIdeaLiveFeedView(LoginRequiredMixin, TradeIdeaFilterMixin, View):
             market_context = self._get_market_context(asset, timeframe)
             ai_decision = self._compute_ai_decision(idea)
             ai_reason = self._build_ai_reason(idea, market_context, review)
+            guidance = self._build_human_guidance(idea=idea, market_context=market_context, ai_decision=ai_decision)
 
             ideas.append({
                 "id": idea.id,
@@ -973,6 +974,10 @@ class TradeIdeaLiveFeedView(LoginRequiredMixin, TradeIdeaFilterMixin, View):
                 "direction": idea.direction,
                 "ai_decision": ai_decision,
                 "ai_reason": ai_reason,
+                "human_summary": guidance["human_summary"],
+                "risk_warning": guidance["risk_warning"],
+                "execution_hint": guidance["execution_hint"],
+                "execution_quality": guidance["execution_quality"],
 
                 "confidence_score": float(idea.confidence_score or 0),
                 "setup_score": float(idea.setup_score or 0),
@@ -1025,6 +1030,7 @@ class TradeIdeaLiveFeedView(LoginRequiredMixin, TradeIdeaFilterMixin, View):
         closes = [self._safe_float(c.close) for c in candles if c.close is not None]
         highs = [self._safe_float(c.high) for c in candles if c.high is not None]
         lows = [self._safe_float(c.low) for c in candles if c.low is not None]
+        volumes = [self._safe_float(c.volume) for c in candles if getattr(c, "volume", None) is not None]
 
         rsi = self._compute_rsi(closes)
         atr = self._compute_atr(highs, lows, closes)
@@ -1043,6 +1049,20 @@ class TradeIdeaLiveFeedView(LoginRequiredMixin, TradeIdeaFilterMixin, View):
         if atr and last_price and (atr / last_price) < 0.005:
             volatility_level = "LOW"
 
+        liquidity_level = "UNKNOWN"
+        volume_ratio = None
+        if len(volumes) >= 10:
+            avg_volume = sum(volumes[-20:]) / max(1, len(volumes[-20:]))
+            last_volume = volumes[-1]
+            if avg_volume > 0:
+                volume_ratio = last_volume / avg_volume
+                if volume_ratio >= 1.3:
+                    liquidity_level = "HIGH"
+                elif volume_ratio >= 0.8:
+                    liquidity_level = "MEDIUM"
+                else:
+                    liquidity_level = "LOW"
+
         market_regime = "TRENDING" if trend_direction in ("BULLISH", "BEARISH") else "RANGING"
 
         macd_signal = "BULLISH" if ema_fast and ema_slow and ema_fast > ema_slow else "BEARISH"
@@ -1057,6 +1077,8 @@ class TradeIdeaLiveFeedView(LoginRequiredMixin, TradeIdeaFilterMixin, View):
             "macd_signal": macd_signal,
             "ema_signal": ema_signal,
             "atr": round(atr, 6) if atr is not None else None,
+            "liquidity_level": liquidity_level,
+            "volume_ratio": round(volume_ratio, 2) if volume_ratio is not None else None,
         }
 
     def _empty_market_context(self):
@@ -1070,6 +1092,8 @@ class TradeIdeaLiveFeedView(LoginRequiredMixin, TradeIdeaFilterMixin, View):
             "macd_signal": "UNKNOWN",
             "ema_signal": "UNKNOWN",
             "atr": None,
+            "liquidity_level": "UNKNOWN",
+            "volume_ratio": None,
         }
 
     def _compute_ai_decision(self, idea):
@@ -1129,6 +1153,72 @@ class TradeIdeaLiveFeedView(LoginRequiredMixin, TradeIdeaFilterMixin, View):
             parts.append(f"Review : {getattr(review, 'decision', '')}.")
 
         return " ".join(parts)
+
+    def _build_human_guidance(self, idea, market_context, ai_decision):
+        rr = self._safe_float(getattr(idea, "risk_reward_ratio", None), 0.0)
+        confidence = self._safe_float(getattr(idea, "confidence_score", None), 0.0)
+        risk_score = self._safe_float(getattr(idea, "risk_score", None), 1.0)
+
+        if ai_decision == "EXECUTE":
+            action = "Priorité élevée, exécution possible après validation taille/stop."
+        elif ai_decision == "PLAN":
+            action = "Préparer le trade et attendre une confirmation marché."
+        elif ai_decision == "WATCH":
+            action = "Surveiller, pas d’entrée immédiate recommandée."
+        else:
+            action = "Écarter l’opportunité pour le moment."
+
+        warnings = []
+        if rr < 1.5:
+            warnings.append("R/R faible")
+        if confidence < 0.60:
+            warnings.append("confiance IA modérée")
+        if risk_score > 0.65:
+            warnings.append("risque élevé")
+        if market_context.get("volatility_level") == "HIGH":
+            warnings.append("volatilité élevée")
+
+        warning_text = " · ".join(warnings) if warnings else "Risque sous contrôle relatif"
+
+        summary = (
+            f"{idea.direction} sur {idea.symbol} ({idea.timeframe.code if idea.timeframe_id else 'TF'}), "
+            f"score={self._safe_float(getattr(idea, 'overall_score', None), 0.0):.2f}, "
+            f"confiance={confidence:.2f}, R/R={rr:.2f}."
+        )
+
+        execution_quality = self._compute_execution_quality(
+            confidence=confidence,
+            risk_score=risk_score,
+            volatility_level=market_context.get("volatility_level"),
+            liquidity_level=market_context.get("liquidity_level"),
+            rr=rr,
+        )
+
+        return {
+            "human_summary": summary,
+            "risk_warning": warning_text,
+            "execution_hint": action,
+            "execution_quality": execution_quality,
+        }
+
+
+    def _compute_execution_quality(self, confidence, risk_score, volatility_level, liquidity_level, rr):
+        score = 50.0
+        score += confidence * 25.0
+        score += min(max(rr, 0.0), 3.0) * 6.0
+        score -= risk_score * 20.0
+
+        if volatility_level == "HIGH":
+            score -= 10.0
+        elif volatility_level == "LOW":
+            score += 2.0
+
+        if liquidity_level == "HIGH":
+            score += 8.0
+        elif liquidity_level == "LOW":
+            score -= 8.0
+
+        return round(max(0.0, min(100.0, score)), 1)
 
     def _safe_float(self, value, default=0.0):
         try:

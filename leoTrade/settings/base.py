@@ -87,6 +87,8 @@ INSTALLED_APPS = [
 
     # Phase IA hybride
     "ai_engine",
+    # Panel IA conversationnel
+    "ai_assistant",
     # Comptabilité (Wallet ↔ Portfolio transfers)
     "accounting",
 

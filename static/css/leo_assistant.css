@@ -1,0 +1,639 @@
+/* =============================================================================
+ * leo_assistant.css — Panel IA conversationnel LeoAI
+ * =============================================================================
+ * Style hedge-fund premium : dark, glassmorphism, animations fluides.
+ * Variables héritées de base.html : --green, --red, --amber, --border, --card-bg
+ * ============================================================================= */
+
+/* ── Variables locales ─────────────────────────────────────────────────────── */
+:root {
+  --ai-panel-width: 420px;
+  --ai-panel-bg: rgba(8, 12, 22, 0.97);
+  --ai-user-bg: rgba(0, 255, 157, 0.07);
+  --ai-user-border: rgba(0, 255, 157, 0.18);
+  --ai-bot-bg: rgba(255, 255, 255, 0.03);
+  --ai-bot-border: rgba(255, 255, 255, 0.07);
+  --ai-input-bg: rgba(255, 255, 255, 0.04);
+  --ai-action-bg: rgba(59, 130, 246, 0.08);
+  --ai-action-border: rgba(59, 130, 246, 0.25);
+  --ai-shadow: 0 0 0 1px rgba(0, 255, 157, 0.08),
+               -24px 0 60px rgba(0, 0, 0, 0.6),
+               0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Panel flottant ──────────────────────────────────────────────────────────── */
+
+#leo-ai-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: var(--ai-panel-width);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ai-panel-bg);
+  border-left: 1px solid rgba(0, 255, 157, 0.1);
+  box-shadow: var(--ai-shadow);
+  backdrop-filter: blur(20px);
+  z-index: 50;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+#leo-ai-panel.leo-ai-open {
+  transform: translateX(0);
+}
+
+/* ── Overlay mobile ──────────────────────────────────────────────────────────── */
+#leo-ai-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 49;
+}
+#leo-ai-overlay.leo-ai-open { display: block; }
+
+/* ── Toggle button (bulle flottante) ─────────────────────────────────────────── */
+#leo-ai-toggle {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #00ff9d 0%, #00c47a 100%);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 0 rgba(0, 255, 157, 0.4), 0 4px 20px rgba(0, 0, 0, 0.4);
+  animation: leo-ai-pulse 3s ease-in-out infinite;
+  z-index: 51;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#leo-ai-toggle:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 6px rgba(0, 255, 157, 0.15), 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+
+#leo-ai-toggle.leo-ai-open {
+  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+  animation: none;
+}
+
+#leo-ai-toggle .leo-ai-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--red);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  display: none;
+  border: 2px solid #080c14;
+}
+
+#leo-ai-toggle .leo-ai-badge.visible { display: flex; }
+
+@keyframes leo-ai-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 157, 0.35), 0 4px 20px rgba(0, 0, 0, 0.4); }
+  50%       { box-shadow: 0 0 0 10px rgba(0, 255, 157, 0), 0 4px 20px rgba(0, 0, 0, 0.4); }
+}
+
+/* ── Header du panel ─────────────────────────────────────────────────────────── */
+.leo-ai-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+}
+
+.leo-ai-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.leo-ai-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(0, 255, 157, 0.2), rgba(0, 196, 122, 0.1));
+  border: 1px solid rgba(0, 255, 157, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.leo-ai-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f1f5f9;
+  letter-spacing: 0.01em;
+}
+
+.leo-ai-subtitle {
+  font-size: 10px;
+  color: #6b7280;
+  font-family: 'IBM Plex Mono', monospace;
+  margin-top: 1px;
+}
+
+.leo-ai-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: leo-live-dot 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.leo-ai-status-dot.offline { background: #6b7280; animation: none; }
+
+.leo-ai-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.leo-ai-icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.leo-ai-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f1f5f9;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* ── Context pill (page courante) ────────────────────────────────────────────── */
+.leo-ai-context-bar {
+  padding: 8px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.leo-ai-context-pill {
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.leo-ai-context-pill.active {
+  background: rgba(0, 255, 157, 0.08);
+  border-color: rgba(0, 255, 157, 0.2);
+  color: var(--green);
+}
+
+/* ── Suggestions rapides ─────────────────────────────────────────────────────── */
+.leo-ai-suggestions {
+  padding: 10px 14px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+}
+
+.leo-ai-suggestion-btn {
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+.leo-ai-suggestion-btn:hover {
+  background: rgba(0, 255, 157, 0.08);
+  border-color: rgba(0, 255, 157, 0.25);
+  color: #f1f5f9;
+  transform: translateY(-1px);
+}
+
+/* ── Zone messages ──────────────────────────────────────────────────────────── */
+.leo-ai-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scroll-behavior: smooth;
+}
+
+.leo-ai-messages::-webkit-scrollbar { width: 3px; }
+.leo-ai-messages::-webkit-scrollbar-track { background: transparent; }
+.leo-ai-messages::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+}
+
+/* ── Bulles messages ────────────────────────────────────────────────────────── */
+.leo-ai-msg {
+  display: flex;
+  flex-direction: column;
+  animation: leo-fade-in 0.2s ease-out;
+  max-width: 100%;
+}
+
+.leo-ai-msg-user { align-items: flex-end; }
+.leo-ai-msg-assistant { align-items: flex-start; }
+
+.leo-ai-bubble {
+  max-width: 88%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.leo-ai-msg-user .leo-ai-bubble {
+  background: var(--ai-user-bg);
+  border: 1px solid var(--ai-user-border);
+  color: #e2e8f0;
+  border-bottom-right-radius: 4px;
+}
+
+.leo-ai-msg-assistant .leo-ai-bubble {
+  background: var(--ai-bot-bg);
+  border: 1px solid var(--ai-bot-border);
+  color: #d1d5db;
+  border-bottom-left-radius: 4px;
+}
+
+/* Markdown léger dans les bulles assistant */
+.leo-ai-bubble strong { color: #f1f5f9; font-weight: 600; }
+.leo-ai-bubble em { color: #a5b4fc; }
+.leo-ai-bubble code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.07);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--green);
+}
+.leo-ai-bubble .leo-ai-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--green);
+  margin: 10px 0 4px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.leo-ai-bubble ul { margin: 4px 0; padding-left: 16px; }
+.leo-ai-bubble li { margin: 2px 0; font-size: 12.5px; }
+
+/* ── Typing indicator ───────────────────────────────────────────────────────── */
+.leo-ai-thinking .leo-ai-bubble {
+  padding: 12px 16px;
+}
+
+.leo-ai-dots {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.leo-ai-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #6b7280;
+  animation: leo-ai-dot-bounce 1.2s ease-in-out infinite;
+}
+
+.leo-ai-dots span:nth-child(2) { animation-delay: 0.2s; }
+.leo-ai-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes leo-ai-dot-bounce {
+  0%, 80%, 100% { transform: translateY(0); background: #6b7280; }
+  40%           { transform: translateY(-5px); background: var(--green); }
+}
+
+/* ── Timestamp ───────────────────────────────────────────────────────────────── */
+.leo-ai-ts {
+  font-size: 10px;
+  color: #4b5563;
+  margin-top: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  padding: 0 4px;
+}
+
+/* ── Cartes d'action proposée ────────────────────────────────────────────────── */
+.leo-ai-action-card {
+  background: var(--ai-action-bg);
+  border: 1px solid var(--ai-action-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-top: 8px;
+  max-width: 88%;
+  animation: leo-fade-in 0.25s ease-out;
+}
+
+.leo-ai-action-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.leo-ai-action-badge {
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.leo-ai-action-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.leo-ai-action-params {
+  font-size: 11.5px;
+  color: #9ca3af;
+  line-height: 1.6;
+  margin-bottom: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.leo-ai-action-rationale {
+  font-size: 11.5px;
+  color: #6b7280;
+  line-height: 1.5;
+  margin-bottom: 10px;
+  font-style: italic;
+}
+
+.leo-ai-action-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.leo-ai-action-confirm {
+  flex: 1;
+  padding: 7px 0;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 255, 157, 0.3);
+  background: rgba(0, 255, 157, 0.1);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.leo-ai-action-confirm:hover {
+  background: rgba(0, 255, 157, 0.18);
+  border-color: rgba(0, 255, 157, 0.5);
+}
+
+.leo-ai-action-reject {
+  padding: 7px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: #6b7280;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.leo-ai-action-reject:hover {
+  border-color: rgba(255, 77, 109, 0.3);
+  color: var(--red);
+}
+
+.leo-ai-action-card.confirmed { opacity: 0.6; pointer-events: none; }
+.leo-ai-action-card.rejected  { opacity: 0.4; pointer-events: none; }
+
+.leo-ai-action-status {
+  font-size: 11px;
+  font-family: 'IBM Plex Mono', monospace;
+  padding: 4px 10px;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.leo-ai-action-status.confirmed {
+  background: rgba(0, 255, 157, 0.08);
+  color: var(--green);
+  border: 1px solid rgba(0, 255, 157, 0.2);
+}
+.leo-ai-action-status.rejected {
+  background: rgba(255, 77, 109, 0.08);
+  color: var(--red);
+  border: 1px solid rgba(255, 77, 109, 0.2);
+}
+
+/* ── Séparateur de session ───────────────────────────────────────────────────── */
+.leo-ai-separator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #374151;
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.leo-ai-separator::before,
+.leo-ai-separator::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ── Zone de saisie ─────────────────────────────────────────────────────────── */
+.leo-ai-input-zone {
+  padding: 12px 14px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.leo-ai-input-wrapper {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: var(--ai-input-bg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 8px 10px 8px 14px;
+  transition: border-color 0.15s ease;
+}
+
+.leo-ai-input-wrapper:focus-within {
+  border-color: rgba(0, 255, 157, 0.3);
+  background: rgba(0, 255, 157, 0.02);
+}
+
+#leo-ai-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #f1f5f9;
+  font-size: 13px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  resize: none;
+  max-height: 120px;
+  min-height: 22px;
+  line-height: 1.5;
+  overflow-y: auto;
+}
+
+#leo-ai-input::placeholder { color: #4b5563; }
+
+#leo-ai-input::-webkit-scrollbar { width: 2px; }
+#leo-ai-input::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+
+.leo-ai-send-btn {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--green);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  color: #080c14;
+}
+
+.leo-ai-send-btn:hover { background: #00e08a; transform: scale(1.05); }
+.leo-ai-send-btn:disabled {
+  background: rgba(0, 255, 157, 0.2);
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Kill switch warning ─────────────────────────────────────────────────────── */
+.leo-ai-killswitch-banner {
+  padding: 8px 14px;
+  background: rgba(255, 77, 109, 0.08);
+  border-top: 1px solid rgba(255, 77, 109, 0.2);
+  border-bottom: 1px solid rgba(255, 77, 109, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--red);
+  font-family: 'IBM Plex Mono', monospace;
+  flex-shrink: 0;
+  display: none;
+}
+
+.leo-ai-killswitch-banner.visible { display: flex; }
+
+/* ── Footer info ─────────────────────────────────────────────────────────────── */
+.leo-ai-footer {
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+}
+
+.leo-ai-footer-note {
+  font-size: 10px;
+  color: #374151;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.leo-ai-footer-cost {
+  font-size: 10px;
+  color: #374151;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ── Boutons rapides sur les cartes d'opportunités ───────────────────────────── */
+.leo-quick-explain {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: rgba(139, 92, 246, 0.08);
+  color: #a78bfa;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: 'IBM Plex Sans', sans-serif;
+  white-space: nowrap;
+}
+
+.leo-quick-explain:hover {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.5);
+  transform: translateY(-1px);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  :root { --ai-panel-width: 100vw; }
+  #leo-ai-panel { border-left: none; }
+  #leo-ai-toggle { bottom: 20px; right: 20px; width: 46px; height: 46px; }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  #leo-ai-panel { transition: none; }
+  #leo-ai-toggle { animation: none; }
+  .leo-ai-dots span { animation: none; background: #6b7280; }
+  .leo-ai-msg { animation: none; }
+}
