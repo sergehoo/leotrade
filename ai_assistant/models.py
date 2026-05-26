@@ -183,3 +183,161 @@ class AssistantAction(models.Model):
 
     def __str__(self):
         return f"Action#{self.pk} {self.action_type} [{self.status}]"
+
+
+# ── Quota & billing ─────────────────────────────────────────────────────────
+
+class AIUserQuota(models.Model):
+    """
+    Quota d'utilisation de LeoAI par utilisateur.
+
+    Plans :
+      FREE  — 20 messages offerts (réinitialisés chaque mois)
+      BASIC — $5  → 200 messages
+      PRO   — $20 → 1 000 messages
+      UNLIMITED — admin / partenaire, pas de limite
+    """
+    PLAN_FREE      = "FREE"
+    PLAN_BASIC     = "BASIC"
+    PLAN_PRO       = "PRO"
+    PLAN_UNLIMITED = "UNLIMITED"
+    PLAN_CHOICES = [
+        (PLAN_FREE,      "Gratuit (20 msg/mois)"),
+        (PLAN_BASIC,     "Basic — $5 / 200 messages"),
+        (PLAN_PRO,       "Pro — $20 / 1 000 messages"),
+        (PLAN_UNLIMITED, "Illimité"),
+    ]
+
+    PLAN_LIMITS = {
+        PLAN_FREE:      20,
+        PLAN_BASIC:     200,
+        PLAN_PRO:       1_000,
+        PLAN_UNLIMITED: 999_999,
+    }
+    PLAN_PRICES_USD = {
+        PLAN_FREE:      Decimal("0.00"),
+        PLAN_BASIC:     Decimal("5.00"),
+        PLAN_PRO:       Decimal("20.00"),
+        PLAN_UNLIMITED: Decimal("0.00"),
+    }
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="ai_quota",
+    )
+    plan = models.CharField(
+        max_length=20, choices=PLAN_CHOICES, default=PLAN_FREE,
+    )
+    messages_used = models.IntegerField(default=0)
+    messages_limit = models.IntegerField(
+        default=20,
+        help_text="Nombre max de messages sur la période actuelle.",
+    )
+    # Dépenses cumulées (historique)
+    total_spent_usd = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0.00"),
+    )
+    # Période courante
+    period_start = models.DateTimeField(default=timezone.now)
+    period_end   = models.DateTimeField(null=True, blank=True)
+
+    # État
+    is_suspended = models.BooleanField(
+        default=False,
+        help_text="Bloqué manuellement par un admin.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    # ── Helpers ──────────────────────────────────────────────────────────────
+
+    @property
+    def remaining(self) -> int:
+        return max(0, self.messages_limit - self.messages_used)
+
+    @property
+    def is_exhausted(self) -> bool:
+        if self.plan == self.PLAN_UNLIMITED:
+            return False
+        return self.messages_used >= self.messages_limit
+
+    @property
+    def usage_pct(self) -> int:
+        if self.messages_limit == 0:
+            return 100
+        return min(100, int(self.messages_used * 100 / self.messages_limit))
+
+    def consume(self, n: int = 1):
+        """Décrémenter le compteur (appelé après chaque message IA réussi)."""
+        self.messages_used += n
+        self.save(update_fields=["messages_used", "updated_at"])
+
+    def top_up(self, plan: str):
+        """
+        Passer à un plan supérieur ou recharger le plan courant.
+        Réinitialise le compteur et met à jour la limite.
+        """
+        from django.utils import timezone as tz
+        self.plan = plan
+        self.messages_used = 0
+        self.messages_limit = self.PLAN_LIMITS[plan]
+        self.total_spent_usd += self.PLAN_PRICES_USD[plan]
+        self.period_start = tz.now()
+        self.period_end = None
+        self.save(update_fields=[
+            "plan", "messages_used", "messages_limit",
+            "total_spent_usd", "period_start", "period_end", "updated_at",
+        ])
+
+    def monthly_reset(self):
+        """Réinitialise le plan FREE chaque mois."""
+        if self.plan == self.PLAN_FREE:
+            self.messages_used = 0
+            self.period_start = timezone.now()
+            self.save(update_fields=["messages_used", "period_start", "updated_at"])
+
+    def __str__(self):
+        return f"Quota {self.user} [{self.plan}] {self.messages_used}/{self.messages_limit}"
+
+
+class AIQuotaPayment(models.Model):
+    """
+    Trace chaque paiement pour l'extension du quota.
+    Méthode : WALLET (débit direct) ou STRIPE (lien externe).
+    """
+    METHOD_WALLET = "WALLET"
+    METHOD_STRIPE = "STRIPE"
+    METHOD_CHOICES = [
+        (METHOD_WALLET, "Portefeuille LeoTrade"),
+        (METHOD_STRIPE, "Stripe (carte / lien)"),
+    ]
+    STATUS_PENDING   = "PENDING"
+    STATUS_COMPLETED = "COMPLETED"
+    STATUS_FAILED    = "FAILED"
+    STATUS_CHOICES = [
+        (STATUS_PENDING,   "En attente"),
+        (STATUS_COMPLETED, "Complété"),
+        (STATUS_FAILED,    "Échoué"),
+    ]
+
+    quota   = models.ForeignKey(AIUserQuota, on_delete=models.CASCADE, related_name="payments")
+    plan    = models.CharField(max_length=20)
+    amount_usd = models.DecimalField(max_digits=10, decimal_places=2)
+    method  = models.CharField(max_length=20, choices=METHOD_CHOICES)
+    status  = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    # Stripe
+    stripe_session_id  = models.CharField(max_length=200, blank=True)
+    stripe_payment_url = models.TextField(blank=True)
+    # Audit
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Payment#{self.pk} {self.quota.user} {self.plan} ${self.amount_usd} [{self.status}]"

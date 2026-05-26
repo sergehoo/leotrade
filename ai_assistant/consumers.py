@@ -34,6 +34,7 @@ from django.utils import timezone
 from .services import (
     AssistantContextService,
     AssistantStreamService,
+    QuotaService,
     ASSISTANT_SYSTEM_PROMPT,
     _format_context_for_prompt,
     extract_actions,
@@ -63,10 +64,15 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         session = await self._get_or_create_session()
         history = await self._load_history(session)
 
+        # Snapshot quota pour initialiser l'UI
+        quota_info = await sync_to_async(QuotaService.check)(user)
+        quota_obj = quota_info.get("quota")
+
         await self.send_json({
             "type": "session",
             "session_id": session.id,
             "history": history,
+            "quota": _serialize_quota(quota_obj),
         })
 
     async def disconnect(self, close_code):
@@ -87,6 +93,10 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
             session = await self._get_or_create_session()
             history = await self._load_history(session)
             await self.send_json({"type": "history", "messages": history})
+        elif msg_type == "quota_pay_wallet":
+            await self._handle_quota_pay_wallet(content)
+        elif msg_type == "quota_pay_stripe":
+            await self._handle_quota_pay_stripe(content)
         else:
             await self.send_json({"type": "error", "message": f"Type inconnu : {msg_type}"})
 
@@ -97,6 +107,18 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
     async def _handle_chat(self, content: dict):
         user_text = (content.get("message") or "").strip()
         if not user_text:
+            return
+
+        # ── Vérification quota ─────────────────────────────────────────────
+        quota_check = await sync_to_async(QuotaService.check)(self.user)
+        if not quota_check["ok"]:
+            quota_obj = quota_check.get("quota")
+            await self.send_json({
+                "type": "quota_exceeded",
+                "quota": _serialize_quota(quota_obj),
+                "plans": quota_check.get("plans", []),
+                "reason": quota_check.get("reason", "exhausted"),
+            })
             return
 
         # Fusionne les contextes client
@@ -160,7 +182,11 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
             raw_actions=raw_actions,
         )
 
-        # 8. Envoie le signal de fin + texte nettoyé + actions
+        # 8. Consommer 1 message du quota (après succès du stream)
+        updated_quota = await sync_to_async(QuotaService.get_or_create)(self.user)
+        await sync_to_async(updated_quota.consume)()
+
+        # 9. Envoie le signal de fin + texte nettoyé + actions + quota mis à jour
         # clean_content permet au client de remplacer le texte brut (qui
         # contenait les marqueurs <<<ACTION>>>) par le texte final épuré.
         await self.send_json({
@@ -168,6 +194,7 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
             "id": assistant_msg_id,
             "clean_content": clean_response,
             "actions": saved_actions,
+            "quota": _serialize_quota(updated_quota),
             "meta": {
                 "latency_ms": latency_ms,
                 "has_kill_switch": live_ctx.get("risk", {}).get("kill_switch_active", False),
@@ -198,6 +225,47 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
             "action_id": action_id,
             "status": "REJECTED",
         })
+
+    async def _handle_quota_pay_wallet(self, content: dict):
+        """Payer un plan LeoAI via débit du portefeuille."""
+        plan = content.get("plan", "BASIC")
+        result = await sync_to_async(QuotaService.pay_with_wallet)(self.user, plan)
+        if result["ok"]:
+            quota = await sync_to_async(QuotaService.get_or_create)(self.user)
+            await self.send_json({
+                "type": "quota_updated",
+                "quota": _serialize_quota(quota),
+                "message": f"✅ Plan {plan} activé — {quota.messages_limit} messages disponibles !",
+            })
+        else:
+            await self.send_json({
+                "type": "quota_payment_failed",
+                "error": result.get("error"),
+                "insufficient_funds": result.get("insufficient_funds", False),
+            })
+
+    async def _handle_quota_pay_stripe(self, content: dict):
+        """Créer une session Stripe Checkout pour l'achat d'un plan."""
+        plan = content.get("plan", "BASIC")
+        from django.conf import settings as djsettings
+        base_url = getattr(djsettings, "SITE_URL", "http://127.0.0.1:8000")
+        result = await sync_to_async(QuotaService.create_stripe_session)(
+            user=self.user,
+            plan=plan,
+            success_url=f"{base_url}/assistant/quota/success/",
+            cancel_url=f"{base_url}/assistant/quota/cancel/",
+        )
+        if result["ok"]:
+            await self.send_json({
+                "type": "quota_stripe_url",
+                "url": result["url"],
+                "plan": plan,
+            })
+        else:
+            await self.send_json({
+                "type": "quota_payment_failed",
+                "error": result.get("error"),
+            })
 
     # ──────────────────────────────────────────────────────────────────────────
     # DB helpers (sync_to_async)
@@ -371,3 +439,20 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         ).first()
         if action:
             action.reject()
+
+
+# ── Helpers module-level ──────────────────────────────────────────────────────
+
+def _serialize_quota(quota) -> dict | None:
+    """Sérialise un objet AIUserQuota en dict JSON-safe pour le WS."""
+    if quota is None:
+        return None
+    return {
+        "plan": quota.plan,
+        "used": quota.messages_used,
+        "limit": quota.messages_limit,
+        "remaining": quota.remaining,
+        "pct": quota.usage_pct,
+        "exhausted": quota.is_exhausted,
+        "plan_label": dict(quota.PLAN_CHOICES).get(quota.plan, quota.plan),
+    }

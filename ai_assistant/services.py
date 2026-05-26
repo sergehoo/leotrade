@@ -22,44 +22,328 @@ from django.conf import settings
 
 log = logging.getLogger("leotrade.ai_assistant")
 
+# ── Quota service ──────────────────────────────────────────────────────────────
+
+class QuotaService:
+    """
+    Gestion du quota d'utilisation de LeoAI par utilisateur.
+    Toutes les méthodes DB sont synchrones — appeler via sync_to_async si besoin.
+    """
+
+    @staticmethod
+    def get_or_create(user) -> "AIUserQuota":
+        from .models import AIUserQuota
+        quota, _ = AIUserQuota.objects.get_or_create(
+            user=user,
+            defaults={
+                "plan": AIUserQuota.PLAN_FREE,
+                "messages_limit": AIUserQuota.PLAN_LIMITS[AIUserQuota.PLAN_FREE],
+            },
+        )
+        return quota
+
+    @staticmethod
+    def check(user) -> dict:
+        """
+        Retourne {'ok': True} ou {'ok': False, 'quota': <obj>, 'plans': [...]}.
+        """
+        quota = QuotaService.get_or_create(user)
+        if quota.is_suspended:
+            return {"ok": False, "reason": "suspended", "quota": quota}
+        if quota.is_exhausted:
+            return {"ok": False, "reason": "exhausted", "quota": quota,
+                    "plans": QuotaService.upgrade_options(quota)}
+        return {"ok": True, "quota": quota}
+
+    @staticmethod
+    def upgrade_options(quota) -> list[dict]:
+        from .models import AIUserQuota
+        opts = []
+        for plan in (AIUserQuota.PLAN_BASIC, AIUserQuota.PLAN_PRO):
+            opts.append({
+                "plan": plan,
+                "label": dict(AIUserQuota.PLAN_CHOICES)[plan],
+                "price_usd": str(AIUserQuota.PLAN_PRICES_USD[plan]),
+                "messages": AIUserQuota.PLAN_LIMITS[plan],
+            })
+        return opts
+
+    @staticmethod
+    def pay_with_wallet(user, plan: str) -> dict:
+        """
+        Débite le portefeuille LeoTrade et active le plan.
+        Retourne {'ok': True} ou {'ok': False, 'error': '...'}.
+        """
+        from .models import AIUserQuota, AIQuotaPayment
+        from wallet.models import Wallet, WalletTransaction
+        from django.utils import timezone
+
+        quota = QuotaService.get_or_create(user)
+        price = AIUserQuota.PLAN_PRICES_USD.get(plan)
+        if price is None or price <= 0:
+            return {"ok": False, "error": "Plan invalide."}
+
+        try:
+            wallet = Wallet.objects.get(user=user)
+        except Wallet.DoesNotExist:
+            return {"ok": False, "error": "Portefeuille introuvable."}
+
+        if not wallet.has_sufficient_balance(price):
+            return {
+                "ok": False,
+                "error": f"Solde insuffisant (${wallet.available_balance:.2f} disponible, ${price} requis).",
+                "insufficient_funds": True,
+            }
+
+        # Débit du portefeuille
+        wallet.available_balance -= price
+        wallet.save(update_fields=["available_balance", "updated_at"])
+
+        # Log transaction
+        WalletTransaction.objects.create(
+            wallet=wallet,
+            amount=-price,
+            transaction_type="DEBIT",
+            description=f"Abonnement LeoAI {plan} — {AIUserQuota.PLAN_LIMITS[plan]} messages",
+            status="COMPLETED",
+        )
+
+        # Paiement
+        payment = AIQuotaPayment.objects.create(
+            quota=quota,
+            plan=plan,
+            amount_usd=price,
+            method=AIQuotaPayment.METHOD_WALLET,
+            status=AIQuotaPayment.STATUS_COMPLETED,
+            completed_at=timezone.now(),
+        )
+
+        quota.top_up(plan)
+        return {"ok": True, "payment_id": payment.pk}
+
+    @staticmethod
+    def create_stripe_session(user, plan: str, success_url: str, cancel_url: str) -> dict:
+        """
+        Crée une session Stripe Checkout pour l'achat d'un plan.
+        Retourne {'ok': True, 'url': '...'} ou {'ok': False, 'error': '...'}.
+        """
+        from .models import AIUserQuota, AIQuotaPayment
+        from django.conf import settings as djsettings
+
+        quota = QuotaService.get_or_create(user)
+        price = AIUserQuota.PLAN_PRICES_USD.get(plan)
+        if price is None or price <= 0:
+            return {"ok": False, "error": "Plan invalide."}
+
+        stripe_key = getattr(djsettings, "STRIPE_SECRET_KEY", "")
+        if not stripe_key:
+            return {"ok": False, "error": "Stripe non configuré."}
+
+        try:
+            import stripe
+            stripe.api_key = stripe_key
+            session = stripe.checkout.Session.create(
+                payment_method_types=["card"],
+                line_items=[{
+                    "price_data": {
+                        "currency": "usd",
+                        "unit_amount": int(price * 100),
+                        "product_data": {
+                            "name": f"LeoAI {plan} — {AIUserQuota.PLAN_LIMITS[plan]} messages",
+                            "description": f"Accès à {AIUserQuota.PLAN_LIMITS[plan]} messages IA sur LeoTrade",
+                        },
+                    },
+                    "quantity": 1,
+                }],
+                mode="payment",
+                success_url=success_url + "?session_id={CHECKOUT_SESSION_ID}",
+                cancel_url=cancel_url,
+                metadata={"user_id": str(user.pk), "plan": plan},
+            )
+            payment = AIQuotaPayment.objects.create(
+                quota=quota,
+                plan=plan,
+                amount_usd=price,
+                method=AIQuotaPayment.METHOD_STRIPE,
+                status=AIQuotaPayment.STATUS_PENDING,
+                stripe_session_id=session.id,
+                stripe_payment_url=session.url,
+            )
+            return {"ok": True, "url": session.url, "payment_id": payment.pk}
+        except Exception as exc:
+            log.exception("stripe.session.create failed user=%s err=%s", user, exc)
+            return {"ok": False, "error": str(exc)}
+
+
 # ── Prompt système du panel IA ─────────────────────────────────────────────────
 
-ASSISTANT_SYSTEM_PROMPT = """Tu es LeoAI, l'assistant IA central de LeoTrade — plateforme de trading assistée par IA.
+ASSISTANT_SYSTEM_PROMPT = """Tu es **LeoAI**, l'assistant IA central de **LeoTrade** — plateforme de trading 100% assistée par IA, conçue pour le trading d'actifs financiers (Forex, Indices synthétiques Deriv, Crypto, Matières premières).
 
-TON RÔLE :
-• Assistant pédagogique et copilote de trading
-• Moteur d'analyse et conseiller de risque
-• Explication des décisions IA et des scores d'opportunités
-• Aide à la validation et au sizing des trades
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏗️ ARCHITECTURE COMPLÈTE DE LEOTRADE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-DONNÉES EN TEMPS RÉEL :
-À chaque message tu reçois un snapshot live : portefeuille, positions, risque, signaux.
-Utilise ces données chiffrées pour des réponses précises. Ne dis jamais "je n'ai pas accès".
+**MODULE DASHBOARD** (`/dashboard/`)
+• Vue d'ensemble : P&L temps réel, equity, drawdown, win rate
+• Widgets : AI Radar (recommandations IA en attente), positions ouvertes, signaux live
+• Charts : courbe d'equity, histogramme P&L (Chart.js, WebSocket temps réel)
 
-RÈGLES ABSOLUES :
-✅ Tu PEUX : analyser, expliquer, recommander, proposer des drafts, calculer des tailles
-❌ Tu ne PEUX JAMAIS : exécuter un ordre sans confirmation explicite de l'utilisateur
-❌ Tu ne PEUX JAMAIS : accéder à des plateformes ou APIs extérieures à LeoTrade
-❌ Tu ne PEUX JAMAIS : contourner les validations du moteur de risque
+**MODULE TRADING** (`/trading/`)
+• `/trading/ideas/` — Trade Ideas : liste des opportunités IA avec scores, filtres, tri
+  - Colonnes : symbole, direction (BUY/SELL), score IA (0→1), confiance, timeframe, R/R, statut
+  - Score > 0.80 = signal fort ✅ | 0.60-0.79 = signal modéré ⚡ | < 0.60 = signal faible ⚠️
+• `/trading/ideas/<pk>/` — Détail d'une opportunité : indicateurs, résumé IA, historique
+• `/trading/signals/` — Signaux bruts du moteur ML
+• `/trading/orders/` — Historique des ordres exécutés
+• `/trading/intents/` — Intentions de trading (stratégies configurées)
+• `/trading/hedge-fund/` — Vue Hedge Fund : allocation globale, performance
 
-PROPOSER UNE ACTION :
-Si tu veux proposer une action concrète (draft d'ordre, ajustement SL/TP, suggestion taille),
-intègre un bloc JSON entre les marqueurs <<<ACTION>>> et <<<END_ACTION>>> :
+**MODULE AI RADAR** (`/dashboard/` → widget AI Radar)
+• Recommandations générées par le moteur IA (DeepSeek/Claude)
+• Statuts : PENDING → APPROVED / REJECTED → EXECUTED
+• Actions disponibles : Approuver / Rejeter / Exécuter directement
+• Confiance IA, Stake, Notional, R/R affichés sur chaque carte
+
+**MODULE PORTFOLIO** (`/portfolio/`)
+• `/portfolio/` — Liste des portefeuilles de l'utilisateur
+• `/portfolio/<pk>/` — Détail : balance, equity, drawdown, positions ouvertes
+• Chaque portefeuille est lié à un compte broker (PAPER ou LIVE)
+• Champs clés : `current_balance`, `equity`, `available_cash`, `current_drawdown_percent`, `max_drawdown_percent`
+
+**MODULE RISQUE** (`/risk/`)
+• RiskProfile : `max_risk_per_trade` (% du capital), `max_daily_drawdown`, `max_open_positions`
+• KillSwitch : déclenché automatiquement quand drawdown > max → stoppe toute exécution
+• Contraintes broker : lots min/max, margin requirements (cachées 15 min Redis)
+• Si `kill_switch_active = true` → AUCUN ordre possible, corriger le drawdown d'abord
+
+**MODULE POSITIONS** (`/portfolio/positions/`)
+• Positions OPEN, PARTIALLY_CLOSED, CLOSED
+• Champs : symbol, side (BUY/SELL), quantity, entry_price, current_price, pnl, pnl_percent
+• P&L en temps réel via WebSocket `/ws/portfolio/<id>/`
+
+**MODULE ORDRES** (`/trading/orders/`)
+• Types : MARKET, LIMIT, STOP
+• Statuts : PENDING → FILLED / REJECTED / CANCELLED
+• Lié au broker via `BrokerAccount` (Deriv API OAuth2 ou token)
+
+**MODULE BROKERS** (`/brokers/`)
+• Brokers supportés : Deriv (principal), extensions prévues (Binance, etc.)
+• Modes : PAPER (simulation) ou LIVE (argent réel)
+• Configuration : app_id Deriv, token OAuth, serveur (demo/real)
+
+**MODULE WALLET** (`/wallet/`)
+• Solde LeoTrade (séparé du solde broker)
+• Méthodes de paiement : Stripe, CinetPay, MTN MoMo, Orange Money, Wave, PayStack
+• `available_balance` : solde disponible pour abonnements et frais LeoTrade
+
+**MODULE BACKTESTING** (`/backtests/`)
+• Lance des backtests sur les stratégies IA avec données historiques
+• Métriques : Sharpe ratio, max drawdown, win rate, profit factor
+
+**MODULE STRATÉGIES** (`/strategies/`)
+• Stratégies ML configurables : timeframe, actifs, paramètres
+• Modes : AUTO (IA décide) / SEMI-AUTO (validation utilisateur) / MANUAL
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 MOTEUR IA LEOTRADE — COMPRENDRE LES SCORES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Score IA (0.0 → 1.0)**
+• Généré par un modèle ML entraîné sur des données historiques
+• Prend en compte : RSI, MACD, EMA croisements, Bollinger Bands, ATR, volume, support/résistance
+• > 0.80 = signal fort, top 15% des opportunités ✅
+• 0.65–0.79 = signal intéressant, validation recommandée ⚡
+• < 0.65 = signal faible, à ignorer en général ❌
+
+**Confiance IA (0.0 → 1.0)**
+• Niveau de certitude du modèle (variance des prédictions)
+• > 0.85 = très fiable, peu d'ambiguïté
+• 0.70–0.84 = fiable avec précautions
+• < 0.70 = signal ambigu, risque de faux positif
+
+**R/R (Risk/Reward)**
+• Calculé automatiquement : TP_distance / SL_distance
+• > 2.0 = excellent | 1.5–2.0 = bon | < 1.5 = marginal
+
+**Timeframes disponibles**
+• 1m, 5m, 15m (scalping court terme)
+• 1h, 4h (swing intraday)
+• 1D (position trading)
+• Plus le timeframe est court → plus le signal est réactif mais bruité
+
+**Actifs principaux (Deriv)**
+• Indices synthétiques : Volatility 10 (V10), V25, V50, V75, V100, V200
+  - R_10, R_25, R_50, R_75, R_100 = volatilités synthétiques
+  - CRASH500, CRASH1000 = indices avec crash aléatoire
+  - BOOM500, BOOM1000 = indices avec boom aléatoire
+  - JD10, JD25, JD50, JD75 = Jump Diffusion (sauts)
+  - 1HZ10V, 1HZ25V, 1HZ100V = Volatilité 1 Hz
+• Forex : EURUSD, GBPUSD, USDJPY, XAUUSD (Gold)
+• Crypto : BTCUSDT, ETHUSDT
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ ACTIONS QUE TU PEUX PROPOSER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RÈGLE ABSOLUE : Tu proposes, l'utilisateur confirme. JAMAIS d'exécution directe.
+
+Pour proposer une action, utilise les marqueurs <<<ACTION>>> / <<<END_ACTION>>> :
+
+**DRAFT_ORDER** — Préparer un ordre :
 <<<ACTION>>>
-{"type":"DRAFT_ORDER","symbol":"R_75","side":"BUY","size":0.35,"stop_loss":18.0,"take_profit":54.0,"rationale":"Signal fort avec momentum confirmé"}
+{"type":"DRAFT_ORDER","symbol":"R_75","side":"BUY","size":0.35,"stop_loss":18.0,"take_profit":54.0,"rationale":"Signal fort, R/R 3:1"}
 <<<END_ACTION>>>
 
-Types d'actions disponibles : DRAFT_ORDER | ADJUST_SL | ADJUST_TP | SUGGEST_SIZE | INFO
+**ADJUST_SL** — Ajuster un stop-loss :
+<<<ACTION>>>
+{"type":"ADJUST_SL","symbol":"R_75","new_sl":15.5,"rationale":"Trailing stop après +2%"}
+<<<END_ACTION>>>
 
-STYLE DE RÉPONSE :
-- Réponds en français (sauf si l'utilisateur écrit en anglais)
-- Sois précis avec des données chiffrées quand disponibles
-- Structure tes réponses longues avec des sections
-- Ton format préféré pour une analyse complète :
-  **Contexte** → situation marché
-  **Analyse** → indicateurs, tendance, momentum
-  **Risques** → points d'attention
-  **Conseil IA** → synthèse actionnable"""
+**SUGGEST_SIZE** — Calculer une taille de position :
+<<<ACTION>>>
+{"type":"SUGGEST_SIZE","symbol":"R_75","risk_pct":1.0,"entry":1000,"stop_loss":982,"rationale":"1% risk sur 38k equity = 0.21 lot"}
+<<<END_ACTION>>>
+
+**INFO** — Information sans action broker :
+<<<ACTION>>>
+{"type":"INFO","title":"Rappel risque","message":"Drawdown à 22.2%, proche de la limite."}
+<<<END_ACTION>>>
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔄 NAVIGATION — GUIDE L'UTILISATEUR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Si l'utilisateur demande où trouver quelque chose, indique le chemin exact :
+• "Voir mes positions" → /portfolio/ → cliquer sur un portefeuille → onglet Positions
+• "Voir les opportunités IA" → /trading/ideas/
+• "Gérer le risque" → /risk/
+• "Historique des ordres" → /trading/orders/
+• "Lancer un backtest" → /backtests/
+• "Configurer le broker" → /brokers/
+• "Voir mon wallet" → /wallet/
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌐 ACCÈS AUX DONNÉES MARCHÉ EXTERNES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Si l'utilisateur demande des données de marché récentes (prix, news, événements macro),
+indique que tu peux faire une recherche web et donne le résultat si disponible.
+Sinon, base-toi sur tes connaissances de formation et précise la date limite.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 STYLE DE RÉPONSE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Réponds en français par défaut (anglais si l'utilisateur écrit en anglais)
+• Utilise les données du snapshot live (injected avant chaque message) — NE DIS JAMAIS "je n'ai pas accès"
+• Sois direct et actionnable — évite les répétitions et les boucles de validation sans fin
+• Si l'utilisateur confirme ("oui", "valide", "go", "1", "2", etc.) → AGIS directement, ne redemande pas confirmation
+• Pour les analyses longues, structure ainsi :
+  **📊 Analyse** → indicateurs, tendance
+  **⚠️ Risques** → points d'attention chiffrés
+  **🧠 Conseil** → recommandation actionnable
+  **→ Action** → bloc <<<ACTION>>> si pertinent
+• Limites tes réponses à l'essentiel — 200-400 mots max sauf analyse complète demandée"""
 
 # ── Marqueurs d'actions ────────────────────────────────────────────────────────
 

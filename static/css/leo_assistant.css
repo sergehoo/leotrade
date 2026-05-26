@@ -630,6 +630,194 @@
   #leo-ai-toggle { bottom: 20px; right: 20px; width: 46px; height: 46px; }
 }
 
+/* ── Quota bar ───────────────────────────────────────────────────────────────── */
+.leo-ai-quota-bar {
+  padding: 6px 14px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+}
+
+.leo-ai-quota-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.leo-ai-quota-info span:first-child {
+  font-size: 10px;
+  color: #6b7280;
+  font-family: 'IBM Plex Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.leo-ai-quota-count {
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  color: var(--green);
+}
+
+.leo-ai-quota-count.warning { color: var(--amber); }
+.leo-ai-quota-count.critical { color: var(--red); }
+
+.leo-ai-quota-track {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.leo-ai-quota-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--green);
+  transition: width 0.4s ease, background 0.3s ease;
+}
+
+.leo-ai-quota-fill.warning { background: var(--amber); }
+.leo-ai-quota-fill.critical { background: var(--red); }
+
+/* ── Modale quota épuisé ─────────────────────────────────────────────────────── */
+.leo-ai-quota-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(8, 12, 22, 0.96);
+  backdrop-filter: blur(8px);
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fadeIn 0.25s ease;
+}
+
+.leo-ai-quota-modal[style*="none"] { display: none !important; }
+
+.leo-ai-quota-modal-inner {
+  width: 100%;
+  max-width: 340px;
+  text-align: center;
+}
+
+.leo-ai-quota-modal-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+.leo-ai-quota-modal-inner h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin-bottom: 8px;
+}
+
+.leo-ai-quota-modal-inner p {
+  font-size: 13px;
+  color: #9ca3af;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.leo-ai-quota-plans {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.leo-ai-quota-plan-card {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 14px 16px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.03);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.leo-ai-quota-plan-card:hover {
+  border-color: rgba(0, 255, 157, 0.3);
+  background: rgba(0, 255, 157, 0.04);
+}
+
+.leo-ai-quota-plan-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin-bottom: 3px;
+}
+
+.leo-ai-quota-plan-detail {
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 10px;
+}
+
+.leo-ai-quota-plan-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.leo-ai-quota-btn-wallet {
+  flex: 1;
+  padding: 8px 0;
+  border-radius: 8px;
+  border: none;
+  background: var(--green);
+  color: #000;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.leo-ai-quota-btn-wallet:hover { opacity: 0.85; }
+.leo-ai-quota-btn-wallet:disabled {
+  background: rgba(255,255,255,0.08);
+  color: #4b5563;
+  cursor: not-allowed;
+}
+
+.leo-ai-quota-btn-stripe {
+  flex: 1;
+  padding: 8px 0;
+  border-radius: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.08);
+  color: #a5b4fc;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.leo-ai-quota-btn-stripe:hover {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.leo-ai-quota-modal-note {
+  font-size: 10px;
+  color: #374151;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Feedback de paiement en cours */
+.leo-ai-quota-paying {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(0, 255, 157, 0.06);
+  border: 1px solid rgba(0, 255, 157, 0.15);
+  color: var(--green);
+  font-size: 13px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
 /* ── Reduced motion ──────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   #leo-ai-panel { transition: none; }

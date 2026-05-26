@@ -11,12 +11,22 @@ GET  /assistant/actions/pending/  → liste des actions en attente
 """
 from __future__ import annotations
 
+import json
+import logging
+
+from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
+from django.shortcuts import render, redirect
 from django.utils import timezone
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
-from .models import AssistantSession, AssistantMessage, AssistantAction
+from .models import AssistantSession, AssistantMessage, AssistantAction, AIUserQuota, AIQuotaPayment
+from .services import QuotaService
+
+log = logging.getLogger("leotrade.ai_assistant")
 
 
 class AssistantSessionView(LoginRequiredMixin, View):
@@ -121,3 +131,88 @@ class PendingActionsView(LoginRequiredMixin, View):
                 for a in actions
             ]
         })
+
+
+# ── Quota views ────────────────────────────────────────────────────────────────
+
+class QuotaStatusView(LoginRequiredMixin, View):
+    """GET /assistant/quota/ — état du quota courant."""
+    def get(self, request):
+        quota = QuotaService.get_or_create(request.user)
+        return JsonResponse({
+            "plan": quota.plan,
+            "used": quota.messages_used,
+            "limit": quota.messages_limit,
+            "remaining": quota.remaining,
+            "pct": quota.usage_pct,
+            "exhausted": quota.is_exhausted,
+            "plan_label": dict(AIUserQuota.PLAN_CHOICES).get(quota.plan, quota.plan),
+            "upgrade_options": QuotaService.upgrade_options(quota),
+        })
+
+
+class QuotaSuccessView(LoginRequiredMixin, View):
+    """Page de retour après paiement Stripe réussi."""
+    def get(self, request):
+        session_id = request.GET.get("session_id")
+        if session_id:
+            # Marquer le paiement comme complété
+            payment = AIQuotaPayment.objects.filter(
+                stripe_session_id=session_id,
+                quota__user=request.user,
+                status=AIQuotaPayment.STATUS_PENDING,
+            ).first()
+            if payment:
+                payment.status = AIQuotaPayment.STATUS_COMPLETED
+                payment.completed_at = timezone.now()
+                payment.save(update_fields=["status", "completed_at"])
+                payment.quota.top_up(payment.plan)
+        # Rediriger vers le dashboard avec un message de succès
+        return redirect("/dashboard/?quota_ok=1")
+
+
+class QuotaCancelView(LoginRequiredMixin, View):
+    """Page de retour après annulation du paiement Stripe."""
+    def get(self, request):
+        return redirect("/dashboard/?quota_cancelled=1")
+
+
+@csrf_exempt
+@require_POST
+def stripe_webhook(request):
+    """Webhook Stripe pour les paiements de quota LeoAI."""
+    payload = request.body
+    sig_header = request.META.get("HTTP_STRIPE_SIGNATURE", "")
+    webhook_secret = getattr(settings, "STRIPE_WEBHOOK_SECRET", "")
+
+    if not webhook_secret:
+        return HttpResponse(status=400)
+
+    try:
+        import stripe
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except Exception as exc:
+        log.warning("stripe.webhook.invalid err=%s", exc)
+        return HttpResponse(status=400)
+
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        session_id = session.get("id")
+        metadata = session.get("metadata", {})
+        user_id = metadata.get("user_id")
+        plan = metadata.get("plan")
+
+        if session_id and user_id and plan:
+            payment = AIQuotaPayment.objects.filter(
+                stripe_session_id=session_id,
+                status=AIQuotaPayment.STATUS_PENDING,
+            ).first()
+            if payment:
+                payment.status = AIQuotaPayment.STATUS_COMPLETED
+                payment.completed_at = timezone.now()
+                payment.save(update_fields=["status", "completed_at"])
+                payment.quota.top_up(plan)
+                log.info("quota.stripe.completed user=%s plan=%s", user_id, plan)
+
+    return HttpResponse(status=200)

@@ -39,6 +39,7 @@
     totalCostUsd: 0,
     pendingActionsCount: 0,
     historyLoaded: false,   // ← true après le premier rendu de l'historique
+    quota: null,            // ← snapshot du quota courant
     clientContext: {
       page: document.body.dataset.leoPage || "dashboard",
     },
@@ -154,6 +155,7 @@
 
       case "session":
         state.sessionId = data.session_id;
+        if (data.quota) updateQuotaUI(data.quota);
         // N'affiche l'historique que lors de la PREMIÈRE connexion.
         // Sur les reconnexions suivantes, on conserve le DOM en place pour
         // éviter que les messages streamés en cours ou déjà affichés disparaissent.
@@ -191,6 +193,7 @@
         state.streamComplete = true;
         setSendDisabled(false);
         state.currentMsgId = null;
+        if (data.quota) updateQuotaUI(data.quota);
 
         // Remplace le texte brut (avec marqueurs <<<ACTION>>>) par le texte
         // épuré fourni par le serveur après extraction des blocs d'action.
@@ -226,6 +229,30 @@
 
       case "history":
         if (data.messages) renderHistory(data.messages);
+        break;
+
+      case "quota_exceeded":
+        removeThinking();
+        setSendDisabled(false);
+        state.isThinking = false;
+        if (data.quota) updateQuotaUI(data.quota);
+        showQuotaModal(data.quota, data.plans || []);
+        break;
+
+      case "quota_updated":
+        if (data.quota) updateQuotaUI(data.quota);
+        hideQuotaModal();
+        appendAssistantBubble("quota_ok_" + Date.now(), data.message || "✅ Quota rechargé !");
+        setSendDisabled(false);
+        break;
+
+      case "quota_stripe_url":
+        // Ouvrir le lien de paiement Stripe dans un nouvel onglet
+        if (data.url) window.open(data.url, "_blank", "noopener");
+        break;
+
+      case "quota_payment_failed":
+        appendErrorMsg(data.error || "Paiement échoué.");
         break;
 
       case "error":
@@ -577,6 +604,84 @@ Analyse les indicateurs, le R/R, les risques, et donne-moi un conseil.`;
     els.ksBanner.classList.toggle("visible", show);
   }
 
+  // ── Quota UI ──────────────────────────────────────────────────────────────
+
+  function updateQuotaUI(quota) {
+    state.quota = quota;
+    const bar  = $("leo-ai-quota-bar");
+    const fill = $("leo-ai-quota-fill");
+    const cnt  = $("leo-ai-quota-count");
+    const lbl  = $("leo-ai-quota-label");
+    if (!bar) return;
+
+    bar.style.display = "";
+    const pct = quota.pct || 0;
+    fill.style.width = pct + "%";
+    cnt.textContent  = `${quota.used}/${quota.limit}`;
+    lbl.textContent  = quota.plan_label || quota.plan;
+
+    // Couleur selon saturation
+    const cls = pct >= 90 ? "critical" : pct >= 70 ? "warning" : "";
+    fill.className = "leo-ai-quota-fill" + (cls ? " " + cls : "");
+    cnt.className  = "leo-ai-quota-count"  + (cls ? " " + cls : "");
+  }
+
+  function showQuotaModal(quota, plans) {
+    const modal     = $("leo-ai-quota-modal");
+    const desc      = $("leo-ai-quota-modal-desc");
+    const plansEl   = $("leo-ai-quota-plans");
+    if (!modal) return;
+
+    if (desc) desc.textContent =
+      `Vous avez utilisé vos ${quota ? quota.limit : ""} messages IA disponibles (plan ${quota ? quota.plan_label : ""}).`;
+
+    if (plansEl) {
+      plansEl.innerHTML = "";
+      plans.forEach(plan => {
+        const card = document.createElement("div");
+        card.className = "leo-ai-quota-plan-card";
+        card.innerHTML = `
+          <div class="leo-ai-quota-plan-name">${escapeHtml(plan.label)}</div>
+          <div class="leo-ai-quota-plan-detail">${plan.messages} messages · $${plan.price_usd}</div>
+          <div class="leo-ai-quota-plan-btns">
+            <button class="leo-ai-quota-btn-wallet" data-plan="${escapeHtml(plan.plan)}"
+                    onclick="LeoAssistant.payWallet('${escapeHtml(plan.plan)}')">
+              💳 Mon wallet
+            </button>
+            <button class="leo-ai-quota-btn-stripe" data-plan="${escapeHtml(plan.plan)}"
+                    onclick="LeoAssistant.payStripe('${escapeHtml(plan.plan)}')">
+              🔗 Stripe
+            </button>
+          </div>
+        `;
+        plansEl.appendChild(card);
+      });
+    }
+    modal.style.display = "";
+  }
+
+  function hideQuotaModal() {
+    const modal = $("leo-ai-quota-modal");
+    if (modal) modal.style.display = "none";
+  }
+
+  function payWallet(plan) {
+    // Remplacer les boutons par un indicateur de chargement
+    const plansEl = $("leo-ai-quota-plans");
+    if (plansEl) {
+      plansEl.innerHTML = `<div class="leo-ai-quota-paying">⏳ Paiement en cours via wallet…</div>`;
+    }
+    send({ type: "quota_pay_wallet", plan });
+  }
+
+  function payStripe(plan) {
+    const plansEl = $("leo-ai-quota-plans");
+    if (plansEl) {
+      plansEl.innerHTML = `<div class="leo-ai-quota-paying">🔗 Redirection vers Stripe…</div>`;
+    }
+    send({ type: "quota_pay_stripe", plan });
+  }
+
   // ── Nettoyage des marqueurs d'action ─────────────────────────────────────
 
   const ACTION_BLOCK_RE = /<<<ACTION>>>[\s\S]*?<<<END_ACTION>>>/g;
@@ -715,6 +820,8 @@ Analyse les indicateurs, le R/R, les risques, et donne-moi un conseil.`;
     rejectAction,
     explainOpportunity,
     updatePageContext,
+    payWallet,
+    payStripe,
     isOpen: () => state.isOpen,
   };
 
