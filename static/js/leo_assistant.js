@@ -34,6 +34,7 @@
     isThinking: false,
     sessionId: null,
     currentMsgId: null,
+    streamComplete: false,  // ← true quand le message "done" a été reçu pour la bulle en cours
     reconnectAttempts: 0,
     totalCostUsd: 0,
     pendingActionsCount: 0,
@@ -101,8 +102,8 @@
         return;
       }
 
-      // Si un stream était en cours, marquer la bulle comme interrompue
-      if (state.currentMsgId) {
+      // Si un stream était en cours ET n'a pas reçu son "done" → vraie interruption
+      if (state.currentMsgId && !state.streamComplete) {
         const bubble = document.querySelector(`[data-msg-id="${state.currentMsgId}"]`);
         if (bubble && !bubble.dataset.raw) {
           // Bulle vide (stream pas encore commencé) → supprimer le thinking + la bulle
@@ -110,14 +111,18 @@
           const wrapper = bubble.closest(".leo-ai-msg");
           if (wrapper) wrapper.remove();
         } else if (bubble) {
-          // Bulle partiellement remplie → ajouter une note de déconnexion
-          bubble.dataset.raw += "\n\n*[connexion interrompue — reconnexion en cours…]*";
+          // Bulle partiellement remplie → nettoyer les marqueurs d'action et noter l'interruption
+          const cleaned = stripActionMarkers(bubble.dataset.raw || "");
+          bubble.dataset.raw = cleaned + "\n\n*[réponse interrompue — reconnexion en cours…]*";
           bubble.innerHTML = renderMarkdown(bubble.dataset.raw);
         }
-        state.currentMsgId = null;
         state.isThinking = false;
         setSendDisabled(false);
       }
+
+      // Réinitialiser l'état du stream dans tous les cas
+      state.currentMsgId = null;
+      state.streamComplete = false;
 
       removeThinking();
 
@@ -170,6 +175,7 @@
 
       case "start":
         state.currentMsgId = data.id;
+        state.streamComplete = false;
         removeThinking();
         // Crée la bulle vide qui sera remplie par les chunks
         appendAssistantBubble(data.id, "");
@@ -182,16 +188,21 @@
 
       case "done":
         state.isThinking = false;
+        state.streamComplete = true;
         setSendDisabled(false);
         state.currentMsgId = null;
 
         // Remplace le texte brut (avec marqueurs <<<ACTION>>>) par le texte
         // épuré fourni par le serveur après extraction des blocs d'action.
-        if (data.clean_content !== undefined) {
+        // Fallback : strip client-side si clean_content absent (ancienne version).
+        {
           const bubble = document.querySelector(`[data-msg-id="${data.id}"]`);
           if (bubble) {
-            bubble.dataset.raw = data.clean_content;
-            bubble.innerHTML = renderMarkdown(data.clean_content);
+            const finalText = data.clean_content !== undefined
+              ? data.clean_content
+              : stripActionMarkers(bubble.dataset.raw || "");
+            bubble.dataset.raw = finalText;
+            bubble.innerHTML = renderMarkdown(finalText);
           }
         }
 
@@ -293,9 +304,10 @@
       bubble = div.querySelector(`[data-msg-id="${id}"]`);
     }
 
-    // Accumule le texte brut dans dataset, re-render markdown à chaque chunk
+    // Accumule le texte brut dans dataset (les marqueurs <<<ACTION>>> y sont conservés
+    // pour l'extraction serveur), mais on les masque au rendu pour l'utilisateur.
     bubble.dataset.raw = (bubble.dataset.raw || "") + text;
-    bubble.innerHTML = renderMarkdown(bubble.dataset.raw);
+    bubble.innerHTML = renderMarkdown(stripActionMarkers(bubble.dataset.raw));
     scrollToBottom();
   }
 
@@ -563,6 +575,18 @@ Analyse les indicateurs, le R/R, les risques, et donne-moi un conseil.`;
   function showKillSwitchBanner(show) {
     if (!els.ksBanner) return;
     els.ksBanner.classList.toggle("visible", show);
+  }
+
+  // ── Nettoyage des marqueurs d'action ─────────────────────────────────────
+
+  const ACTION_BLOCK_RE = /<<<ACTION>>>[\s\S]*?<<<END_ACTION>>>/g;
+
+  /**
+   * Supprime les blocs <<<ACTION>>>...<<<END_ACTION>>> du texte.
+   * Utilisé côté client pour ne jamais afficher ces marqueurs dans les bulles.
+   */
+  function stripActionMarkers(text) {
+    return text.replace(ACTION_BLOCK_RE, "").trim();
   }
 
   // ── Markdown léger ────────────────────────────────────────────────────────
