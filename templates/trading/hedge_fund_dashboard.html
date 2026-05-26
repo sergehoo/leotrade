@@ -1,0 +1,296 @@
+{% extends "layout/base.html" %}
+{% load trading_extras %}
+{% block title %}AI Hedge Fund Engine — LeoTrade{% endblock %}
+{% block page_title %}AI Hedge Fund Engine{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Hedge Fund AI</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">Vue d’ensemble du moteur intelligent</h2>
+        <p class="text-sm text-gray-500 mt-2">
+          Learning Agent · Market Regime Agent · Risk Agent global · Confidence Engine
+        </p>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <a href="{% url 'trading:risk-monitor' %}" class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10">
+          Risk Monitor
+        </a>
+        <a href="{% url 'trading:learning-monitor' %}" class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10">
+          Learning Monitor
+        </a>
+        <a href="{% url 'trading:trade-idea-list' %}" class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">
+          Opportunités IA
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-2 xl:grid-cols-6 gap-4">
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Portefeuilles</div>
+      <div class="text-2xl text-white font-semibold mt-2">{{ stats.portfolio_count }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Positions ouvertes</div>
+      <div class="text-2xl text-white font-semibold mt-2">{{ stats.open_positions_count }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Idées</div>
+      <div class="text-2xl text-white font-semibold mt-2">{{ stats.ideas_count }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Idées approuvées</div>
+      <div class="text-2xl text-emerald-400 font-semibold mt-2">{{ stats.approved_ideas_count }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Confiance moyenne</div>
+      <div class="text-2xl text-white font-semibold mt-2">{{ stats.avg_confidence|floatformat:2 }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">P&L ouvert</div>
+      <div class="text-2xl {% if stats.total_open_pnl >= 0 %}text-emerald-400{% else %}text-red-400{% endif %} font-semibold mt-2">
+        {{ stats.total_open_pnl|floatformat:2 }}
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div class="card p-6 xl:col-span-1">
+      <h3 class="text-white font-semibold mb-4">Régime de marché actuel</h3>
+      {% if latest_regime %}
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <span class="text-gray-500">Régime</span>
+          <span class="mono text-white">{{ latest_regime.regime }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-gray-500">Confiance</span>
+          <span class="mono text-emerald-400">{{ latest_regime.confidence|floatformat:2 }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-gray-500">Trend score</span>
+          <span class="mono text-white">{{ latest_regime.trend_score|floatformat:2 }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-gray-500">Volatility score</span>
+          <span class="mono text-amber-300">{{ latest_regime.volatility_score|floatformat:2 }}</span>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4 text-sm text-gray-300">
+          {{ latest_regime.summary|default:"Aucun résumé disponible." }}
+        </div>
+      </div>
+      {% else %}
+      <p class="text-gray-500 text-sm">Aucun régime de marché calculé.</p>
+      {% endif %}
+    </div>
+
+    <div class="card p-6 xl:col-span-2">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-white font-semibold">Top opportunités IA</h3>
+        <a href="{% url 'trading:trade-idea-list' %}" class="text-xs mono text-emerald-300">Voir tout</a>
+      </div>
+
+      {% if top_ideas %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm min-w-[900px]">
+          <thead>
+            <tr class="border-b border-white/10 text-left">
+              <th class="px-3 py-3 text-xs mono uppercase text-gray-600">Actif</th>
+              <th class="px-3 py-3 text-xs mono uppercase text-gray-600">TF</th>
+              <th class="px-3 py-3 text-xs mono uppercase text-gray-600">Direction</th>
+              <th class="px-3 py-3 text-xs mono uppercase text-gray-600">Score</th>
+              <th class="px-3 py-3 text-xs mono uppercase text-gray-600">Confiance</th>
+              <th class="px-3 py-3 text-xs mono uppercase text-gray-600">Risque</th>
+              <th class="px-3 py-3 text-xs mono uppercase text-gray-600">Avis agent</th>
+              <th class="px-3 py-3 text-xs mono uppercase text-gray-600 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for idea in top_ideas %}
+            <tr class="table-row">
+              <td class="px-3 py-3 text-white">{{ idea.symbol }}</td>
+              <td class="px-3 py-3 text-gray-300 mono">
+                {% if idea.timeframe %}{{ idea.timeframe.code }}{% else %}—{% endif %}
+              </td>
+              <td class="px-3 py-3">
+                {% if idea.direction == "BUY" or idea.direction == "CALL" %}
+                  <span class="px-2 py-1 rounded text-xs mono pill-buy">{{ idea.direction }}</span>
+                {% else %}
+                  <span class="px-2 py-1 rounded text-xs mono pill-sell">{{ idea.direction }}</span>
+                {% endif %}
+              </td>
+              <td class="px-3 py-3 text-emerald-400 mono">{{ idea.overall_score|floatformat:2 }}</td>
+              <td class="px-3 py-3 text-white mono">{{ idea.confidence_score|floatformat:2 }}</td>
+              <td class="px-3 py-3 text-amber-300 mono">{{ idea.risk_score|floatformat:2 }}</td>
+              <td class="px-3 py-3 text-gray-300 mono">
+                {% if idea.review %}{{ idea.review.decision }}{% else %}—{% endif %}
+              </td>
+              <td class="px-3 py-3 text-right">
+                <a href="{% url 'trading:trade-idea-detail' idea.pk %}" class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-xs mono">
+                  Ouvrir
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-gray-500 text-sm">Aucune opportunité disponible.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-white font-semibold">P&L des positions ouvertes</h3>
+      </div>
+      <canvas id="pnlChart" height="120"></canvas>
+    </div>
+
+    <div class="card p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-white font-semibold">Scores des idées</h3>
+      </div>
+      <canvas id="ideaScoreChart" height="120"></canvas>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Risk state par portefeuille</h3>
+      {% if portfolios %}
+      <div class="space-y-3">
+        {% for portfolio in portfolios %}
+          {% with state=latest_risk_by_portfolio|get_item:portfolio.id %}
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-white font-medium">{{ portfolio.name }}</div>
+                <div class="text-xs text-gray-500">
+                  {% if portfolio.broker_account %}{{ portfolio.broker_account.name }}{% else %}—{% endif %}
+                </div>
+              </div>
+              <div class="text-right">
+                {% if state %}
+                <div class="mono text-sm {% if state.status == 'BLOCK' %}text-red-400{% elif state.status == 'REDUCE' %}text-amber-300{% else %}text-emerald-400{% endif %}">
+                  {{ state.status }}
+                </div>
+                <div class="text-xs text-gray-500">Risk {{ state.recommended_risk_percent|floatformat:2 }}%</div>
+                {% else %}
+                <div class="mono text-sm text-gray-500">N/A</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endwith %}
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-gray-500 text-sm">Aucun portefeuille disponible.</p>
+      {% endif %}
+    </div>
+
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Derniers learning snapshots</h3>
+      {% if latest_learning %}
+      <div class="space-y-3">
+        {% for snap in latest_learning %}
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-white font-medium">
+                {% if snap.strategy %}
+                  {{ snap.strategy.name|truncatechars:28 }}
+                {% elif snap.asset %}
+                  {{ snap.asset.symbol }}
+                {% else %}
+                  Snapshot #{{ snap.id }}
+                {% endif %}
+              </div>
+              <div class="text-xs text-gray-500">
+                Win rate {{ snap.win_rate|floatformat:2 }} · Expectancy {{ snap.expectancy|floatformat:2 }}
+              </div>
+            </div>
+            <div class="text-right mono text-sm text-emerald-400">
+              x{{ snap.confidence_multiplier|floatformat:2 }}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-gray-500 text-sm">Aucun snapshot d’apprentissage disponible.</p>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const pnlData = {{ pnl_series|safe }};
+  const scoreData = {{ idea_score_series|safe }};
+
+  const pnlCtx = document.getElementById("pnlChart");
+  if (pnlCtx && pnlData.length) {
+    new Chart(pnlCtx, {
+      type: "bar",
+      data: {
+        labels: pnlData.map(i => i.label),
+        datasets: [{
+          label: "P&L",
+          data: pnlData.map(i => i.value),
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            labels: { color: "#cbd5e1" }
+          }
+        },
+        scales: {
+          x: { ticks: { color: "#94a3b8" } },
+          y: { ticks: { color: "#94a3b8" } }
+        }
+      }
+    });
+  }
+
+  const scoreCtx = document.getElementById("ideaScoreChart");
+  if (scoreCtx && scoreData.length) {
+    new Chart(scoreCtx, {
+      type: "bar",
+      data: {
+        labels: scoreData.map(i => i.label),
+        datasets: [
+          { label: "Overall", data: scoreData.map(i => i.overall) },
+          { label: "Confidence", data: scoreData.map(i => i.confidence) },
+          { label: "Risk", data: scoreData.map(i => i.risk) }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            labels: { color: "#cbd5e1" }
+          }
+        },
+        scales: {
+          x: { ticks: { color: "#94a3b8" } },
+          y: { ticks: { color: "#94a3b8" }, min: 0, max: 1 }
+        }
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

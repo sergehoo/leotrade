@@ -1,0 +1,323 @@
+{% extends "layout/base.html" %}
+
+{% block title %}
+  {% if object %}Modifier la position — LeoTrade{% else %}Nouvelle position — LeoTrade{% endif %}
+{% endblock %}
+
+{% block page_title %}
+  {% if object %}Modifier une position{% else %}Créer une position{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+
+  <!-- Header -->
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Position Management</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">
+          {% if object %}
+            Mettre à jour la position
+          {% else %}
+            Ouvrir une nouvelle position
+          {% endif %}
+        </h2>
+        <p class="text-sm text-gray-500 mt-2 max-w-3xl">
+          Définissez l’actif, le sens, la taille, les niveaux de protection et les paramètres
+          de suivi de la position.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <a href="javascript:history.back()"
+           class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+          Retour
+        </a>
+      </div>
+    </div>
+  </section>
+
+  {% if form.non_field_errors %}
+  <section class="card p-4 border border-red-500/20 bg-red-500/5">
+    <div class="text-sm text-red-300">
+      {{ form.non_field_errors }}
+    </div>
+  </section>
+  {% endif %}
+
+  <form method="post" class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-6">
+    {% csrf_token %}
+
+    <!-- Main content -->
+    <section class="card p-6 space-y-8">
+
+      <!-- Bloc 1 -->
+      <div class="space-y-5">
+        <div>
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Exposition</div>
+          <h3 class="text-white text-lg font-semibold mt-1">Paramètres de marché</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {% if form.asset %}
+          <div>
+            <label for="{{ form.asset.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Actif
+            </label>
+            {{ form.asset }}
+            {% if form.asset.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.asset.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if form.side %}
+          <div>
+            <label for="{{ form.side.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Direction
+            </label>
+            {{ form.side }}
+            {% if form.side.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.side.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if form.quantity %}
+          <div>
+            <label for="{{ form.quantity.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Quantité
+            </label>
+            {{ form.quantity }}
+            {% if form.quantity.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.quantity.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if form.entry_price %}
+          <div>
+            <label for="{{ form.entry_price.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Prix d’entrée
+            </label>
+            {{ form.entry_price }}
+            {% if form.entry_price.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.entry_price.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if form.current_price %}
+          <div>
+            <label for="{{ form.current_price.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Prix actuel
+            </label>
+            {{ form.current_price }}
+            {% if form.current_price.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.current_price.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if form.status %}
+          <div>
+            <label for="{{ form.status.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Statut
+            </label>
+            {{ form.status }}
+            {% if form.status.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.status.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Bloc 2 -->
+      <div class="border-t border-white/10 pt-8 space-y-5">
+        <div>
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Risk management</div>
+          <h3 class="text-white text-lg font-semibold mt-1">Protection de la position</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {% if form.stop_loss %}
+          <div>
+            <label for="{{ form.stop_loss.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Stop loss
+            </label>
+            {{ form.stop_loss }}
+            {% if form.stop_loss.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.stop_loss.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if form.take_profit %}
+          <div>
+            <label for="{{ form.take_profit.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Take profit
+            </label>
+            {{ form.take_profit }}
+            {% if form.take_profit.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.take_profit.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
+          <div class="text-sm text-white font-medium">Conseil de gestion du risque</div>
+          <p class="text-sm text-gray-400 mt-2 leading-relaxed">
+            Il est recommandé de définir un stop loss et un take profit cohérents avec votre
+            stratégie, afin d’éviter les expositions non maîtrisées.
+          </p>
+        </div>
+      </div>
+
+      <!-- Bloc 3 -->
+      <div class="border-t border-white/10 pt-8 space-y-5">
+        <div>
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Cycle de vie</div>
+          <h3 class="text-white text-lg font-semibold mt-1">Dates d’ouverture et de clôture</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {% if form.opened_at %}
+          <div>
+            <label for="{{ form.opened_at.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Ouverte le
+            </label>
+            {{ form.opened_at }}
+            {% if form.opened_at.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.opened_at.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if form.closed_at %}
+          <div>
+            <label for="{{ form.closed_at.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Clôturée le
+            </label>
+            {{ form.closed_at }}
+            {% if form.closed_at.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.closed_at.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Footer actions -->
+      <div class="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">
+          {% if object %}Mise à jour de la position{% else %}Création d’une nouvelle position{% endif %}
+        </div>
+
+        <div class="flex flex-wrap gap-3">
+          <a href="javascript:history.back()"
+             class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+            Annuler
+          </a>
+
+          <button type="submit"
+                  class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+            {% if object %}Enregistrer les modifications{% else %}Créer la position{% endif %}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sidebar -->
+    <aside class="space-y-6">
+
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">Aide rapide</h3>
+        <ul class="mt-4 space-y-3 text-sm text-gray-400">
+          <li>• Vérifiez toujours le sens LONG / SHORT avant validation.</li>
+          <li>• Une quantité trop élevée augmente fortement le risque global.</li>
+          <li>• Le prix actuel peut servir au recalcul immédiat du PnL.</li>
+          <li>• Fermez proprement une position via le statut et la date de clôture.</li>
+        </ul>
+      </section>
+
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">Bonnes pratiques</h3>
+        <div class="mt-4 space-y-3 text-sm text-gray-400">
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-white font-medium">Stop loss</div>
+            <div class="text-xs text-gray-500 mt-1">
+              Ne laissez pas une position sans limite de perte claire.
+            </div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-white font-medium">Cohérence prix / quantité</div>
+            <div class="text-xs text-gray-500 mt-1">
+              Vérifiez que la taille de position reste cohérente avec la balance du portefeuille.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {% if object %}
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">Résumé actuel</h3>
+        <div class="mt-4 space-y-3 text-sm">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-gray-500">Actif</span>
+            <span class="text-white">{{ object.asset.symbol }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-gray-500">Side</span>
+            <span class="text-white">{{ object.side }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-gray-500">Quantité</span>
+            <span class="text-white mono">{{ object.quantity }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-gray-500">PnL</span>
+            <span class="mono {% if object.pnl >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">
+              {{ object.pnl }}
+            </span>
+          </div>
+        </div>
+      </section>
+      {% endif %}
+    </aside>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const ids = [
+      "id_asset",
+      "id_side",
+      "id_quantity",
+      "id_entry_price",
+      "id_current_price",
+      "id_stop_loss",
+      "id_take_profit",
+      "id_status",
+      "id_opened_at",
+      "id_closed_at"
+    ];
+
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      if (el.tagName === "SELECT") {
+        el.className = "w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30";
+      } else if (el.type === "datetime-local" || el.type === "date" || el.type === "number" || el.tagName === "INPUT") {
+        el.className = "w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30";
+      }
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "layout/base.html" %}
+{% block title %}Contrats Deriv — LeoTrade{% endblock %}
+{% block page_title %}Contrats Deriv{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <section class="card card-glow p-6">
+    <div>
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Deriv Contracts</div>
+      <h2 class="text-white text-2xl font-semibold mt-1">Suivi des contrats Deriv</h2>
+      <p class="text-sm text-gray-500 mt-2">
+        Monitoring des contrats options et de leur règlement.
+      </p>
+    </div>
+  </section>
+
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold">Liste des contrats</h3>
+    </div>
+
+    {% if contracts %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[1300px] text-sm">
+        <thead>
+          <tr class="border-b border-white/10 text-left">
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Date</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Contract ID</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Symbole</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Type</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Stake</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Payout</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Profit</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Statut</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for contract in contracts %}
+          <tr class="table-row">
+            <td class="px-4 py-4 text-gray-300 mono">{{ contract.created_at|date:"d/m/Y H:i" }}</td>
+            <td class="px-4 py-4 text-white mono">{{ contract.contract_id }}</td>
+            <td class="px-4 py-4 text-white">{{ contract.symbol }}</td>
+            <td class="px-4 py-4 text-gray-300 mono">{{ contract.contract_type }}</td>
+            <td class="px-4 py-4 text-white mono">{{ contract.buy_price }}</td>
+            <td class="px-4 py-4 text-white mono">{{ contract.payout|default:"—" }}</td>
+            <td class="px-4 py-4 mono {% if contract.profit and contract.profit >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">
+              {{ contract.profit|default:"—" }}
+            </td>
+            <td class="px-4 py-4">
+              <span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-300 border border-white/10">
+                {{ contract.status }}
+              </span>
+            </td>
+            <td class="px-4 py-4 text-right">
+              <a href="{#% url 'deriv-contract-detail' contract.pk %#}"
+                 class="px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-xs mono">
+                Voir
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-16 text-center text-gray-500 text-sm">Aucun contrat Deriv.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

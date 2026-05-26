@@ -1,0 +1,114 @@
+{% extends "layout/base.html" %}
+{% block title %}Contrat Deriv — LeoTrade{% endblock %}
+{% block page_title %}Détail contrat Deriv{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Deriv Contract Intelligence</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">{{ contract.symbol }} {{ contract.contract_type }}</h2>
+        <p class="text-sm text-gray-500 mt-2">{{ contract.purchased_at|date:"d/m/Y H:i:s" }}</p>
+      </div>
+
+      <div>
+        <span class="px-3 py-1.5 rounded-lg text-xs mono bg-white/5 text-gray-300 border border-white/10">
+          {{ contract.status }}
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 md:grid-cols-5 gap-4">
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Contract ID</div>
+      <div class="text-lg text-white font-semibold mt-2 mono break-all">{{ contract.contract_id }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Stake</div>
+      <div class="text-2xl text-white font-semibold mt-2 mono">{{ contract.buy_price }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Payout</div>
+      <div class="text-2xl text-white font-semibold mt-2 mono">{{ contract.payout|default:"—" }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Profit</div>
+      <div class="text-2xl {% if contract.profit and contract.profit >= 0 %}text-emerald-400{% else %}text-red-400{% endif %} font-semibold mt-2 mono">
+        {{ contract.profit|default:"—" }}
+      </div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Expiration</div>
+      <div class="text-lg text-white font-semibold mt-2 mono">{{ contract.expires_at|date:"d/m/Y H:i:s"|default:"—" }}</div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Contexte</h3>
+      <div class="space-y-4 text-sm">
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Broker</div>
+          <div class="text-white mt-2">{{ contract.broker_account.name }}</div>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Portfolio</div>
+          <div class="text-white mt-2">{{ contract.portfolio.name }}</div>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Signal</div>
+          <div class="text-white mt-2">
+            {% if contract.signal %}
+              <a href="{% url 'signal-detail' contract.signal.pk %}" class="text-emerald-300">Voir le signal</a>
+            {% else %}
+              —
+            {% endif %}
+          </div>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Ordre lié</div>
+          <div class="text-white mt-2">
+            <a href="{% url 'order-detail' contract.order.pk %}" class="text-emerald-300">Voir l’ordre</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Ticks</h3>
+      <div class="space-y-4 text-sm">
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Entry tick</div>
+          <div class="text-white mt-2 mono">{{ contract.entry_tick|default:"—" }}</div>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Exit tick</div>
+          <div class="text-white mt-2 mono">{{ contract.exit_tick|default:"—" }}</div>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Settled at</div>
+          <div class="text-white mt-2 mono">{{ contract.settled_at|date:"d/m/Y H:i:s"|default:"—" }}</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div class="card p-6 xl:col-span-1">
+      <h3 class="text-white font-semibold mb-4">Proposal payload</h3>
+      <pre class="text-xs text-gray-300 whitespace-pre-wrap rounded-xl bg-black/20 border border-white/5 p-4 overflow-auto">{{ contract.proposal_payload }}</pre>
+    </div>
+    <div class="card p-6 xl:col-span-1">
+      <h3 class="text-white font-semibold mb-4">Buy payload</h3>
+      <pre class="text-xs text-gray-300 whitespace-pre-wrap rounded-xl bg-black/20 border border-white/5 p-4 overflow-auto">{{ contract.buy_payload }}</pre>
+    </div>
+    <div class="card p-6 xl:col-span-1">
+      <h3 class="text-white font-semibold mb-4">Latest contract payload</h3>
+      <pre class="text-xs text-gray-300 whitespace-pre-wrap rounded-xl bg-black/20 border border-white/5 p-4 overflow-auto">{{ contract.latest_contract_payload }}</pre>
+    </div>
+  </section>
+</div>
+{% endblock %}

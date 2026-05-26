@@ -1,0 +1,122 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Destinations de retrait — LeoTrade{% endblock %}
+{% block page_title %}Destinations de retrait{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="card card-glow p-6">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Payout Destinations</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">Gestion des destinations</h2>
+        <p class="text-sm text-gray-500 mt-2">
+          Enregistrez et organisez vos destinations de retrait : banque, carte ou mobile money.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <a href="{% url 'payout-destination-create' %}"
+           class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+          Ajouter une destination
+        </a>
+        <a href="{% url 'wallet-dashboard' %}"
+           class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+          Retour wallet
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="card overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold">Destinations enregistrées</h3>
+      <div class="text-xs mono text-gray-600 uppercase tracking-wider">
+        {{ destinations|length }} élément{{ destinations|length|pluralize }}
+      </div>
+    </div>
+
+    {% if destinations %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[900px] text-sm">
+        <thead>
+          <tr class="text-left border-b border-white/10">
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Label</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Type</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Compte / info</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Statut</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for destination in destinations %}
+          <tr class="table-row">
+            <td class="px-4 py-4">
+              <div class="text-white font-medium">{{ destination.label }}</div>
+              <div class="text-xs text-gray-500 mt-1">{{ destination.account_name|default:"—" }}</div>
+            </td>
+
+            <td class="px-4 py-4">
+              <span class="text-white mono">{{ destination.destination_type }}</span>
+            </td>
+
+            <td class="px-4 py-4">
+              <div class="text-gray-300 mono">
+                {% if destination.bank_name %}{{ destination.bank_name }}{% elif destination.phone_number %}{{ destination.phone_number }}{% elif destination.iban %}{{ destination.iban }}{% else %}—{% endif %}
+              </div>
+            </td>
+
+            <td class="px-4 py-4">
+              <div class="flex flex-wrap gap-2">
+                {% if destination.is_default %}
+                  <span class="px-2 py-1 rounded text-xs mono bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">DEFAULT</span>
+                {% endif %}
+                {% if destination.is_verified %}
+                  <span class="px-2 py-1 rounded text-xs mono pill-open">VERIFIED</span>
+                {% else %}
+                  <span class="px-2 py-1 rounded text-xs mono pill-placed">PENDING</span>
+                {% endif %}
+              </div>
+            </td>
+
+            <td class="px-4 py-4">
+              <div class="flex items-center justify-end gap-2">
+                <a href="{% url 'payout-destination-update' destination.pk %}"
+                   class="px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-400/20 hover:bg-blue-500/15 transition text-xs mono">
+                  Modifier
+                </a>
+
+                {% if not destination.is_default %}
+                <form method="post" action="{% url 'payout-destination-set-default' destination.pk %}">
+                  {% csrf_token %}
+                  <button type="submit"
+                          class="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition text-xs mono">
+                    Default
+                  </button>
+                </form>
+                {% endif %}
+
+                <form method="post" action="{% url 'payout-destination-delete' destination.pk %}">
+                  {% csrf_token %}
+                  <button type="submit"
+                          class="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-300 border border-red-400/20 hover:bg-red-500/15 transition text-xs mono">
+                    Supprimer
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-16 text-center">
+      <p class="text-gray-500 text-sm">Aucune destination enregistrée.</p>
+    </div>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

@@ -1,0 +1,125 @@
+{% extends "layout/base.html" %}
+{% load trading_extras %}
+{% block title %}Risk Monitor — LeoTrade{% endblock %}
+{% block page_title %}Risk Monitor{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <section class="card card-glow p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Global Risk</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">Surveillance du risque portefeuille</h2>
+        <p class="text-sm text-gray-500 mt-2">Drawdown · exposition · limites · ouverture de nouvelles positions</p>
+      </div>
+      <a href="{% url 'trading:hedge-fund-dashboard' %}" class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300">
+        Retour dashboard
+      </a>
+    </div>
+  </section>
+
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold">Risk state actuel</h3>
+    </div>
+
+    {% if latest_states %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[1200px] text-sm">
+        <thead>
+          <tr class="border-b border-white/10 text-left">
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Portefeuille</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Statut</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Drawdown %</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Exposition %</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Corrélation</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Risk recommandé</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Nouvelles positions</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Raison</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for state in latest_states %}
+          <tr class="table-row">
+            <td class="px-4 py-4 text-white">{{ state.portfolio.name }}</td>
+            <td class="px-4 py-4">
+              <span class="px-2 py-1 rounded text-xs mono
+                {% if state.status == 'BLOCK' %}bg-red-500/10 text-red-300 border border-red-400/20
+                {% elif state.status == 'REDUCE' %}bg-amber-500/10 text-amber-300 border border-amber-400/20
+                {% elif state.status == 'CAUTION' %}bg-yellow-500/10 text-yellow-300 border border-yellow-400/20
+                {% else %}bg-emerald-500/10 text-emerald-300 border border-emerald-400/20{% endif %}">
+                {{ state.status }}
+              </span>
+            </td>
+            <td class="px-4 py-4 mono text-white">{{ state.current_drawdown_percent|floatformat:2 }}</td>
+            <td class="px-4 py-4 mono text-white">{{ state.exposure_percent|floatformat:2 }}</td>
+            <td class="px-4 py-4 mono text-amber-300">{{ state.correlation_risk_score|floatformat:2 }}</td>
+            <td class="px-4 py-4 mono text-emerald-400">{{ state.recommended_risk_percent|floatformat:2 }}%</td>
+            <td class="px-4 py-4 mono {% if state.allow_new_positions %}text-emerald-400{% else %}text-red-400{% endif %}">
+              {{ state.allow_new_positions|yesno:"YES,NO" }}
+            </td>
+            <td class="px-4 py-4 text-gray-300">{{ state.reason }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-16 text-center text-gray-500 text-sm">Aucun risk state disponible.</div>
+    {% endif %}
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Policies</h3>
+      <div class="space-y-4">
+        {% for state in latest_states %}
+          {% with policy=policies|get_item:state.portfolio_id %}
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-white font-medium mb-3">{{ state.portfolio.name }}</div>
+            {% if policy %}
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div class="text-gray-400">Max daily loss</div><div class="mono text-white">{{ policy.max_daily_loss_percent }}%</div>
+              <div class="text-gray-400">Max weekly loss</div><div class="mono text-white">{{ policy.max_weekly_loss_percent }}%</div>
+              <div class="text-gray-400">Max drawdown</div><div class="mono text-white">{{ policy.max_drawdown_percent }}%</div>
+              <div class="text-gray-400">Max open positions</div><div class="mono text-white">{{ policy.max_open_positions }}</div>
+              <div class="text-gray-400">Base risk/trade</div><div class="mono text-white">{{ policy.base_risk_per_trade_percent }}%</div>
+              <div class="text-gray-400">Auto compounding</div><div class="mono text-white">{{ policy.allow_auto_compounding|yesno:"ON,OFF" }}</div>
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-sm">Aucune policy.</p>
+            {% endif %}
+          </div>
+          {% endwith %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Positions ouvertes</h3>
+      {% if open_positions %}
+      <div class="space-y-3 max-h-[520px] overflow-auto">
+        {% for pos in open_positions %}
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-white font-medium">{{ pos.asset.symbol }}</div>
+              <div class="text-xs text-gray-500">{{ pos.portfolio.name }} · {{ pos.side }}</div>
+            </div>
+            <div class="text-right">
+              <div class="mono {% if pos.pnl >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">
+                {{ pos.pnl|floatformat:2 }}
+              </div>
+              <div class="text-xs text-gray-500">{{ pos.status }}</div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-gray-500 text-sm">Aucune position ouverte.</p>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

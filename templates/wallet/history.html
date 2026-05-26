@@ -1,0 +1,186 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Historique Wallet — LeoTrade{% endblock %}
+{% block page_title %}Historique wallet{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Wallet Activity</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">Historique des transactions</h2>
+        <p class="text-sm text-gray-500 mt-2">
+          Filtrez les mouvements financiers et consultez l’état détaillé de chaque transaction.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <a href="{% url 'wallet-dashboard' %}"
+           class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+          Retour wallet
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Filters -->
+  <section class="card p-6">
+    <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Recherche</label>
+        <input type="text"
+               name="q"
+               value="{{ filters.q }}"
+               placeholder="référence, provider..."
+               class="w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30">
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Type</label>
+        <select name="type"
+                class="w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30">
+          <option value="">Tous</option>
+          <option value="DEPOSIT" {% if filters.type == "DEPOSIT" %}selected{% endif %}>Deposit</option>
+          <option value="WITHDRAWAL" {% if filters.type == "WITHDRAWAL" %}selected{% endif %}>Withdrawal</option>
+          <option value="ADJUSTMENT" {% if filters.type == "ADJUSTMENT" %}selected{% endif %}>Adjustment</option>
+          <option value="TRADE_LOCK" {% if filters.type == "TRADE_LOCK" %}selected{% endif %}>Trade Lock</option>
+          <option value="TRADE_RELEASE" {% if filters.type == "TRADE_RELEASE" %}selected{% endif %}>Trade Release</option>
+          <option value="FEE" {% if filters.type == "FEE" %}selected{% endif %}>Fee</option>
+          <option value="REFUND" {% if filters.type == "REFUND" %}selected{% endif %}>Refund</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Statut</label>
+        <select name="status"
+                class="w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30">
+          <option value="">Tous</option>
+          <option value="PENDING" {% if filters.status == "PENDING" %}selected{% endif %}>Pending</option>
+          <option value="PROCESSING" {% if filters.status == "PROCESSING" %}selected{% endif %}>Processing</option>
+          <option value="SUCCEEDED" {% if filters.status == "SUCCEEDED" %}selected{% endif %}>Succeeded</option>
+          <option value="FAILED" {% if filters.status == "FAILED" %}selected{% endif %}>Failed</option>
+          <option value="CANCELLED" {% if filters.status == "CANCELLED" %}selected{% endif %}>Cancelled</option>
+        </select>
+      </div>
+
+      <div class="flex items-end gap-3">
+        <button type="submit"
+                class="px-4 py-2.5 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+          Filtrer
+        </button>
+        <a href="{% url 'wallet-history' %}"
+           class="px-4 py-2.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+          Réinitialiser
+        </a>
+      </div>
+    </form>
+  </section>
+
+  <!-- Table -->
+  <section class="card overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold">Transactions</h3>
+      <div class="text-xs mono text-gray-600 uppercase tracking-wider">
+        {{ page_obj.paginator.count }} résultat{{ page_obj.paginator.count|pluralize }}
+      </div>
+    </div>
+
+    {% if transactions %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[1100px] text-sm">
+        <thead>
+          <tr class="text-left border-b border-white/10">
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Type</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Montant</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Provider</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Référence</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Statut</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Date</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tx in transactions %}
+          <tr class="table-row">
+            <td class="px-4 py-4">
+              <div class="text-white font-medium">{{ tx.tx_type }}</div>
+              {% if tx.description %}
+              <div class="text-xs text-gray-500 mt-1">{{ tx.description|truncatechars:42 }}</div>
+              {% endif %}
+            </td>
+
+            <td class="px-4 py-4">
+              <div class="text-white mono">{{ tx.amount }} {{ tx.currency }}</div>
+            </td>
+
+            <td class="px-4 py-4">
+              <div class="text-gray-300 mono">{{ tx.provider|default:"—" }}</div>
+            </td>
+
+            <td class="px-4 py-4">
+              <div class="text-gray-500 mono">{{ tx.provider_reference|default:"—"|truncatechars:28 }}</div>
+            </td>
+
+            <td class="px-4 py-4">
+              {% if tx.status == "SUCCEEDED" %}
+                <span class="px-2 py-1 rounded text-xs mono pill-open">SUCCEEDED</span>
+              {% elif tx.status == "PENDING" or tx.status == "PROCESSING" %}
+                <span class="px-2 py-1 rounded text-xs mono pill-placed">{{ tx.status }}</span>
+              {% elif tx.status == "FAILED" %}
+                <span class="px-2 py-1 rounded text-xs mono pill-sell">FAILED</span>
+              {% else %}
+                <span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-400 border border-white/10">{{ tx.status }}</span>
+              {% endif %}
+            </td>
+
+            <td class="px-4 py-4">
+              <div class="text-gray-500 mono">{{ tx.created_at|date:"d/m/Y H:i" }}</div>
+            </td>
+
+            <td class="px-4 py-4 text-right">
+              <a href="{% url 'wallet-transaction-detail' tx.pk %}"
+                 class="inline-flex px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition text-xs mono">
+                Voir
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-16 text-center">
+      <p class="text-gray-500 text-sm">Aucune transaction trouvée.</p>
+    </div>
+    {% endif %}
+  </section>
+
+  <!-- Pagination -->
+  {% if page_obj %}
+  <section class="flex items-center justify-between">
+    <div class="text-xs mono text-gray-600">
+      Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+    </div>
+
+    <div class="flex items-center gap-2">
+      {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.type %}&type={{ filters.type }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}"
+         class="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-sm text-gray-300 hover:bg-white/10 transition">
+        Précédent
+      </a>
+      {% endif %}
+
+      {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.type %}&type={{ filters.type }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}"
+         class="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-sm text-gray-300 hover:bg-white/10 transition">
+        Suivant
+      </a>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}

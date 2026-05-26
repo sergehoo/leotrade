@@ -1,0 +1,238 @@
+{% extends "layout/base.html" %}
+{% load extra_filters %}
+{% block title %}{{ strategy.name }} — LeoTrade{% endblock %}
+{% block page_title %}Détail stratégie{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Strategy Intelligence</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">{{ strategy.name }}</h2>
+        <p class="text-sm text-gray-500 mt-2">
+          {{ strategy.asset.symbol }} · {{ strategy.timeframe.code }} · {{ strategy.strategy_type }}
+        </p>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <form method="post" action="{% url 'strategy-toggle-active' strategy.pk %}">
+          {% csrf_token %}
+          <button class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10">
+            {% if strategy.is_active %}Désactiver{% else %}Activer{% endif %}
+          </button>
+        </form>
+
+        <form method="post" action="{% url 'strategy-toggle-autonomous' strategy.pk %}">
+          {% csrf_token %}
+          <button class="px-4 py-2 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-400/20">
+            {% if strategy.is_autonomous %}Auto OFF{% else %}Auto ON{% endif %}
+          </button>
+        </form>
+
+        <form method="post" action="{% url 'strategy-switch-status' strategy.pk %}" class="flex gap-2">
+          {% csrf_token %}
+          <select name="status" class="rounded-lg bg-white/5 border border-white/10 text-white px-3 py-2">
+            {% for s in "DRAFT,BACKTEST,PAPER,LIVE,PAUSED,ARCHIVED,FAILED"|split:"," %}
+              <option value="{{ s }}" {% if strategy.status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+          <button class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">
+            Appliquer
+          </button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Signals</div>
+      <div class="text-2xl text-white font-semibold mt-2">{{ stats.total|default:0 }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Executed</div>
+      <div class="text-2xl text-emerald-400 font-semibold mt-2">{{ stats.executed|default:0 }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Approved</div>
+      <div class="text-2xl text-blue-400 font-semibold mt-2">{{ stats.approved|default:0 }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Avg confidence</div>
+      <div class="text-2xl text-amber-300 font-semibold mt-2">{{ stats.avg_confidence|default:0|floatformat:2 }}</div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-white font-semibold">Performance</h3>
+      </div>
+      <div class="h-[320px]">
+        <canvas id="strategyPerfChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Configuration</h3>
+      <div class="space-y-4 text-sm">
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Description</div>
+          <div class="text-white mt-2 whitespace-pre-wrap">{{ strategy.description|default:"—" }}</div>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Paramètres</div>
+          <pre class="text-xs text-gray-300 whitespace-pre-wrap mt-2">{{ strategy.parameters }}</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card overflow-hidden">
+      <div class="px-6 py-4 border-b border-white/10"><h3 class="text-white font-semibold">Versions</h3></div>
+      {% if versions %}
+      <div class="divide-y divide-white/10">
+        {% for version in versions %}
+        <div class="px-6 py-4 flex items-center justify-between gap-3">
+          <div>
+            <div class="text-white font-medium">v{{ version.version }}</div>
+            <div class="text-xs text-gray-500 mt-1">{{ version.created_at|date:"d/m/Y H:i" }}</div>
+          </div>
+          {% if version.is_live %}
+            <span class="px-2 py-1 rounded text-xs mono pill-open">LIVE VERSION</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="py-12 text-center text-gray-500 text-sm">Aucune version.</div>
+      {% endif %}
+    </div>
+
+    <div class="card overflow-hidden">
+      <div class="px-6 py-4 border-b border-white/10"><h3 class="text-white font-semibold">Prédictions récentes</h3></div>
+      {% if predictions %}
+      <div class="divide-y divide-white/10">
+        {% for pred in predictions %}
+        <div class="px-6 py-4">
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-white font-medium">{{ pred.predicted_label|default:"—" }}</div>
+            <div class="text-xs mono text-gray-500">{{ pred.candle_time|date:"d/m/Y H:i" }}</div>
+          </div>
+          <div class="text-xs text-gray-500 mt-2">
+            Score {{ pred.predicted_score|floatformat:4 }} · Up {{ pred.probability_up|floatformat:2 }} · Down {{ pred.probability_down|floatformat:2 }}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="py-12 text-center text-gray-500 text-sm">Aucune prédiction.</div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10"><h3 class="text-white font-semibold">Derniers signaux</h3></div>
+    {% if signals %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[1100px] text-sm">
+        <thead>
+          <tr class="border-b border-white/10 text-left">
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Date</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Side</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Confidence</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Prix</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">RR</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Status</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for signal in signals %}
+          <tr class="table-row">
+            <td class="px-4 py-4 text-gray-300 mono">{{ signal.candle_time|date:"d/m/Y H:i" }}</td>
+            <td class="px-4 py-4">
+              {% if signal.side == "BUY" %}
+                <span class="px-2 py-1 rounded text-xs mono pill-buy">BUY</span>
+              {% elif signal.side == "SELL" %}
+                <span class="px-2 py-1 rounded text-xs mono pill-sell">SELL</span>
+              {% else %}
+                <span class="px-2 py-1 rounded text-xs mono pill-placed">HOLD</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-4 text-white mono">{{ signal.confidence|floatformat:2 }}</td>
+            <td class="px-4 py-4 text-white mono">{{ signal.price }}</td>
+            <td class="px-4 py-4 text-gray-300 mono">{{ signal.rr_ratio|floatformat:2 }}</td>
+            <td class="px-4 py-4"><span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-300 border border-white/10">{{ signal.status }}</span></td>
+            <td class="px-4 py-4 text-right">
+              <a href="{% url 'signal-detail' signal.pk %}" class="px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-xs mono">Voir</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-12 text-center text-gray-500 text-sm">Aucun signal.</div>
+    {% endif %}
+  </section>
+
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10"><h3 class="text-white font-semibold">Derniers runs</h3></div>
+    {% if runs %}
+    <div class="divide-y divide-white/10">
+      {% for run in runs %}
+      <a href="{% url 'strategy-run-detail' run.pk %}" class="block px-6 py-4 hover:bg-white/[.02] transition">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <div class="text-white font-medium">{{ run.status }}</div>
+            <div class="text-xs text-gray-500 mt-1 mono">{{ run.run_started_at|date:"d/m/Y H:i:s" }}</div>
+          </div>
+          <div class="text-xs mono text-gray-400">{{ run.runtime_ms }} ms</div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="py-12 text-center text-gray-500 text-sm">Aucun run.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const data = {{ perf_chart_json|safe }};
+    const ctx = document.getElementById("strategyPerfChart");
+    if (!ctx) return;
+
+    new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: data.labels,
+        datasets: [
+          { label: "Win rate", data: data.win_rate, borderColor: "#00ff9d", pointRadius: 0, tension: 0.3 },
+          { label: "Avg return", data: data.avg_return, borderColor: "#3b82f6", pointRadius: 0, tension: 0.3 },
+          { label: "Sharpe", data: data.sharpe, borderColor: "#ffb703", pointRadius: 0, tension: 0.3 },
+          { label: "Drawdown", data: data.drawdown, borderColor: "#ff4d6d", pointRadius: 0, tension: 0.3 },
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { ticks: { color: "#6b7280" }, grid: { color: "rgba(255,255,255,0.05)" } },
+          y: { ticks: { color: "#6b7280" }, grid: { color: "rgba(255,255,255,0.05)" } }
+        },
+        plugins: {
+          legend: { labels: { color: "#cbd5e1" } }
+        }
+      }
+    });
+  })();
+</script>
+{% endblock %}

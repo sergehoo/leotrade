@@ -1,0 +1,71 @@
+{% extends "layout/base.html" %}
+{% load static %}
+
+{% block title %}LeoTrade Premium Cockpit{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-950 text-white">
+    <div class="mx-auto max-w-7xl px-4 py-6">
+        <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+                <h1 class="text-3xl font-black tracking-tight">LeoTrade Premium Cockpit</h1>
+                <p class="mt-1 text-sm text-slate-400">
+                    Centre de pilotage AI-assisted trading · portefeuille · risque · exécution
+                </p>
+            </div>
+
+            <form method="get" class="flex items-center gap-3">
+                <select
+                    name="portfolio"
+                    class="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white"
+                    onchange="this.form.submit()"
+                >
+                    {% for p in all_portfolios %}
+                        <option value="{{ p.id }}" {% if portfolio and p.id == portfolio.id %}selected{% endif %}>
+                            {{ p.name }} · {{ p.broker_account.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+
+        {% if not portfolio %}
+            <div class="rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center text-slate-300">
+                Aucun portefeuille actif disponible.
+            </div>
+        {% else %}
+            {% include "dashboard/partials/_kill_switch_banner.html" %}
+            {% include "dashboard/partials/_hero_stats.html" %}
+
+            <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+                <div class="xl:col-span-2 space-y-6">
+                    {% include "dashboard/partials/_ai_radar.html" %}
+                    {% include "dashboard/partials/_positions_table.html" %}
+                    {% include "dashboard/partials/_orders_tape.html" %}
+                </div>
+
+                <div class="space-y-6">
+                    {% include "dashboard/partials/_portfolio_panel.html" %}
+                    {% include "dashboard/partials/_risk_center.html" %}
+                    {% include "dashboard/partials/_activity_feed.html" %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if portfolio %}
+<script>
+    window.LEOTRADE_COCKPIT = {
+        portfolioId: {{ portfolio.id }},
+        cockpitDataUrl: "{% url 'dashboard:premium_cockpit_data' %}",
+        wsPortfolioUrl: `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/portfolio/{{ portfolio.id }}/`,
+        wsOrdersUrl: `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/orders/`,
+        wsNotificationsUrl: `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/notifications/`,
+        wsDashboardUrl: `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/dashboard/live/`,
+        wsAiRadarUrl: `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/ai/radar/`,
+    };
+</script>
+<script src="{% static 'dashboard/js/cockpit.js' %}"></script>
+{% endif %}
+{% endblock %}

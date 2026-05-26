@@ -1,0 +1,101 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Retrait Wallet — LeoTrade{% endblock %}
+{% block page_title %}Détail du retrait{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Withdrawal Request</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">{{ withdrawal.amount }} {{ withdrawal.currency }}</h2>
+        <div class="text-sm text-gray-500 mt-2 mono">{{ withdrawal.created_at|date:"d/m/Y H:i:s" }}</div>
+      </div>
+
+      <div>
+        {% if withdrawal.status == "PAID" %}
+          <span class="px-3 py-1.5 rounded-lg text-xs mono pill-open">PAID</span>
+        {% elif withdrawal.status == "APPROVED" or withdrawal.status == "UNDER_REVIEW" or withdrawal.status == "PENDING" %}
+          <span class="px-3 py-1.5 rounded-lg text-xs mono pill-placed">{{ withdrawal.status }}</span>
+        {% elif withdrawal.status == "REJECTED" or withdrawal.status == "FAILED" %}
+          <span class="px-3 py-1.5 rounded-lg text-xs mono pill-sell">{{ withdrawal.status }}</span>
+        {% else %}
+          <span class="px-3 py-1.5 rounded-lg text-xs mono bg-white/5 text-gray-400 border border-white/10">{{ withdrawal.status }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div class="xl:col-span-2 card p-6">
+      <h3 class="text-white font-semibold mb-5">Informations</h3>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Montant</div>
+          <div class="text-white font-semibold mt-2 mono">{{ withdrawal.amount }} {{ withdrawal.currency }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Frais</div>
+          <div class="text-white font-semibold mt-2 mono">{{ withdrawal.fee_amount|default:"0.00" }} {{ withdrawal.currency }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Destination</div>
+          <div class="text-white font-semibold mt-2">{{ withdrawal.destination_type }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Destination masquée</div>
+          <div class="text-white font-semibold mt-2 mono">{{ withdrawal.destination_masked|default:"—" }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Provider</div>
+          <div class="text-white font-semibold mt-2 mono">{{ withdrawal.provider|default:"—" }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Référence provider</div>
+          <div class="text-white font-semibold mt-2 mono break-all">{{ withdrawal.provider_reference|default:"—" }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Revu par</div>
+          <div class="text-white font-semibold mt-2">{{ withdrawal.reviewed_by|default:"—" }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Revue le</div>
+          <div class="text-white font-semibold mt-2 mono">{{ withdrawal.reviewed_at|date:"d/m/Y H:i:s"|default:"—" }}</div>
+        </div>
+      </div>
+
+      {% if withdrawal.admin_note %}
+      <div class="mt-6 rounded-xl bg-white/5 border border-white/10 p-4">
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Note admin</div>
+        <div class="text-gray-300 mt-2 whitespace-pre-wrap">{{ withdrawal.admin_note }}</div>
+      </div>
+      {% endif %}
+
+      {% if withdrawal.failure_reason %}
+      <div class="mt-6 rounded-xl bg-red-500/5 border border-red-500/10 p-4">
+        <div class="text-xs mono uppercase tracking-wider text-red-300">Motif d’échec / rejet</div>
+        <div class="text-red-200 mt-2 whitespace-pre-wrap">{{ withdrawal.failure_reason }}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-5">Métadonnées</h3>
+      <div class="rounded-xl bg-black/20 border border-white/5 p-4 max-h-[340px] overflow-auto scrollbar-thin">
+        <pre class="text-xs text-gray-300 whitespace-pre-wrap">{{ withdrawal.metadata }}</pre>
+      </div>
+    </div>
+  </section>
+
+</div>
+{% endblock %}

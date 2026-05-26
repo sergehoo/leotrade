@@ -1,0 +1,407 @@
+{% extends "layout/base.html" %}
+{% load static %}
+
+{% block title %}Soumission KYC — LeoTrade{% endblock %}
+{% block page_title %}Soumission KYC{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6" x-data="kycWizard()">
+
+  <!-- Header -->
+  <section class="card card-glow p-6">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Compliance Workflow</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">Soumission de votre dossier KYC</h2>
+        <p class="text-sm text-gray-500 mt-2 max-w-3xl">
+          Complétez votre vérification d’identité pour sécuriser les dépôts, autoriser les retraits
+          et activer les fonctionnalités sensibles de la plateforme.
+        </p>
+      </div>
+
+      <div class="rounded-2xl bg-white/5 border border-white/10 px-4 py-3 min-w-[220px]">
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Progression</div>
+        <div class="flex items-center gap-3 mt-2">
+          <div class="flex-1 h-2 rounded-full bg-white/5 overflow-hidden">
+            <div class="h-full rounded-full transition-all duration-300"
+                 style="background:var(--green)"
+                 :style="`width:${progress}%`"></div>
+          </div>
+          <div class="text-sm text-white mono" x-text="`${step}/4`"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {% if form.non_field_errors %}
+  <section class="card p-4 border border-red-500/20 bg-red-500/5">
+    <div class="text-sm text-red-300">
+      {{ form.non_field_errors }}
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)] gap-6">
+
+    <!-- Sidebar steps -->
+    <aside class="space-y-4">
+      <section class="card p-4">
+        <div class="space-y-2">
+          <button type="button" @click="goTo(1)"
+                  :class="step === 1 ? 'border-emerald-400/30 bg-emerald-500/10' : 'border-white/10 bg-white/5'"
+                  class="w-full text-left rounded-xl border px-4 py-3 transition">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs mono font-semibold"
+                   :class="step === 1 ? 'text-black' : 'text-white/80'"
+                   :style="step === 1 ? 'background:var(--green)' : 'background:rgba(255,255,255,.08)'">
+                1
+              </div>
+              <div>
+                <div class="text-sm text-white font-medium">Profil civil</div>
+                <div class="text-xs text-gray-500">Identité générale</div>
+              </div>
+            </div>
+          </button>
+
+          <button type="button" @click="goTo(2)"
+                  :class="step === 2 ? 'border-emerald-400/30 bg-emerald-500/10' : 'border-white/10 bg-white/5'"
+                  class="w-full text-left rounded-xl border px-4 py-3 transition">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs mono font-semibold"
+                   :class="step === 2 ? 'text-black' : 'text-white/80'"
+                   :style="step === 2 ? 'background:var(--green)' : 'background:rgba(255,255,255,.08)'">
+                2
+              </div>
+              <div>
+                <div class="text-sm text-white font-medium">Coordonnées</div>
+                <div class="text-xs text-gray-500">Adresse et contact</div>
+              </div>
+            </div>
+          </button>
+
+          <button type="button" @click="goTo(3)"
+                  :class="step === 3 ? 'border-emerald-400/30 bg-emerald-500/10' : 'border-white/10 bg-white/5'"
+                  class="w-full text-left rounded-xl border px-4 py-3 transition">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs mono font-semibold"
+                   :class="step === 3 ? 'text-black' : 'text-white/80'"
+                   :style="step === 3 ? 'background:var(--green)' : 'background:rgba(255,255,255,.08)'">
+                3
+              </div>
+              <div>
+                <div class="text-sm text-white font-medium">Pièce d’identité</div>
+                <div class="text-xs text-gray-500">Documents officiels</div>
+              </div>
+            </div>
+          </button>
+
+          <button type="button" @click="goTo(4)"
+                  :class="step === 4 ? 'border-emerald-400/30 bg-emerald-500/10' : 'border-white/10 bg-white/5'"
+                  class="w-full text-left rounded-xl border px-4 py-3 transition">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs mono font-semibold"
+                   :class="step === 4 ? 'text-black' : 'text-white/80'"
+                   :style="step === 4 ? 'background:var(--green)' : 'background:rgba(255,255,255,.08)'">
+                4
+              </div>
+              <div>
+                <div class="text-sm text-white font-medium">Validation</div>
+                <div class="text-xs text-gray-500">Contrôle final</div>
+              </div>
+            </div>
+          </button>
+        </div>
+      </section>
+
+      <section class="card p-5">
+        <h3 class="text-white font-semibold">Conseils</h3>
+        <ul class="mt-4 space-y-2 text-sm text-gray-400">
+          <li>• Utilisez des documents lisibles.</li>
+          <li>• Vérifiez que votre nom correspond à votre pièce.</li>
+          <li>• Joignez une selfie récente.</li>
+          <li>• Le justificatif d’adresse doit être récent.</li>
+        </ul>
+      </section>
+    </aside>
+
+    <!-- Form -->
+    <section class="card p-6">
+      <form method="post" enctype="multipart/form-data" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Step 1 -->
+        <div x-show="step === 1" x-transition.opacity.duration.200ms class="space-y-6">
+          <div>
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">Étape 1</div>
+            <h3 class="text-white text-xl font-semibold mt-1">Informations personnelles</h3>
+            <p class="text-sm text-gray-500 mt-2">Renseignez vos informations d’identité civile.</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div class="md:col-span-2">
+              <label for="{{ form.full_name.id_for_label }}" class="block text-sm text-gray-400 mb-2">Nom complet</label>
+              {{ form.full_name }}
+              {% if form.full_name.errors %}
+                <p class="mt-2 text-xs text-red-400">{{ form.full_name.errors|join:", " }}</p>
+              {% endif %}
+            </div>
+
+            <div>
+              <label for="{{ form.date_of_birth.id_for_label }}" class="block text-sm text-gray-400 mb-2">Date de naissance</label>
+              {{ form.date_of_birth }}
+              {% if form.date_of_birth.errors %}
+                <p class="mt-2 text-xs text-red-400">{{ form.date_of_birth.errors|join:", " }}</p>
+              {% endif %}
+            </div>
+
+            <div>
+              <label for="{{ form.nationality.id_for_label }}" class="block text-sm text-gray-400 mb-2">Nationalité</label>
+              {{ form.nationality }}
+              {% if form.nationality.errors %}
+                <p class="mt-2 text-xs text-red-400">{{ form.nationality.errors|join:", " }}</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div x-show="step === 2" x-transition.opacity.duration.200ms class="space-y-6" x-cloak>
+          <div>
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">Étape 2</div>
+            <h3 class="text-white text-xl font-semibold mt-1">Coordonnées</h3>
+            <p class="text-sm text-gray-500 mt-2">Ajoutez vos coordonnées de contact et votre adresse.</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label for="{{ form.phone.id_for_label }}" class="block text-sm text-gray-400 mb-2">Téléphone</label>
+              {{ form.phone }}
+              {% if form.phone.errors %}
+                <p class="mt-2 text-xs text-red-400">{{ form.phone.errors|join:", " }}</p>
+              {% endif %}
+            </div>
+
+            <div>
+              <label for="{{ form.address.id_for_label }}" class="block text-sm text-gray-400 mb-2">Adresse</label>
+              {{ form.address }}
+              {% if form.address.errors %}
+                <p class="mt-2 text-xs text-red-400">{{ form.address.errors|join:", " }}</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div x-show="step === 3" x-transition.opacity.duration.200ms class="space-y-6" x-cloak>
+          <div>
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">Étape 3</div>
+            <h3 class="text-white text-xl font-semibold mt-1">Documents justificatifs</h3>
+            <p class="text-sm text-gray-500 mt-2">Téléversez vos pièces de vérification.</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label for="{{ form.id_document_type.id_for_label }}" class="block text-sm text-gray-400 mb-2">Type de document</label>
+              {{ form.id_document_type }}
+              {% if form.id_document_type.errors %}
+                <p class="mt-2 text-xs text-red-400">{{ form.id_document_type.errors|join:", " }}</p>
+              {% endif %}
+            </div>
+
+            <div>
+              <label for="{{ form.id_document_number.id_for_label }}" class="block text-sm text-gray-400 mb-2">Numéro du document</label>
+              {{ form.id_document_number }}
+              {% if form.id_document_number.errors %}
+                <p class="mt-2 text-xs text-red-400">{{ form.id_document_number.errors|join:", " }}</p>
+              {% endif %}
+            </div>
+
+            <div>
+              <label for="{{ form.id_document_front.id_for_label }}" class="block text-sm text-gray-400 mb-2">Recto pièce d’identité</label>
+              {{ form.id_document_front }}
+              <p class="mt-2 text-xs text-gray-500" x-text="fileName('id_id_document_front')"></p>
+              {% if form.id_document_front.errors %}
+                <p class="mt-2 text-xs text-red-400">{{ form.id_document_front.errors|join:", " }}</p>
+              {% endif %}
+            </div>
+
+            <div>
+              <label for="{{ form.id_document_back.id_for_label }}" class="block text-sm text-gray-400 mb-2">Verso pièce d’identité</label>
+              {{ form.id_document_back }}
+              <p class="mt-2 text-xs text-gray-500" x-text="fileName('id_id_document_back')"></p>
+              {% if form.id_document_back.errors %}
+                <p class="mt-2 text-xs text-red-400">{{ form.id_document_back.errors|join:", " }}</p>
+              {% endif %}
+            </div>
+
+            <div>
+              <label for="{{ form.selfie_photo.id_for_label }}" class="block text-sm text-gray-400 mb-2">Selfie</label>
+              {{ form.selfie_photo }}
+              <p class="mt-2 text-xs text-gray-500" x-text="fileName('id_selfie_photo')"></p>
+              {% if form.selfie_photo.errors %}
+                <p class="mt-2 text-xs text-red-400">{{ form.selfie_photo.errors|join:", " }}</p>
+              {% endif %}
+            </div>
+
+            <div>
+              <label for="{{ form.proof_of_address.id_for_label }}" class="block text-sm text-gray-400 mb-2">Justificatif d’adresse</label>
+              {{ form.proof_of_address }}
+              <p class="mt-2 text-xs text-gray-500" x-text="fileName('id_proof_of_address')"></p>
+              {% if form.proof_of_address.errors %}
+                <p class="mt-2 text-xs text-red-400">{{ form.proof_of_address.errors|join:", " }}</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div x-show="step === 4" x-transition.opacity.duration.200ms class="space-y-6" x-cloak>
+          <div>
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">Étape 4</div>
+            <h3 class="text-white text-xl font-semibold mt-1">Validation finale</h3>
+            <p class="text-sm text-gray-500 mt-2">Vérifiez votre dossier avant soumission.</p>
+          </div>
+
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-5 space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <div class="text-gray-500">Nom complet</div>
+                <div class="text-white mt-1" x-text="valueOf('id_full_name') || '—'"></div>
+              </div>
+              <div>
+                <div class="text-gray-500">Date de naissance</div>
+                <div class="text-white mt-1" x-text="valueOf('id_date_of_birth') || '—'"></div>
+              </div>
+              <div>
+                <div class="text-gray-500">Nationalité</div>
+                <div class="text-white mt-1" x-text="valueOf('id_nationality') || '—'"></div>
+              </div>
+              <div>
+                <div class="text-gray-500">Téléphone</div>
+                <div class="text-white mt-1" x-text="valueOf('id_phone') || '—'"></div>
+              </div>
+              <div class="md:col-span-2">
+                <div class="text-gray-500">Adresse</div>
+                <div class="text-white mt-1" x-text="valueOf('id_address') || '—'"></div>
+              </div>
+              <div>
+                <div class="text-gray-500">Type de document</div>
+                <div class="text-white mt-1" x-text="selectedText('id_id_document_type') || '—'"></div>
+              </div>
+              <div>
+                <div class="text-gray-500">Numéro du document</div>
+                <div class="text-white mt-1" x-text="valueOf('id_id_document_number') || '—'"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-amber-400/10 bg-amber-500/5 p-4">
+            <div class="text-sm text-amber-200">
+              En soumettant ce formulaire, vous confirmez que les documents et informations fournis sont exacts.
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer actions -->
+        <div class="border-t border-white/10 pt-5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div class="flex gap-3">
+            <button type="button"
+                    x-show="step > 1"
+                    @click="prev()"
+                    class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+              Précédent
+            </button>
+          </div>
+
+          <div class="flex gap-3">
+            <a href="{% url 'kyc-dashboard' %}"
+               class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+              Annuler
+            </a>
+
+            <button type="button"
+                    x-show="step < 4"
+                    @click="next()"
+                    class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+              Étape suivante
+            </button>
+
+            <button type="submit"
+                    x-show="step === 4"
+                    class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+              Envoyer le dossier
+            </button>
+          </div>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function kycWizard() {
+    return {
+      step: 1,
+      get progress() {
+        return (this.step / 4) * 100;
+      },
+      goTo(n) {
+        this.step = n;
+      },
+      next() {
+        if (this.step < 4) this.step++;
+      },
+      prev() {
+        if (this.step > 1) this.step--;
+      },
+      valueOf(id) {
+        const el = document.getElementById(id);
+        return el ? el.value : "";
+      },
+      selectedText(id) {
+        const el = document.getElementById(id);
+        if (!el) return "";
+        return el.options[el.selectedIndex]?.text || "";
+      },
+      fileName(id) {
+        const el = document.getElementById(id);
+        if (!el || !el.files || !el.files.length) return "Aucun fichier sélectionné";
+        return el.files[0].name;
+      }
+    }
+  }
+
+  (function () {
+    const ids = [
+      "id_full_name",
+      "id_date_of_birth",
+      "id_nationality",
+      "id_phone",
+      "id_address",
+      "id_id_document_type",
+      "id_id_document_number",
+      "id_id_document_front",
+      "id_id_document_back",
+      "id_selfie_photo",
+      "id_proof_of_address"
+    ];
+
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      if (el.tagName === "TEXTAREA") {
+        el.className = "w-full min-h-[120px] rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30";
+      } else if (el.tagName === "SELECT") {
+        el.className = "w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30";
+      } else if (el.type === "file") {
+        el.className = "w-full rounded-xl bg-white/5 border border-white/10 text-gray-300 px-3 py-2.5 file:mr-4 file:rounded-lg file:border-0 file:bg-emerald-500/10 file:px-3 file:py-2 file:text-sm file:text-emerald-300 hover:file:bg-emerald-500/15";
+      } else {
+        el.className = "w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30";
+      }
+    });
+  })();
+</script>
+{% endblock %}

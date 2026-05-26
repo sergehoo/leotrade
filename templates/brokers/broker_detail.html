@@ -1,0 +1,276 @@
+{% extends "layout/base.html" %}
+
+{% block title %}{{ broker.name }} — Broker Detail{% endblock %}
+{% block page_title %}Détail du compte broker{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="card card-glow p-6 animate-in">
+    <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
+      <div class="flex items-start gap-4">
+        <div class="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0
+                    {% if broker.broker == 'BINANCE' %}
+                      bg-amber-500/10 border border-amber-500/20 text-amber-400
+                    {% elif broker.broker == 'DERIV' %}
+                      bg-violet-500/10 border border-violet-500/20 text-violet-400
+                    {% else %}
+                      bg-blue-500/10 border border-blue-500/20 text-blue-400
+                    {% endif %}">
+          {% if broker.broker == "BINANCE" %}
+            <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2l2.5 2.5L12 7 9.5 4.5 12 2zm5.5 5.5L20 10l-2.5 2.5L15 10l2.5-2.5zM6.5 7.5L9 10l-2.5 2.5L4 10l2.5-2.5zM12 13l2.5 2.5L12 18l-2.5-2.5L12 13zm0-4l1.5 1.5L12 12l-1.5-1.5L12 9z"/>
+            </svg>
+          {% elif broker.broker == "DERIV" %}
+            <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+          {% else %}
+            <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 12h10M4 18h7"/>
+            </svg>
+          {% endif %}
+        </div>
+
+        <div>
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Broker Profile</div>
+          <h2 class="text-white text-2xl font-semibold mt-1">{{ broker.name }}</h2>
+          <div class="flex flex-wrap items-center gap-2 mt-3">
+            <span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-300 border border-white/10">
+              {{ broker.broker }}
+            </span>
+
+            {% if broker.mode == "PAPER" %}
+              <span class="px-2 py-1 rounded text-xs mono pill-placed">PAPER</span>
+            {% else %}
+              <span class="px-2 py-1 rounded text-xs mono pill-open">LIVE</span>
+            {% endif %}
+
+            {% if broker.is_active %}
+              <span class="px-2 py-1 rounded text-xs mono pill-open">ACTIF</span>
+            {% else %}
+              <span class="px-2 py-1 rounded text-xs mono text-gray-500 bg-white/5 border border-white/10">
+                INACTIF
+              </span>
+            {% endif %}
+
+            {% if broker.is_default %}
+              <span class="px-2 py-1 rounded text-xs mono bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">
+                PAR DÉFAUT
+              </span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <a href="{% url 'broker-list' %}"
+           class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+          Retour
+        </a>
+
+        <a href="{% url 'broker-update' broker.pk %}"
+           class="px-4 py-2 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-400/20 hover:bg-blue-500/15 transition">
+          Modifier
+        </a>
+
+        <form method="post" action="{% url 'broker-test-connection' broker.pk %}" class="inline">
+          {% csrf_token %}
+          <button type="submit"
+                  class="px-4 py-2 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-400/20 hover:bg-amber-500/15 transition">
+            Tester la connexion
+          </button>
+        </form>
+
+        <a href="{% url 'broker-delete' broker.pk %}"
+           class="px-4 py-2 rounded-lg bg-red-500/10 text-red-300 border border-red-400/20 hover:bg-red-500/15 transition">
+          Supprimer
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-in" style="animation-delay:.05s">
+
+    <div class="xl:col-span-2 card p-6">
+      <h3 class="text-white font-semibold mb-5">Configuration</h3>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Nom</div>
+          <div class="text-white font-medium mt-2">{{ broker.name }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Broker</div>
+          <div class="text-white font-medium mt-2">{{ broker.broker }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Mode</div>
+          <div class="text-white font-medium mt-2">{{ broker.mode }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Actif</div>
+          <div class="text-white font-medium mt-2">
+            {% if broker.is_active %}Oui{% else %}Non{% endif %}
+          </div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Par défaut</div>
+          <div class="text-white font-medium mt-2">
+            {% if broker.is_default %}Oui{% else %}Non{% endif %}
+          </div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Créé le</div>
+          <div class="text-white font-medium mt-2">{{ broker.created_at|date:"d/m/Y H:i" }}</div>
+        </div>
+      </div>
+
+      <div class="border-t border-white/10 mt-6 pt-6">
+        <h4 class="text-white font-medium mb-4">Identifiants techniques</h4>
+
+        {% if broker.broker == "BINANCE" %}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">API Key</div>
+            <div class="text-white font-medium mt-2 mono">
+              {% if broker.api_key %}
+                {{ broker.api_key|slice:":8" }}••••••••
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">API Secret</div>
+            <div class="text-white font-medium mt-2 mono">
+              {% if broker.api_secret %}
+                ••••••••••••••••
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if broker.broker == "MT5" %}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">Login</div>
+            <div class="text-white font-medium mt-2 mono">{{ broker.login|default:"—" }}</div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">Serveur</div>
+            <div class="text-white font-medium mt-2 mono">{{ broker.server|default:"—" }}</div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4 md:col-span-2">
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">Terminal path</div>
+            <div class="text-white font-medium mt-2 mono break-all">{{ broker.terminal_path|default:"—" }}</div>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if broker.broker == "DERIV" %}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">Token Deriv</div>
+            <div class="text-white font-medium mt-2 mono">
+              {% if broker.deriv_token %}
+                ••••••••••••••••
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">App ID</div>
+            <div class="text-white font-medium mt-2 mono">{{ broker.deriv_app_id|default:"—" }}</div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">Devise</div>
+            <div class="text-white font-medium mt-2 mono">{{ broker.deriv_currency|default:"—" }}</div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">Type de compte</div>
+            <div class="text-white font-medium mt-2 mono">{{ broker.deriv_account_type|default:"—" }}</div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if broker.notes %}
+      <div class="border-t border-white/10 mt-6 pt-6">
+        <h4 class="text-white font-medium mb-3">Notes</h4>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4 text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">
+          {{ broker.notes }}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="space-y-6">
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">État de connexion</h3>
+
+        <div class="mt-4 space-y-4">
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">Dernier test</div>
+            <div class="mt-2">
+              {% if broker.last_connection_status %}
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background:var(--green)"></div>
+                  <span class="text-green-400 font-medium">Connexion valide</span>
+                </div>
+              {% elif broker.last_connection_error %}
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background:var(--red)"></div>
+                  <span class="text-red-400 font-medium">Erreur détectée</span>
+                </div>
+              {% else %}
+                <span class="text-gray-500">Aucun test effectué</span>
+              {% endif %}
+            </div>
+
+            {% if broker.last_connected_at %}
+            <div class="text-xs text-gray-600 mono mt-3">
+              {{ broker.last_connected_at|date:"d/m/Y H:i:s" }}
+            </div>
+            {% endif %}
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">Erreur</div>
+            <div class="mt-2 text-sm text-gray-300 whitespace-pre-wrap break-words">
+              {{ broker.last_connection_error|default:"Aucune erreur enregistrée." }}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">Recommandations</h3>
+        <ul class="mt-4 space-y-3 text-sm text-gray-400">
+          <li>• Utilisez <span class="text-white">PAPER</span> avant tout passage en live.</li>
+          <li>• Vérifiez régulièrement la connectivité du broker.</li>
+          <li>• Évitez les permissions inutiles sur les API keys.</li>
+          <li>• Conservez un seul broker par défaut pour simplifier l’exécution.</li>
+        </ul>
+      </section>
+    </div>
+  </section>
+
+</div>
+{% endblock %}

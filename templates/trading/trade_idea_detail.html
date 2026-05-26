@@ -1,0 +1,725 @@
+{% extends "layout/base.html" %}
+{% load l10n %}
+
+{% block title %}Pourquoi l’IA recommande ce trade — LeoTrade{% endblock %}
+{% block page_title %}Pourquoi l’IA recommande ce trade{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="card card-glow p-6 overflow-hidden relative">
+    <div class="absolute inset-0 pointer-events-none opacity-40"
+         style="background: radial-gradient(circle at top right, rgba(16,185,129,.14), transparent 30%), radial-gradient(circle at bottom left, rgba(59,130,246,.10), transparent 30%);"></div>
+
+    <div class="relative flex flex-col 2xl:flex-row 2xl:items-start 2xl:justify-between gap-6">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2 mb-3">
+          <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/5 text-[11px] mono uppercase tracking-wider text-gray-300">
+            AI Trade Idea
+          </span>
+
+          <span class="px-3 py-1 rounded-full text-[11px] mono uppercase tracking-wider border
+            {% if status_tone == 'sky' %}bg-sky-500/10 text-sky-300 border-sky-400/20{% elif status_tone == 'amber' %}bg-amber-500/10 text-amber-300 border-amber-400/20{% elif status_tone == 'emerald' %}bg-emerald-500/10 text-emerald-300 border-emerald-400/20{% elif status_tone == 'red' %}bg-red-500/10 text-red-300 border-red-400/20{% elif status_tone == 'violet' %}bg-violet-500/10 text-violet-300 border-violet-400/20{% else %}bg-white/5 text-gray-300 border-white/10{% endif %}">
+            {{ idea.status }}
+          </span>
+
+          <span class="px-3 py-1 rounded-full text-[11px] mono uppercase tracking-wider border
+            {% if idea.direction == 'BUY' or idea.direction == 'CALL' %}bg-emerald-500/10 text-emerald-300 border-emerald-400/20{% else %}bg-red-500/10 text-red-300 border-red-400/20{% endif %}">
+            {{ idea.direction }}
+          </span>
+
+          <span class="px-3 py-1 rounded-full text-[11px] mono uppercase tracking-wider border border-white/10 bg-white/5 text-gray-300">
+            {{ idea.source_type|default:"IA" }}
+          </span>
+
+          {% if is_expired %}
+            <span class="px-3 py-1 rounded-full text-[11px] mono uppercase tracking-wider border border-amber-400/20 bg-amber-500/10 text-amber-300">
+              Expirée
+            </span>
+          {% elif idea.expires_at %}
+            <span class="px-3 py-1 rounded-full text-[11px] mono uppercase tracking-wider border border-white/10 bg-white/5 text-gray-300">
+              Expire {% if expires_in_minutes is not None %}dans {{ expires_in_minutes }} min{% else %}bientôt{% endif %}
+            </span>
+          {% endif %}
+        </div>
+
+        <div class="flex flex-wrap items-end gap-x-4 gap-y-2">
+          <h2 class="text-white text-2xl xl:text-3xl font-semibold">
+            {{ idea.symbol }} {{ idea.direction }}
+          </h2>
+          <div class="text-sm text-gray-500">
+            {{ idea.asset.name|default:idea.symbol }}
+            {% if idea.timeframe %}· {{ idea.timeframe }}{% endif %}
+          </div>
+        </div>
+
+        <p class="text-sm text-gray-500 mt-3">
+          Détection {{ idea.created_at|date:"d/m/Y H:i:s" }}
+          {% if idea.horizon_minutes %}· Horizon {{ idea.horizon_minutes }} min{% endif %}
+          {% if idea.strategy %}· Stratégie {{ idea.strategy }}{% endif %}
+        </p>
+
+        {% if idea.signal %}
+          <p class="text-xs text-gray-600 mono mt-2">Signal lié : #{{ idea.signal.id }}</p>
+        {% endif %}
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <form method="post" action="{% url 'trading:trade-idea-approve' idea.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="px-4 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/20 transition">
+            Approuver
+          </button>
+        </form>
+
+        <form method="post" action="{% url 'trading:trade-idea-reject' idea.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="px-4 py-2.5 rounded-xl bg-red-500/10 text-red-300 border border-red-400/20 hover:bg-red-500/20 transition">
+            Rejeter
+          </button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Entry</div>
+      <div class="text-xl text-white font-semibold mt-2 mono">{{ idea.entry_price|default:"—" }}</div>
+    </div>
+
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Stop Loss</div>
+      <div class="text-xl text-red-300 font-semibold mt-2 mono">{{ idea.stop_loss|default:"—" }}</div>
+    </div>
+
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Take Profit</div>
+      <div class="text-xl text-emerald-300 font-semibold mt-2 mono">{{ idea.take_profit|default:"—" }}</div>
+    </div>
+
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">RR attendu</div>
+      <div class="text-xl text-white font-semibold mt-2 mono">{{ idea.expected_rr|default:0|floatformat:2 }}</div>
+    </div>
+
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Score global</div>
+      <div class="text-xl text-emerald-400 font-semibold mt-2 mono">{{ idea.overall_score|default:0|floatformat:2 }}</div>
+    </div>
+
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Auto-trade</div>
+      <div class="mt-2">
+        {% if idea.auto_trade_enabled %}
+          <span class="inline-flex px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 text-sm mono">Activé</span>
+        {% else %}
+          <span class="inline-flex px-3 py-1 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-sm mono">Désactivé</span>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div class="card p-6 xl:col-span-2">
+      <div class="flex items-center justify-between gap-3 mb-5">
+        <h3 class="text-white font-semibold">Lecture rapide du setup</h3>
+        <span class="text-xs mono text-gray-500">Synthèse opérationnelle</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs text-gray-500">Distance au Stop</div>
+          <div class="mt-2 text-lg text-red-300 mono font-semibold">{{ trade_metrics.risk_distance|default:"—" }}</div>
+          <div class="text-xs text-gray-600 mt-1">
+            {% if trade_metrics.risk_percent %}{{ trade_metrics.risk_percent|floatformat:2 }}%{% else %}—{% endif %}
+          </div>
+        </div>
+
+        <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs text-gray-500">Distance au TP</div>
+          <div class="mt-2 text-lg text-emerald-300 mono font-semibold">{{ trade_metrics.reward_distance|default:"—" }}</div>
+          <div class="text-xs text-gray-600 mt-1">
+            {% if trade_metrics.reward_percent %}{{ trade_metrics.reward_percent|floatformat:2 }}%{% else %}—{% endif %}
+          </div>
+        </div>
+
+        <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs text-gray-500">Statut</div>
+          <div class="mt-2 text-lg text-white mono font-semibold">{{ idea.status }}</div>
+          <div class="text-xs text-gray-600 mt-1">Cycle de vie</div>
+        </div>
+
+        <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs text-gray-500">Expiration</div>
+          <div class="mt-2 text-lg text-white mono font-semibold">
+            {% if idea.expires_at %}{{ idea.expires_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}
+          </div>
+          <div class="text-xs text-gray-600 mt-1">
+            {% if is_expired %}Idée expirée{% elif expires_in_minutes is not None %}{{ expires_in_minutes }} min restantes{% else %}Non définie{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <h3 class="text-white font-semibold">Décision IA marché</h3>
+        <span class="text-xs mono text-gray-600">{{ ai_decision|default:"WATCH" }}</span>
+      </div>
+
+      <div class="rounded-2xl bg-white/5 border border-white/10 p-4 text-sm text-gray-300 whitespace-pre-wrap leading-6 min-h-[160px]">
+        {{ ai_reason|default:idea.explanation|default:"Aucune explication IA disponible." }}
+      </div>
+
+      {% if market_snapshot %}
+        <div class="mt-4 grid grid-cols-2 gap-3 text-xs">
+          <div class="rounded-xl bg-black/20 border border-white/10 p-3">
+            <div class="text-gray-500">Tendance</div>
+            <div class="mt-1 text-white mono">{{ market_snapshot.trend_direction|default:"—" }}</div>
+          </div>
+          <div class="rounded-xl bg-black/20 border border-white/10 p-3">
+            <div class="text-gray-500">Régime</div>
+            <div class="mt-1 text-white mono">{{ market_snapshot.market_regime|default:"—" }}</div>
+          </div>
+          <div class="rounded-xl bg-black/20 border border-white/10 p-3">
+            <div class="text-gray-500">Volatilité</div>
+            <div class="mt-1 text-white mono">{{ market_snapshot.volatility_level|default:"—" }}</div>
+          </div>
+          <div class="rounded-xl bg-black/20 border border-white/10 p-3">
+            <div class="text-gray-500">RSI</div>
+            <div class="mt-1 text-white mono">{% if market_snapshot.rsi %}{{ market_snapshot.rsi|floatformat:2 }}{% else %}—{% endif %}</div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card p-6">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-5">
+      <div>
+        <h3 class="text-white font-semibold">Exécution / auto-trading</h3>
+        <p class="text-sm text-gray-500 mt-1">Lancez l’exécution de cette idée sur un broker et un portefeuille actifs.</p>
+      </div>
+    </div>
+
+    {% if suggested_minimum_amount %}
+      <div class="mb-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-300">
+        Minimum conseillé pour exécuter cette idée :
+        <strong>{{ suggested_minimum_amount }} USD</strong>
+      </div>
+    {% endif %}
+
+    {# ── Bandeau Kill switch — résolution en un clic ──────────────── #}
+    {% if portfolios_with_kill_switch %}
+      <div class="mb-5 rounded-2xl border border-red-500/30 bg-red-500/5 px-4 py-4 text-sm text-red-200 space-y-3">
+        <div class="flex items-start gap-3">
+          <svg class="w-5 h-5 mt-0.5 flex-shrink-0 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 17c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <div class="flex-1">
+            <div class="font-semibold text-red-100">Kill switch actif — exécution bloquée</div>
+            <p class="mt-1 text-red-300/90 leading-relaxed">
+              Le RiskEngine a déclenché un kill switch sur le(s) portefeuille(s) ci-dessous
+              (perte journalière/hebdomadaire ou drawdown maximal atteint). Tant qu'il
+              n'est pas levé, aucune exécution n'est possible en mode LIVE.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {% for p in portfolios_with_kill_switch %}
+            <form method="post"
+                  action="{% url 'dashboard:resolve_kill_switch' portfolio_id=p.id %}"
+                  class="flex items-center justify-between gap-3 rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2"
+                  onsubmit="return confirm('Lever le kill switch sur « {{ p.name|escapejs }} » ? Tu devras t\\'assurer que ton risk-profile est revenu sous les seuils avant de relancer.');">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.path }}"/>
+              <div class="text-xs">
+                <div class="text-red-100 font-medium mono">{{ p.name }}</div>
+                <div class="text-red-300/70">
+                  Broker : {{ p.broker_account.broker|default:"—" }} · {{ p.broker_account.mode|default:"—" }}
+                </div>
+              </div>
+              <button type="submit"
+                      class="text-[11px] mono uppercase tracking-wider px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-100 border border-red-400/30 transition-colors">
+                Résoudre
+              </button>
+            </form>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
+    {% if brokers and portfolios %}
+      {% if idea.signal %}
+        <form method="post"
+      action="{% url 'trading:trade-idea-auto-trade' idea.pk %}"
+      class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+  {% csrf_token %}
+
+  <div>
+    <label class="block text-sm text-gray-400 mb-2">Broker</label>
+    <select name="broker_account" id="broker_account"
+            class="w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 outline-none focus:border-emerald-400/30">
+      {% for item in broker_suggestions %}
+        <option value="{{ item.broker.pk }}"
+                data-min-stake="{{ item.suggested_minimum_stake|default:item.broker_minimum_stake|default:'1' }}"
+                data-broker="{{ item.broker.broker }}"
+                data-mode="{{ item.broker.mode }}"
+                data-is-deriv="{{ item.is_deriv|yesno:'1,0' }}"
+                data-is-deriv-multiplier="{{ item.is_deriv_multiplier|yesno:'1,0' }}">
+          {{ item.broker.name|default:item.broker.broker }} ({{ item.broker.broker }} · {{ item.broker.mode }})
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div>
+    <label class="block text-sm text-gray-400 mb-2">Portfolio</label>
+    <select name="portfolio" id="portfolio"
+            class="w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 outline-none focus:border-emerald-400/30">
+      {% for portfolio in portfolios %}
+        <option value="{{ portfolio.pk }}"
+                data-broker-id="{% if portfolio.broker_account %}{{ portfolio.broker_account_id }}{% endif %}">
+          {{ portfolio.name }}{% if portfolio.broker_account %} — {{ portfolio.broker_account.name }}{% endif %}
+        </option>
+      {% endfor %}
+    </select>
+    <p id="portfolioBrokerHint" class="mt-2 text-xs text-slate-400"></p>
+  </div>
+
+  <div>
+    <label class="block text-sm text-gray-400 mb-2">Montant engagé</label>
+    <input type="number" step="0.01" min="0.35" name="amount" id="amount"
+           value="{% if suggested_minimum_amount %}{{ suggested_minimum_amount|unlocalize }}{% else %}1{% endif %}"
+           class="w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 outline-none focus:border-emerald-400/30">
+    <p id="minStakeHint" class="mt-2 text-xs text-slate-400"></p>
+  </div>
+
+  <div>
+    <label class="block text-sm text-gray-400 mb-2">Paramètres Deriv</label>
+
+    <div id="derivStandardFields" class="grid grid-cols-2 gap-2">
+      <input type="number" name="duration" id="duration" min="1" value="{{ default_deriv_duration }}"
+             class="rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 outline-none focus:border-emerald-400/30"
+             placeholder="Durée">
+
+      <select name="duration_unit" id="duration_unit"
+              class="rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 outline-none focus:border-emerald-400/30">
+       <option value="s" selected>Secondes</option>
+<option value="t">Ticks</option>
+<option value="m">Minutes</option>
+      </select>
+    </div>
+
+    <div id="derivMultiplierFields" class="hidden">
+      <input type="number" name="multiplier" id="multiplier" min="1" value="{{ default_deriv_multiplier }}"
+             class="w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 outline-none focus:border-emerald-400/30"
+             placeholder="Multiplier">
+      <p class="mt-2 text-xs text-amber-300">
+        Boom/Crash utilise MULTUP/MULTDOWN. Aucune durée n’est envoyée.
+      </p>
+    </div>
+  </div>
+
+  {# ── Décharge / engagement utilisateur ─────────────────────────── #}
+  <div class="md:col-span-2 xl:col-span-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3"
+       data-leo-risk-override-block>
+    <div class="flex items-start gap-3">
+      <svg class="w-5 h-5 mt-0.5 flex-shrink-0 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 17c-.77 1.333.192 3 1.732 3z"/>
+      </svg>
+      <div class="flex-1 text-sm text-amber-100 space-y-2 leading-relaxed">
+        <div class="font-semibold">Décharge — exécution forcée</div>
+        <p>
+          Si le RiskEngine bloque ton trade pour une raison
+          <span class="font-semibold">franchissable</span>
+          (positions max, exposition, drawdown, confiance IA, perte
+          journalière/hebdo…), tu peux cocher la case ci-dessous pour
+          forcer l'exécution.
+        </p>
+        <p>
+          En cochant, tu reconnais que :
+        </p>
+        <ul class="list-disc pl-5 space-y-1 text-amber-200/90">
+          <li>tu agis en toute connaissance de cause sur ton propre capital ;</li>
+          <li>l'analyse du RiskEngine et de l'IA n'est qu'un outil d'aide, pas un conseil financier ;</li>
+          <li>les pertes éventuelles sont à ta charge exclusive ;</li>
+          <li>LeoTrade et Anthropic sont déchargés de toute responsabilité liée à ce trade ;</li>
+          <li>chaque override est consigné dans le journal d'audit (utilisateur, motif, horodatage).</li>
+        </ul>
+        <p class="text-amber-200/80 text-xs">
+          Les blocages dits <span class="font-semibold">HARD</span>
+          (kill switch en LIVE, profil interdisant le live, short interdit)
+          ne sont <span class="font-semibold">PAS</span> franchissables
+          par cette case — ils nécessitent une modification explicite
+          du profil de risque ou du compte broker.
+        </p>
+      </div>
+    </div>
+
+    <label class="flex items-start gap-3 text-sm text-amber-100 cursor-pointer rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2"
+           data-leo-risk-override-label>
+      <input type="checkbox" name="risk_override" value="1"
+             class="mt-1 rounded border-amber-400/30 bg-black/30"
+             data-leo-risk-override-checkbox>
+      <span>
+        <span class="font-semibold">Je passe outre, j'assume le risque.</span>
+        Forcer l'exécution sous ma responsabilité ; LeoTrade est déchargé.
+      </span>
+    </label>
+
+    <div data-leo-risk-override-reason class="hidden">
+      <label class="block text-xs text-amber-200/80 mb-1 mono uppercase tracking-wider">
+        Motif (facultatif, archivé pour audit)
+      </label>
+      <textarea name="risk_override_reason" rows="2" maxlength="500"
+                placeholder="Ex : conviction forte sur le setup, news pricing-in attendue, etc."
+                class="w-full rounded-xl bg-black/30 border border-amber-400/20 text-amber-100 px-3 py-2 outline-none focus:border-amber-300/40 text-sm"></textarea>
+    </div>
+  </div>
+
+  <div class="md:col-span-2 xl:col-span-4 flex items-end">
+    <button type="submit"
+            data-leo-trade-submit
+            class="w-full px-4 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/20 transition">
+      Activer / exécuter
+    </button>
+  </div>
+</form>
+
+<script>
+(function () {
+    const block = document.querySelector('[data-leo-risk-override-block]');
+    if (!block) return;
+    const checkbox = block.querySelector('[data-leo-risk-override-checkbox]');
+    const reasonWrap = block.querySelector('[data-leo-risk-override-reason]');
+    const form = block.closest('form');
+    if (!checkbox || !form) return;
+
+    // Affiche la zone de motif uniquement quand l'override est coché.
+    function syncReasonVisibility() {
+        if (!reasonWrap) return;
+        reasonWrap.classList.toggle('hidden', !checkbox.checked);
+    }
+    checkbox.addEventListener('change', syncReasonVisibility);
+    syncReasonVisibility();
+
+    // Confirmation explicite au moment de soumettre avec override en LIVE.
+    form.addEventListener('submit', function (event) {
+        if (!checkbox.checked) return;
+
+        const brokerSelect = form.querySelector('select[name="broker_account"]');
+        const selectedOption = brokerSelect ? brokerSelect.selectedOptions[0] : null;
+        const mode = selectedOption ? (selectedOption.dataset.mode || '').toUpperCase() : '';
+
+        const msg = mode === 'LIVE'
+            ? "Tu vas passer outre le RiskEngine et exécuter ce trade en LIVE.\n\n"
+              + "Confirmes-tu que :\n"
+              + "  • tu acceptes les pertes potentielles ;\n"
+              + "  • tu déchargés LeoTrade de toute responsabilité ;\n"
+              + "  • tu autorises l'enregistrement de cet override pour audit ?"
+            : "Tu vas passer outre le RiskEngine.\n\n"
+              + "Confirmer ?";
+
+        if (!window.confirm(msg)) {
+            event.preventDefault();
+        }
+    });
+})();
+</script>
+      {% else %}
+        <div class="rounded-xl bg-amber-500/10 border border-amber-400/20 p-4 text-sm text-amber-200">
+          Cette opportunité n’est pas encore exécutable : aucun signal n’est attaché.
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="rounded-2xl bg-amber-500/10 border border-amber-400/20 p-4 text-sm text-amber-200">
+        Aucun broker actif ou portefeuille disponible pour lancer l’auto-trading.
+      </div>
+    {% endif %}
+  </section>
+
+  {% if broker_suggestions %}
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-4">
+      <div>
+        <h3 class="text-sm font-semibold text-white">Suggestions d’exécution</h3>
+        <p class="text-xs text-slate-400 mt-1">Estimation du montant minimum requis selon les contraintes du broker.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {% for item in broker_suggestions %}
+          <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm font-medium text-white">{{ item.broker.broker }} · {{ item.broker.mode }}</div>
+                <div class="text-xs text-slate-500">{{ item.broker.name|default:"Broker" }}</div>
+              </div>
+
+              {% if item.is_available %}
+                <span class="text-xs text-emerald-300">Disponible</span>
+              {% else %}
+                <span class="text-xs text-amber-300">À vérifier</span>
+              {% endif %}
+            </div>
+
+            {% if item.preview.ok %}
+              <div class="mt-4 space-y-2 text-sm">
+                <div class="flex justify-between gap-4">
+                  <span class="text-slate-400">Minimum broker</span>
+                  <span class="text-slate-200 text-right">{{ item.broker_minimum_stake|default:"—" }} USD</span>
+                </div>
+
+                <div class="flex justify-between gap-4">
+                  <span class="text-slate-400">Risque minimal requis</span>
+                  <span class="text-slate-200 text-right">{{ item.risk_minimum_required|default:"—" }} USD</span>
+                </div>
+
+                <div class="flex justify-between gap-4">
+                  <span class="text-slate-400">Minimum conseillé</span>
+                  <span class="font-semibold text-emerald-400 text-right">{{ item.suggested_minimum_stake|default:"—" }} USD</span>
+                </div>
+              </div>
+            {% else %}
+              <div class="mt-4 text-sm text-amber-400">
+                Impossible d’estimer le montant minimum pour ce broker.
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    {% if idea.review %}
+      <div class="card p-6">
+        <div class="flex items-center justify-between gap-3 mb-4">
+          <h3 class="text-white font-semibold">Avis de l’agent IA spécialisé</h3>
+          <span class="text-xs mono text-gray-600">Review Agent</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-gray-500 text-sm">Décision</div>
+            <div class="text-white mt-2 mono">{{ idea.review.decision|default:"—" }}</div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-gray-500 text-sm">Priorité</div>
+            <div class="text-white mt-2 mono">{{ idea.review.priority|default:"—" }}</div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-gray-500 text-sm">Score ajusté</div>
+            <div class="text-emerald-400 mt-2 mono">{{ idea.review.adjusted_score|default:0|floatformat:2 }}</div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-gray-500 text-sm">Ajustement confiance</div>
+            <div class="text-white mt-2 mono">{{ idea.review.confidence_adjustment|default:0|floatformat:2 }}</div>
+          </div>
+        </div>
+
+        <div class="mt-4 rounded-xl bg-white/5 border border-white/10 p-4 text-sm text-gray-300 whitespace-pre-wrap leading-6">
+          {{ idea.review.reasoning|default:"Aucun raisonnement détaillé disponible." }}
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="card p-6">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <h3 class="text-white font-semibold">Feedback d’exécution</h3>
+        <span class="text-xs mono text-gray-600">Outcome</span>
+      </div>
+
+      {% if feedback %}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-gray-500 text-sm">Outcome</div>
+            <div class="text-white mt-2 mono">{{ feedback.outcome }}</div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-gray-500 text-sm">Statut exécution</div>
+            <div class="text-white mt-2 mono">{{ feedback.execution_status|default:"—" }}</div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-gray-500 text-sm">PnL montant</div>
+            <div class="mt-2 mono {% if feedback.pnl_amount >= 0 %}text-emerald-300{% else %}text-red-300{% endif %}">
+              {{ feedback.pnl_amount|default:"—" }}
+            </div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-gray-500 text-sm">PnL %</div>
+            <div class="mt-2 mono {% if feedback.pnl_percent >= 0 %}text-emerald-300{% else %}text-red-300{% endif %}">
+              {{ feedback.pnl_percent|default:0|floatformat:2 }}%
+            </div>
+          </div>
+        </div>
+
+        {% if feedback.notes %}
+          <div class="mt-4 rounded-xl bg-white/5 border border-white/10 p-4 text-sm text-gray-300 whitespace-pre-wrap leading-6">
+            {{ feedback.notes }}
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4 text-sm text-gray-400">
+          Aucun feedback d’exécution disponible pour cette idée.
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if latest_agent_run %}
+    <section class="card p-6">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <h3 class="text-white font-semibold">Dernier run agent</h3>
+        <span class="text-xs mono text-gray-600">{{ latest_agent_run.agent_type }}</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500 text-sm">Statut</div>
+          <div class="text-white mt-2 mono">{{ latest_agent_run.status }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500 text-sm">Début</div>
+          <div class="text-white mt-2 mono">{{ latest_agent_run.started_at|date:"d/m/Y H:i:s" }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500 text-sm">Fin</div>
+          <div class="text-white mt-2 mono">{% if latest_agent_run.finished_at %}{{ latest_agent_run.finished_at|date:"d/m/Y H:i:s" }}{% else %}—{% endif %}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500 text-sm">Runtime</div>
+          <div class="text-white mt-2 mono">{{ latest_agent_run.runtime_ms|default:"—" }} ms</div>
+        </div>
+      </div>
+
+      {% if latest_agent_run.notes %}
+        <div class="mt-4 rounded-xl bg-white/5 border border-white/10 p-4 text-sm text-gray-300 whitespace-pre-wrap">
+          {{ latest_agent_run.notes }}
+        </div>
+      {% endif %}
+
+      {% if latest_agent_run.error_message %}
+        <div class="mt-4 rounded-xl bg-red-500/10 border border-red-400/20 p-4 text-sm text-red-200 whitespace-pre-wrap">
+          {{ latest_agent_run.error_message }}
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <h3 class="text-white font-semibold">Market snapshot</h3>
+        <span class="text-xs mono text-gray-600">JSON</span>
+      </div>
+      <pre class="text-xs text-gray-300 whitespace-pre-wrap break-words rounded-2xl bg-black/20 border border-white/5 p-4 overflow-auto min-h-[260px]">{{ idea.market_snapshot|default:market_snapshot|default:"{}" }}</pre>
+    </div>
+
+    <div class="card p-6">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <h3 class="text-white font-semibold">Features snapshot</h3>
+        <span class="text-xs mono text-gray-600">JSON</span>
+      </div>
+      <pre class="text-xs text-gray-300 whitespace-pre-wrap break-words rounded-2xl bg-black/20 border border-white/5 p-4 overflow-auto min-h-[260px]">{{ idea.features_snapshot|default:"{}" }}</pre>
+    </div>
+  </section>
+
+  {% if idea.ai_payload %}
+    <section class="card p-6">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <h3 class="text-white font-semibold">Payload IA</h3>
+        <span class="text-xs mono text-gray-600">AI Payload</span>
+      </div>
+      <pre class="text-xs text-gray-300 whitespace-pre-wrap break-words rounded-2xl bg-black/20 border border-white/5 p-4 overflow-auto">{{ idea.ai_payload|default:"{}" }}</pre>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const brokerSelect = document.getElementById("broker_account");
+  const portfolioSelect = document.getElementById("portfolio");
+  const amountInput = document.getElementById("amount");
+  const hint = document.getElementById("minStakeHint");
+  const portfolioHint = document.getElementById("portfolioBrokerHint");
+  const derivStandardFields = document.getElementById("derivStandardFields");
+  const derivMultiplierFields = document.getElementById("derivMultiplierFields");
+
+  function updateExecutionForm() {
+    if (!brokerSelect || !amountInput || !hint) return;
+
+    const option = brokerSelect.options[brokerSelect.selectedIndex];
+    if (!option) return;
+
+    const minStake = option.dataset.minStake || "1";
+    const brokerId = option.value || "";
+    const isDeriv = option.dataset.isDeriv === "1";
+    const isDerivMultiplier = option.dataset.isDerivMultiplier === "1";
+
+    hint.textContent = `Montant minimum estimé pour ce broker : ${minStake} USD`;
+
+    const current = Number(amountInput.value || 0);
+    const minimum = Number(minStake || 0);
+
+    if (!current || current < minimum) {
+      amountInput.value = minimum > 0 ? minimum.toFixed(2) : "1.00";
+    }
+
+    if (derivStandardFields && derivMultiplierFields) {
+      if (isDeriv && isDerivMultiplier) {
+        derivStandardFields.classList.add("hidden");
+        derivMultiplierFields.classList.remove("hidden");
+      } else {
+        derivStandardFields.classList.remove("hidden");
+        derivMultiplierFields.classList.add("hidden");
+      }
+    }
+
+    if (portfolioSelect && portfolioHint) {
+      let matched = false;
+
+      Array.from(portfolioSelect.options).forEach((pOption) => {
+        const pBrokerId = pOption.dataset.brokerId || "";
+        const isSameBroker = !pBrokerId || pBrokerId === brokerId;
+
+        pOption.hidden = !isSameBroker;
+
+        if (isSameBroker && !matched) {
+          portfolioSelect.value = pOption.value;
+          matched = true;
+        }
+      });
+
+      if (!matched) {
+        portfolioHint.textContent = "Aucun portefeuille lié à ce broker. Sélection impossible.";
+        portfolioHint.className = "mt-2 text-xs text-red-400";
+      } else {
+        portfolioHint.textContent = "Le portefeuille est filtré selon le broker sélectionné.";
+        portfolioHint.className = "mt-2 text-xs text-slate-400";
+      }
+    }
+  }
+
+  if (brokerSelect) {
+    brokerSelect.addEventListener("change", updateExecutionForm);
+  }
+
+  updateExecutionForm();
+});
+</script>
+{% endblock %}

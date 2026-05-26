@@ -1,0 +1,750 @@
+{% extends "layout/base.html" %}
+
+{% block title %}{{ asset.symbol }} — Chart{% endblock %}
+{% block page_title %}Graphique marché{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="candleRealtimeApp()" x-init="init()">
+
+  <!-- HERO -->
+  <section class="card card-glow p-6 overflow-hidden relative">
+    <div class="absolute inset-0 pointer-events-none opacity-40"
+         style="background:
+         radial-gradient(circle at top right, rgba(16,185,129,.14), transparent 32%),
+         radial-gradient(circle at bottom left, rgba(59,130,246,.10), transparent 34%);"></div>
+
+    <div class="relative flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Market Chart</div>
+        <h2 class="text-white text-2xl xl:text-3xl font-semibold mt-1 flex items-center gap-3">
+          <span>{{ asset.symbol }}</span>
+          <span class="px-2 py-1 rounded text-xs mono border"
+                :class="priceUp ? 'bg-emerald-500/10 text-emerald-300 border-emerald-400/20' : 'bg-red-500/10 text-red-300 border-red-400/20'">
+            <span x-text="priceUp ? 'BULLISH' : 'BEARISH'"></span>
+          </span>
+        </h2>
+
+        <div class="text-sm text-gray-500 mt-2">
+          {{ asset.asset_class }} · {{ asset.exchange }}
+          {% if asset.base_asset and asset.quote_asset %}
+            · {{ asset.base_asset }}/{{ asset.quote_asset }}
+          {% endif %}
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center gap-3 text-xs mono">
+          <div class="px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+            <span class="text-gray-500">Dernier prix :</span>
+            <span class="text-white ml-1" :class="pulsePrice ? 'live-price-flash' : ''" x-text="formatPrice(lastPrice)"></span>
+          </div>
+
+          <div class="px-3 py-2 rounded-xl border transition-all duration-300"
+               :class="priceUp ? 'bg-emerald-500/10 border-emerald-400/20 text-emerald-300' : 'bg-red-500/10 border-red-400/20 text-red-300'">
+            <span :class="pulsePrice ? 'live-price-flash' : ''" x-text="formatSigned(changeValue)"></span>
+            <span class="ml-1" x-text="`(${formatSigned(changePercent)}%)`"></span>
+          </div>
+
+          <div class="px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+            <span class="text-gray-500">Bougies :</span>
+            <span class="text-white ml-1" x-text="candles.length"></span>
+          </div>
+
+          <div class="px-3 py-2 rounded-xl bg-white/5 border border-white/10 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full"
+                  :class="isLive && !paused ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'"></span>
+            <span class="text-gray-300" x-text="paused ? 'LIVE PAUSE' : (isLive ? 'LIVE ACTIF' : 'LIVE OFFLINE')"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <form method="get" class="flex items-center gap-3">
+          <select name="timeframe"
+                  onchange="this.form.submit()"
+                  class="rounded-xl bg-white/5 border border-white/10 text-white px-4 py-2.5 outline-none">
+            {% for tf in timeframes %}
+              <option value="{{ tf.code }}" {% if selected_timeframe and tf.id == selected_timeframe.id %}selected{% endif %}>
+                {{ tf.code }} — {{ tf.label }}
+              </option>
+            {% endfor %}
+          </select>
+        </form>
+
+        <button type="button"
+                @click="togglePause()"
+                class="px-4 py-2.5 rounded-xl bg-white/5 text-gray-300 border border-white/10 text-xs mono hover:bg-white/10 transition">
+          <span x-text="paused ? 'Reprendre' : 'Pause'"></span>
+        </button>
+
+        <button type="button"
+                @click="refreshData()"
+                class="px-4 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 text-xs mono hover:bg-emerald-500/20 transition">
+          Rafraîchir
+        </button>
+
+        <a href="{% url 'asset-list' %}"
+           class="px-4 py-2.5 rounded-xl bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+          Retour marchés
+        </a>
+
+        <a href="{% url 'asset-detail' asset.pk %}"
+           class="px-4 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 text-xs mono hover:bg-emerald-500/20 transition font-bold">
+          ⚡ Trader {{ asset.symbol }}
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- KPI -->
+  <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Symbole</div>
+      <div class="text-white text-xl font-semibold mt-2 mono">{{ asset.symbol }}</div>
+    </div>
+
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Classe</div>
+      <div class="text-white text-xl font-semibold mt-2">{{ asset.asset_class }}</div>
+    </div>
+
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Exchange</div>
+      <div class="text-white text-xl font-semibold mt-2">{{ asset.exchange }}</div>
+    </div>
+
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Dernier close</div>
+      <div class="text-white text-xl font-semibold mt-2 mono" :class="pulsePrice ? 'live-price-flash' : ''" x-text="formatPrice(lastPrice)"></div>
+    </div>
+
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Volume</div>
+      <div class="text-white text-xl font-semibold mt-2 mono" x-text="formatNumber(lastVolume)"></div>
+    </div>
+
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">État</div>
+      <div class="mt-2">
+        {% if asset.is_active %}
+          <span class="px-2 py-1 rounded text-xs mono pill-open">ACTIVE</span>
+        {% else %}
+          <span class="px-2 py-1 rounded text-xs mono pill-sell">INACTIVE</span>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <!-- CHART -->
+  <section class="card p-6 overflow-hidden">
+    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-5">
+      <div>
+        <h3 class="text-white font-semibold">Historique des prix en chandeliers</h3>
+        <p class="text-xs text-gray-500 mt-1">
+          Vue OHLC + histogramme volume · diffusion temps réel via WebSocket
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 text-xs mono">
+        <span class="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-gray-400">
+          TF: <span class="text-white">{{ selected_timeframe.code|default:"—" }}</span>
+        </span>
+        <span class="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-gray-400">
+          Dernière update: <span class="text-white" x-text="lastUpdated || '—'"></span>
+        </span>
+      </div>
+    </div>
+
+    <div class="space-y-4">
+      <div class="mb-4">
+        <div class="flex items-center justify-between text-[11px] mono text-gray-500 mb-2">
+          <span>Cycle de rafraîchissement temps réel</span>
+          <span x-text="paused ? 'PAUSE' : `${remainingSeconds}s`"></span>
+        </div>
+
+        <div class="h-2 rounded-full bg-white/10 overflow-hidden border border-white/10">
+          <div class="h-full rounded-full transition-all duration-100"
+               :class="isLive ? 'bg-emerald-400' : 'bg-red-400'"
+               :style="`width:${refreshProgress}%`"></div>
+        </div>
+      </div>
+
+      <div id="candlestickChart" class="h-[460px] w-full"></div>
+      <div id="volumeChart" class="h-[140px] w-full"></div>
+    </div>
+  </section>
+
+  <!-- TABLE -->
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between gap-3">
+      <div>
+        <h3 class="text-white font-semibold">Bougies récentes</h3>
+        <p class="text-xs text-gray-500 mt-1">Les 30 dernières bougies</p>
+      </div>
+
+      <div class="text-xs mono text-gray-500">
+        Temps réel actif
+      </div>
+    </div>
+
+    <div class="overflow-x-auto max-h-[520px]">
+      <table class="w-full min-w-[1100px] text-sm">
+        <thead class="sticky top-0 z-10 bg-[#0b1220]/95 backdrop-blur border-b border-white/10">
+          <tr class="text-left text-gray-500">
+            <th class="px-6 py-3 font-medium">Date</th>
+            <th class="px-6 py-3 font-medium text-right">Open</th>
+            <th class="px-6 py-3 font-medium text-right">High</th>
+            <th class="px-6 py-3 font-medium text-right">Low</th>
+            <th class="px-6 py-3 font-medium text-right">Close</th>
+            <th class="px-6 py-3 font-medium text-right">Volume</th>
+            <th class="px-6 py-3 font-medium text-right">Direction</th>
+          </tr>
+        </thead>
+        <tbody id="candlesTableBody"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+.table-row:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.pill-open {
+  background: rgba(16,185,129,0.10);
+  color: rgb(110, 231, 183);
+  border: 1px solid rgba(16,185,129,0.20);
+}
+
+.pill-sell {
+  background: rgba(239,68,68,0.10);
+  color: rgb(252, 165, 165);
+  border: 1px solid rgba(239,68,68,0.20);
+}
+
+.live-price-flash {
+  animation: liveFlash 0.7s ease;
+}
+
+.latest-candle-row {
+  background: rgba(255,255,255,0.025);
+}
+
+@keyframes liveFlash {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  35% {
+    transform: scale(1.03);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+</style>
+
+<script src="https://unpkg.com/lightweight-charts@5.0.1/dist/lightweight-charts.standalone.production.js"></script>
+
+<script>
+function candleRealtimeApp() {
+  return {
+    candles: {{ candles_json|safe|default:"[]" }},
+    liveFeedUrl: "{{ live_feed_url|escapejs }}",
+    wsFeedUrl: "{{ ws_feed_url|escapejs }}",
+    timeframe: "{{ selected_timeframe.code|default:''|escapejs }}",
+
+    chart: null,
+    candleSeries: null,
+    volumeChart: null,
+    volumeSeries: null,
+
+    paused: false,
+    isLive: true,
+    loading: false,
+
+    lastUpdated: null,
+    lastPrice: 0,
+    lastVolume: 0,
+    changeValue: 0,
+    changePercent: 0,
+    priceUp: true,
+
+    refreshProgress: 0,
+    pollSeconds: 5,
+    remainingSeconds: 5,
+
+    pulsePrice: false,
+    pulseCandle: false,
+
+    ws: null,
+    reconnectTimer: null,
+    progressTimer: null,
+    priceLine: null,
+
+    init() {
+      this.initCharts();
+      this.renderInitialData();
+      this.updateStats();
+      this.renderTable();
+      this.connectWebSocket();
+      this.startRefreshProgress();
+
+      window.addEventListener("beforeunload", () => {
+        this.destroySocket();
+        this.stopRefreshProgress();
+      });
+    },
+
+    initCharts() {
+      const chartContainer = document.getElementById("candlestickChart");
+      const volumeContainer = document.getElementById("volumeChart");
+
+      if (!chartContainer || !volumeContainer || !window.LightweightCharts) {
+        console.error("LightweightCharts ou conteneurs introuvables.");
+        this.isLive = false;
+        return;
+      }
+
+      const {
+        createChart,
+        CandlestickSeries,
+        HistogramSeries,
+        CrosshairMode,
+      } = window.LightweightCharts;
+
+      this.chart = createChart(chartContainer, {
+        layout: {
+          background: { color: "transparent" },
+          textColor: "#9ca3af",
+        },
+        grid: {
+          vertLines: { color: "rgba(255,255,255,0.04)" },
+          horzLines: { color: "rgba(255,255,255,0.04)" },
+        },
+        rightPriceScale: {
+          borderColor: "rgba(255,255,255,0.08)",
+        },
+        timeScale: {
+          borderColor: "rgba(255,255,255,0.08)",
+          timeVisible: true,
+          secondsVisible: false,
+          rightOffset: 6,
+          barSpacing: 10,
+        },
+        crosshair: {
+          mode: CrosshairMode.Normal,
+        },
+        localization: {
+          locale: "fr-FR",
+        },
+        autoSize: true,
+      });
+
+      this.candleSeries = this.chart.addSeries(CandlestickSeries, {
+        upColor: "#10b981",
+        downColor: "#ef4444",
+        borderUpColor: "#10b981",
+        borderDownColor: "#ef4444",
+        wickUpColor: "#10b981",
+        wickDownColor: "#ef4444",
+        priceLineVisible: true,
+        lastValueVisible: true,
+      });
+
+      this.volumeChart = createChart(volumeContainer, {
+        layout: {
+          background: { color: "transparent" },
+          textColor: "#6b7280",
+        },
+        grid: {
+          vertLines: { color: "rgba(255,255,255,0.04)" },
+          horzLines: { color: "rgba(255,255,255,0.04)" },
+        },
+        rightPriceScale: {
+          borderColor: "rgba(255,255,255,0.08)",
+        },
+        timeScale: {
+          borderColor: "rgba(255,255,255,0.08)",
+          timeVisible: true,
+          secondsVisible: false,
+          rightOffset: 6,
+          barSpacing: 10,
+        },
+        localization: {
+          locale: "fr-FR",
+        },
+        autoSize: true,
+      });
+
+      this.volumeSeries = this.volumeChart.addSeries(HistogramSeries, {
+        priceFormat: { type: "volume" },
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+
+      window.addEventListener("resize", () => {
+        try {
+          this.chart?.timeScale().fitContent();
+          this.volumeChart?.timeScale().fitContent();
+        } catch (e) {
+          console.error("Erreur resize charts:", e);
+        }
+      });
+    },
+
+    candleToSeries(c) {
+      return {
+        time: Number(c.open_time),
+        open: Number(c.open),
+        high: Number(c.high),
+        low: Number(c.low),
+        close: Number(c.close),
+      };
+    },
+
+    volumeToSeries(c) {
+      return {
+        time: Number(c.open_time),
+        value: Number(c.volume),
+        color: Number(c.close) >= Number(c.open)
+          ? "rgba(16,185,129,0.55)"
+          : "rgba(239,68,68,0.55)",
+      };
+    },
+
+    renderInitialData() {
+      if (!this.candleSeries || !this.volumeSeries) return;
+
+      const candlesData = this.candles.map(c => this.candleToSeries(c));
+      const volumeData = this.candles.map(c => this.volumeToSeries(c));
+
+      this.candleSeries.setData(candlesData);
+      this.volumeSeries.setData(volumeData);
+
+      this.chart.timeScale().fitContent();
+      this.volumeChart.timeScale().fitContent();
+      this.updatePriceLine();
+    },
+
+    updatePriceLine() {
+      if (!this.candleSeries || !this.candles.length) return;
+
+      const latest = this.candles[this.candles.length - 1];
+      const price = Number(latest.close || 0);
+
+      this.candleSeries.applyOptions({
+        priceLineColor: this.priceUp ? "#10b981" : "#ef4444",
+      });
+
+      if (this.priceLine) {
+        try {
+          this.candleSeries.removePriceLine(this.priceLine);
+        } catch (e) {}
+        this.priceLine = null;
+      }
+
+      try {
+        this.priceLine = this.candleSeries.createPriceLine({
+          price: price,
+          color: this.priceUp ? "#10b981" : "#ef4444",
+          lineWidth: 1,
+          lineStyle: 2,
+          axisLabelVisible: true,
+          title: "LIVE",
+        });
+      } catch (e) {}
+    },
+
+    updateStats() {
+      if (!this.candles.length) {
+        this.lastPrice = 0;
+        this.lastVolume = 0;
+        this.changeValue = 0;
+        this.changePercent = 0;
+        this.priceUp = true;
+        return;
+      }
+
+      const latest = this.candles[this.candles.length - 1];
+      const previous = this.candles.length > 1 ? this.candles[this.candles.length - 2] : null;
+
+      const oldPrice = this.lastPrice;
+      this.lastPrice = Number(latest.close || 0);
+      this.lastVolume = Number(latest.volume || 0);
+
+      if (previous && Number(previous.close || 0) !== 0) {
+        this.changeValue = Number(latest.close || 0) - Number(previous.close || 0);
+        this.changePercent = (this.changeValue / Number(previous.close || 1)) * 100;
+      } else {
+        this.changeValue = 0;
+        this.changePercent = 0;
+      }
+
+      this.priceUp = this.changeValue >= 0;
+
+      if (oldPrice !== 0 && oldPrice !== this.lastPrice) {
+        this.triggerPulse();
+      }
+    },
+
+    triggerPulse() {
+      this.pulsePrice = true;
+      this.pulseCandle = true;
+
+      setTimeout(() => {
+        this.pulsePrice = false;
+        this.pulseCandle = false;
+      }, 900);
+    },
+
+    renderTable() {
+      const tbody = document.getElementById("candlesTableBody");
+      if (!tbody) return;
+
+      const recent = [...this.candles].reverse().slice(0, 30);
+
+      tbody.innerHTML = recent.map((c, index) => {
+        const bullish = Number(c.close) >= Number(c.open);
+        const isLatest = index === 0;
+
+        return `
+          <tr class="table-row border-b border-white/[0.04] ${isLatest ? 'latest-candle-row' : ''}">
+            <td class="px-6 py-3 text-gray-400 mono">${this.formatDate(c.open_time_iso)}</td>
+            <td class="px-6 py-3 text-right text-gray-300 mono">${this.formatPrice(c.open)}</td>
+            <td class="px-6 py-3 text-right text-emerald-400 mono">${this.formatPrice(c.high)}</td>
+            <td class="px-6 py-3 text-right text-red-400 mono">${this.formatPrice(c.low)}</td>
+            <td class="px-6 py-3 text-right text-white mono ${isLatest && this.pulsePrice ? 'live-price-flash' : ''}">${this.formatPrice(c.close)}</td>
+            <td class="px-6 py-3 text-right text-gray-400 mono">${this.formatNumber(c.volume)}</td>
+            <td class="px-6 py-3 text-right">
+              <span class="px-2 py-1 rounded text-xs mono border ${bullish ? 'bg-emerald-500/10 text-emerald-300 border-emerald-400/20' : 'bg-red-500/10 text-red-300 border-red-400/20'}">
+                ${bullish ? 'UP' : 'DOWN'}
+              </span>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    },
+
+    connectWebSocket() {
+      if (!this.wsFeedUrl) {
+        console.error("URL websocket absente");
+        this.isLive = false;
+        return;
+      }
+
+      this.destroySocket();
+
+      try {
+        this.ws = new WebSocket(this.wsFeedUrl);
+
+        this.ws.onopen = () => {
+          this.isLive = true;
+          this.lastUpdated = new Date().toLocaleTimeString("fr-FR");
+          this.refreshProgress = 0;
+          this.remainingSeconds = this.pollSeconds;
+          console.log("WS candles connecté");
+        };
+
+        this.ws.onmessage = (event) => {
+          try {
+            if (this.paused) return;
+
+            const payload = JSON.parse(event.data);
+            if (!payload || !payload.candle) return;
+
+            this.upsertIncomingCandle(payload.candle);
+            this.isLive = true;
+            this.lastUpdated = new Date().toLocaleTimeString("fr-FR");
+            this.refreshProgress = 0;
+            this.remainingSeconds = this.pollSeconds;
+          } catch (e) {
+            console.error("Erreur parsing WS candle:", e);
+          }
+        };
+
+        this.ws.onclose = () => {
+          this.isLive = false;
+          console.warn("WS candles fermé");
+          this.scheduleReconnect();
+        };
+
+        this.ws.onerror = (error) => {
+          this.isLive = false;
+          console.error("Erreur WS candles:", error);
+          try {
+            this.ws.close();
+          } catch (e) {}
+        };
+      } catch (e) {
+        this.isLive = false;
+        console.error("Impossible d'ouvrir le WS:", e);
+        this.scheduleReconnect();
+      }
+    },
+
+    destroySocket() {
+      if (this.ws) {
+        try {
+          this.ws.onopen = null;
+          this.ws.onmessage = null;
+          this.ws.onclose = null;
+          this.ws.onerror = null;
+          this.ws.close();
+        } catch (e) {}
+        this.ws = null;
+      }
+    },
+
+    scheduleReconnect() {
+      if (this.paused) return;
+      if (this.reconnectTimer) return;
+
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null;
+        this.connectWebSocket();
+      }, 3000);
+    },
+
+    upsertIncomingCandle(candle) {
+      if (!candle || !candle.open_time) return;
+
+      const idx = this.candles.findIndex(
+        item => Number(item.open_time) === Number(candle.open_time)
+      );
+
+      if (idx >= 0) {
+        this.candles[idx] = candle;
+      } else {
+        this.candles.push(candle);
+        this.candles.sort((a, b) => Number(a.open_time) - Number(b.open_time));
+
+        if (this.candles.length > 300) {
+          this.candles = this.candles.slice(-300);
+        }
+      }
+
+      const latest = this.candles[this.candles.length - 1];
+
+      if (!this.candleSeries || !this.volumeSeries) {
+        this.renderInitialData();
+      } else if (latest) {
+        this.candleSeries.update(this.candleToSeries(latest));
+        this.volumeSeries.update(this.volumeToSeries(latest));
+      }
+
+      this.chart?.timeScale().scrollToRealTime();
+      this.volumeChart?.timeScale().scrollToRealTime();
+
+      this.updateStats();
+      this.updatePriceLine();
+      this.renderTable();
+    },
+
+    startRefreshProgress() {
+      this.stopRefreshProgress();
+
+      this.refreshProgress = 0;
+      this.remainingSeconds = this.pollSeconds;
+
+      this.progressTimer = setInterval(() => {
+        if (this.paused) return;
+
+        const step = 100 / (this.pollSeconds * 10);
+        this.refreshProgress += step;
+
+        if (this.refreshProgress >= 100) {
+          this.refreshProgress = 0;
+        }
+
+        this.remainingSeconds = Math.max(
+          0,
+          this.pollSeconds - Math.floor((this.refreshProgress / 100) * this.pollSeconds)
+        );
+      }, 100);
+    },
+
+    stopRefreshProgress() {
+      if (this.progressTimer) {
+        clearInterval(this.progressTimer);
+        this.progressTimer = null;
+      }
+    },
+
+    async refreshData() {
+      if (this.loading) return;
+      this.loading = true;
+
+      try {
+        const params = new URLSearchParams();
+        if (this.timeframe) {
+          params.set("timeframe", this.timeframe);
+        }
+
+        const url = `${this.liveFeedUrl}?${params.toString()}`;
+        const response = await fetch(url, {
+          headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const incoming = Array.isArray(payload.candles) ? payload.candles : [];
+
+        if (incoming.length) {
+          this.candles = incoming;
+          this.renderInitialData();
+          this.updateStats();
+          this.updatePriceLine();
+          this.renderTable();
+        }
+
+        this.isLive = true;
+        this.lastUpdated = new Date().toLocaleTimeString("fr-FR");
+        this.refreshProgress = 0;
+        this.remainingSeconds = this.pollSeconds;
+      } catch (error) {
+        console.error("Erreur live candles:", error);
+        this.isLive = false;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    togglePause() {
+      this.paused = !this.paused;
+
+      if (this.paused) {
+        this.destroySocket();
+      } else {
+        this.connectWebSocket();
+        this.refreshData();
+      }
+    },
+
+    formatPrice(value) {
+      return Number(value || 0).toFixed(4);
+    },
+
+    formatNumber(value) {
+      return Number(value || 0).toFixed(2);
+    },
+
+    formatSigned(value) {
+      const n = Number(value || 0);
+      return `${n >= 0 ? "+" : ""}${n.toFixed(4)}`;
+    },
+
+    formatDate(value) {
+      if (!value) return "—";
+      return new Date(value).toLocaleString("fr-FR");
+    }
+  }
+}
+</script>
+{% endblock %}

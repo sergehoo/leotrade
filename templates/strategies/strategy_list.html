@@ -1,0 +1,15 @@
+{% extends 'layout/base.html' %}
+{% block content %}
+<div class="rounded-2xl bg-slate-900 border border-slate-800 p-5">
+    <h1 class="text-xl font-semibold mb-4">Stratégies</h1>
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {% for strategy in strategies %}
+        <a href="{% url 'strategy-detail' strategy.pk %}" class="rounded-2xl bg-slate-800 border border-slate-700 p-5 hover:border-cyan-400 transition">
+            <div class="text-cyan-400 text-xs uppercase">{{ strategy.strategy_type }}</div>
+            <div class="text-lg font-semibold mt-2">{{ strategy.name }}</div>
+            <div class="text-sm text-slate-400 mt-2">{{ strategy.asset.symbol }} · {{ strategy.timeframe.code }}</div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

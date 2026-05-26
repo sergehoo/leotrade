@@ -1,0 +1,775 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LeoTrade — L'IA inttéligente qui trade pour vous</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+{#  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet" />#}
+
+  <style>
+    :root {
+      --green: #00f7a6;
+      --green-2: #6dffcb;
+      --cyan: #53b7ff;
+      --blue: #2563eb;
+      --bg: #040811;
+      --bg-2: #07101d;
+      --card: rgba(10,16,28,0.78);
+      --card-2: rgba(14,24,39,0.9);
+      --text: #d7e1f2;
+      --muted: #8290a7;
+      --border: rgba(0,247,166,0.14);
+      --shadow-green: 0 0 40px rgba(0,247,166,0.16);
+      --shadow-blue: 0 0 60px rgba(83,183,255,0.10);
+    }
+
+    * { box-sizing: border-box; }
+    html { font-family: 'DM Sans', sans-serif; }
+    body {
+      margin: 0;
+      color: var(--text);
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 18% 20%, rgba(0,247,166,0.07), transparent 28%),
+        radial-gradient(circle at 82% 18%, rgba(83,183,255,0.10), transparent 24%),
+        radial-gradient(circle at 50% 100%, rgba(0,247,166,0.05), transparent 30%),
+        linear-gradient(180deg, #060b15 0%, #040811 100%);
+    }
+    .syne { font-family: 'Syne', sans-serif; }
+    .mono { font-family: 'IBM Plex Mono', monospace; }
+
+    .grid-noise::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(0,247,166,0.022) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,247,166,0.022) 1px, transparent 1px);
+      background-size: 46px 46px;
+      mask-image: radial-gradient(circle at center, rgba(0,0,0,0.85), rgba(0,0,0,0.35));
+    }
+
+    .nav-blur {
+      background: rgba(4,8,17,0.72);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .glass-card {
+      background: linear-gradient(180deg, rgba(13,20,34,0.88), rgba(9,15,27,0.78));
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+
+    .glass-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(0,247,166,0.28);
+      box-shadow: 0 28px 90px rgba(0,0,0,0.42), 0 0 30px rgba(0,247,166,0.08);
+      transition: 0.3s ease;
+    }
+
+    .hero-panel {
+      position: relative;
+      overflow: hidden;
+      border-radius: 30px;
+      background:
+        linear-gradient(180deg, rgba(12,20,36,0.86), rgba(6,12,22,0.90)),
+        radial-gradient(circle at 20% 10%, rgba(0,247,166,0.10), transparent 30%),
+        radial-gradient(circle at 80% 20%, rgba(83,183,255,0.08), transparent 28%);
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 35px 100px rgba(0,0,0,0.45), var(--shadow-green), var(--shadow-blue);
+    }
+
+    .hero-panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.04) 32%, transparent 55%);
+      transform: translateX(-100%);
+      animation: sheen 7s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes sheen {
+      0% { transform: translateX(-110%); }
+      100% { transform: translateX(120%); }
+    }
+
+    .gradient-text {
+      background: linear-gradient(135deg, #ffffff 0%, #9fffe0 28%, #00f7a6 58%, #50b8ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtle-line {
+      background: linear-gradient(90deg, transparent, rgba(0,247,166,0.5), rgba(83,183,255,0.35), transparent);
+      height: 1px;
+      width: 100%;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--green) 0%, var(--green-2) 100%);
+      color: #02120c;
+      font-weight: 800;
+      border-radius: 14px;
+      padding: 14px 28px;
+      font-family: 'Syne', sans-serif;
+      letter-spacing: 0.02em;
+      box-shadow: 0 0 28px rgba(0,247,166,0.25), inset 0 1px 0 rgba(255,255,255,0.35);
+      transition: 0.25s ease;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px) scale(1.01);
+      box-shadow: 0 0 42px rgba(0,247,166,0.40), 0 16px 40px rgba(0,0,0,0.30);
+    }
+
+    .btn-outline {
+      border: 1px solid rgba(0,247,166,0.35);
+      color: #d8fff1;
+      border-radius: 14px;
+      padding: 14px 28px;
+      font-family: 'Syne', sans-serif;
+      background: rgba(255,255,255,0.02);
+      transition: 0.25s ease;
+    }
+
+    .btn-outline:hover {
+      background: rgba(0,247,166,0.06);
+      border-color: rgba(0,247,166,0.65);
+      transform: translateY(-2px);
+    }
+
+    .ticker-mask {
+      mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+    }
+
+    @keyframes ticker {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    .ticker-inner { animation: ticker 26s linear infinite; white-space: nowrap; }
+
+    @keyframes floatY {
+      0%,100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+
+    @keyframes orbitA { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+    @keyframes orbitB { from { transform: rotate(0deg);} to { transform: rotate(-360deg);} }
+    @keyframes pulseRing { 0%,100% { opacity: 0.45; transform: scale(1);} 50% { opacity: 0.9; transform: scale(1.04);} }
+    @keyframes panelBlink { 0%,100% { opacity: 0.8;} 50% { opacity: 1;} }
+    @keyframes hudScan { 0% { transform: translateY(-120%); opacity: 0; } 15% { opacity: .85; } 85% { opacity: .85; } 100% { transform: translateY(120%); opacity: 0; } }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(20px);} to { opacity: 1; transform: translateY(0);} }
+
+    .fade-up { opacity: 0; animation: fadeUp .7s ease forwards; }
+    .d1 { animation-delay: .1s; }
+    .d2 { animation-delay: .2s; }
+    .d3 { animation-delay: .3s; }
+    .d4 { animation-delay: .4s; }
+
+    .stat-card {
+      padding: 22px;
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(9,16,28,0.88), rgba(8,12,22,0.74));
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .stat-value {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(2.2rem, 4vw, 3.3rem);
+      line-height: 1;
+      font-weight: 800;
+      color: white;
+    }
+
+    .live-dot { animation: pulseRing 1.8s ease-in-out infinite; }
+
+    .faq-btn[aria-expanded="true"] .plus-line { transform: rotate(90deg); }
+
+    .section-label {
+      display: inline-flex;
+      align-items: center;
+      gap: .55rem;
+      padding: .5rem .85rem;
+      border-radius: 999px;
+      border: 1px solid rgba(0,247,166,0.16);
+      background: rgba(0,247,166,0.05);
+      color: var(--green);
+      font-size: 11px;
+      letter-spacing: .14em;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .pricing-highlight {
+      position: relative;
+      border-color: rgba(0,247,166,0.35) !important;
+      box-shadow: 0 0 40px rgba(0,247,166,0.10), 0 30px 90px rgba(0,0,0,0.34);
+    }
+
+    .pricing-highlight::before {
+      content: 'POPULAIRE';
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      font-size: 10px;
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: .12em;
+      color: #02120c;
+      background: linear-gradient(135deg, var(--green), var(--green-2));
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-weight: 700;
+    }
+
+    .leo-wrap { position: relative; width: min(100%, 560px); aspect-ratio: 1 / 1.05; }
+    .leo-orbit-1, .leo-orbit-2, .leo-orbit-3 {
+      position: absolute; inset: 0; margin: auto; border-radius: 999px; pointer-events: none;
+    }
+    .leo-orbit-1 { width: 88%; height: 88%; border: 1px dashed rgba(0,247,166,0.14); animation: orbitA 16s linear infinite; }
+    .leo-orbit-2 { width: 72%; height: 72%; border: 1px dashed rgba(83,183,255,0.16); animation: orbitB 22s linear infinite; }
+    .leo-orbit-3 { width: 52%; height: 52%; border: 1px solid rgba(255,255,255,0.04); animation: pulseRing 4s ease-in-out infinite; }
+
+    .leo-hud-scan {
+      position: absolute;
+      inset: 8% 20%;
+      overflow: hidden;
+      border-radius: 28px;
+      pointer-events: none;
+    }
+    .leo-hud-scan::after {
+      content: '';
+      position: absolute;
+      left: 0; right: 0;
+      top: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(0,247,166,0.95), transparent);
+      animation: hudScan 4.4s linear infinite;
+      box-shadow: 0 0 18px rgba(0,247,166,0.35);
+    }
+
+    .leo-card {
+      position: absolute;
+      border-radius: 18px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(14px);
+      background: rgba(8,14,26,0.78);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.30);
+      animation: floatY 4.6s ease-in-out infinite;
+    }
+
+    .leo-card.right { top: 8%; right: -4%; animation-delay: .3s; }
+    .leo-card.left { bottom: 16%; left: -3%; animation-delay: .8s; }
+
+    .feature-icon {
+      width: 48px; height: 48px; border-radius: 16px; display: flex; align-items: center; justify-content: center;
+      border: 1px solid rgba(255,255,255,0.05);
+      background: linear-gradient(180deg, rgba(0,247,166,0.09), rgba(0,247,166,0.04));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+
+    .faq-item { border-bottom: 1px solid rgba(255,255,255,0.06); }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #060a12; }
+    ::-webkit-scrollbar-thumb { background: rgba(0,247,166,0.20); border-radius: 10px; }
+  </style>
+</head>
+<body class="grid-noise" x-data="{ mobileMenu:false, activeQ:1 }">
+
+<nav class="nav-blur fixed top-0 left-0 right-0 z-50">
+  <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-6">
+    <a href="/" class="flex items-center gap-3 min-w-0">
+      <div class="w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg" style="background:linear-gradient(135deg,#00f7a6,#78ffd3)">
+        <svg viewBox="0 0 32 32" width="22" height="22" fill="none">
+          <path d="M6 22L12 14L17 18L25 8" stroke="#02120c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="25" cy="8" r="2.2" fill="#02120c"/>
+        </svg>
+      </div>
+      <div>
+        <div class="syne font-extrabold text-white text-lg tracking-tight">Leo<span style="color:var(--green)">Trade</span></div>
+        <div class="flex items-center gap-2 -mt-0.5">
+          <span class="w-1.5 h-1.5 rounded-full live-dot" style="background:var(--green)"></span>
+          <span class="mono text-[10px] tracking-[0.18em]" style="color:var(--green)">inttéligente AI DESK</span>
+        </div>
+      </div>
+    </a>
+
+    <div class="hidden lg:flex items-center gap-8 text-sm text-slate-400">
+      <a href="#features" class="hover:text-white transition">Fonctionnalités</a>
+      <a href="#leo-section" class="hover:text-white transition">Leo</a>
+      <a href="#stats" class="hover:text-white transition">Performances</a>
+      <a href="#pricing" class="hover:text-white transition">Tarifs</a>
+      <a href="#faq" class="hover:text-white transition">FAQ</a>
+    </div>
+
+    <div class="flex items-center gap-3">
+      {% if request.user.is_authenticated %}
+  <span class="hidden md:inline text-sm text-slate-300">
+    Bonjour{% if user.first_name %}, {{ user.first_name }}{% endif %}
+  </span>
+  <a href="{% url 'dashboard' %}" class="btn-primary text-sm py-3 px-5">Dashboard</a>
+{% else %}
+  <a href="{% url 'account_login' %}" class="hidden md:inline text-sm text-slate-400 hover:text-white transition">
+    Connexion
+  </a>
+  <a href="{% url 'account_signup' %}" class="btn-primary text-sm py-3 px-5">
+    Démarrer gratuitement
+  </a>
+{% endif %}
+    </div>
+  </div>
+</nav>
+
+<div class="fixed top-[73px] left-0 right-0 z-40 overflow-hidden py-2 border-y ticker-mask" style="background:rgba(5,10,18,0.88); border-color:rgba(255,255,255,0.04)">
+  <div x-data="ticker()" x-init="init()" class="ticker-inner flex gap-8 text-[11px] text-slate-500">
+
+    <template x-for="item in data" :key="item.symbol">
+        <span>
+            <span x-text="item.symbol"></span>
+            <span :class="item.change >= 0 ? 'text-emerald-400' : 'text-rose-400'"
+                  x-text="formatPrice(item.price)"></span>
+
+            <span :class="item.change >= 0 ? 'text-emerald-500' : 'text-rose-500'">
+                <span x-text="item.change >= 0 ? '▲' : '▼'"></span>
+                <span x-text="formatPercent(item.change)"></span>
+            </span>
+        </span>
+    </template>
+
+</div>
+</div>
+
+<section class="relative pt-40 pb-24 min-h-screen flex items-center z-10">
+  <div class="max-w-7xl mx-auto px-6 w-full">
+    <div class="hero-panel p-8 md:p-12 lg:p-14">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div>
+          <div class="section-label fade-up d1">
+            <span class="w-1.5 h-1.5 rounded-full live-dot" style="background:var(--green)"></span>
+            INTELLIGENCE ARTIFICIELLE DE TRADING · V3
+          </div>
+
+          <h1 class="font-black text-white leading-[0.93] mt-6 fade-up d2" style="font-size:clamp(3rem,3vw,3.6rem)">
+            Votre desk de trading<br />
+            <span class="gradient-text">piloté par Leo.</span>
+          </h1>
+
+          <p class="text-slate-400 text-lg md:text-xl leading-relaxed mt-6 max-w-xl fade-up d3">
+            Un assistant IA qui surveille les marchés, détecte les meilleures opportunités,
+            exécute vos scénarios et protège votre capital avec une discipline de niveau institutionnel.
+          </p>
+
+          <div class="flex flex-wrap gap-4 mt-8 fade-up d4">
+            <a href="{% url 'account_signup' %}" class="btn-primary inline-flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+              Activer Leo gratuitement
+            </a>
+            <a href="#leo-section" class="btn-outline inline-flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              Voir Leo en action
+            </a>
+          </div>
+
+          <div class="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="glass-card p-4">
+              <div class="mono text-[11px] tracking-[0.16em] text-emerald-400">TRADING</div>
+              <div class="text-white font-semibold mt-2">Paper & Live</div>
+              <div class="text-sm text-slate-500 mt-1">Binance, brokers, stratégies automatiques.</div>
+            </div>
+            <div class="glass-card p-4">
+              <div class="mono text-[11px] tracking-[0.16em] text-cyan-400">RISQUE</div>
+              <div class="text-white font-semibold mt-2">Capital protégé</div>
+              <div class="text-sm text-slate-500 mt-1">Sizing intelligent, drawdown et coupe-circuit.</div>
+            </div>
+            <div class="glass-card p-4">
+              <div class="mono text-[11px] tracking-[0.16em] text-amber-400">RESEARCH</div>
+              <div class="text-white font-semibold mt-2">Backtests pro</div>
+              <div class="text-sm text-slate-500 mt-1">Avant exécution, Leo valide vos hypothèses.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="relative flex justify-center items-center" id="leo-section">
+          <div class="leo-wrap">
+            <div class="leo-orbit-1"></div>
+            <div class="leo-orbit-2"></div>
+            <div class="leo-orbit-3"></div>
+            <div class="leo-hud-scan"></div>
+
+            <div class="absolute inset-[10%] rounded-full" style="background:radial-gradient(circle, rgba(0,247,166,0.14) 0%, rgba(83,183,255,0.08) 28%, transparent 72%);"></div>
+
+            <div class="relative z-10 animate-[floatY_6s_ease-in-out_infinite]">
+              <!-- Nouvelle mascotte SVG réaliste / inttéligente / animée -->
+             <img src="{% static 'leoIA.png' %}"/>
+            </div>
+
+            <div class="leo-card right z-20">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="w-2 h-2 rounded-full live-dot" style="background:var(--green)"></span>
+                <span class="mono text-[11px] tracking-[0.12em] text-emerald-400">LEO IA</span>
+              </div>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Signal <strong class="text-emerald-400">BUY</strong> détecté sur <strong class="text-white">BTC/USD</strong><br>
+                Confiance <strong class="text-white">87%</strong> · R/R <strong class="text-emerald-400">3.2x</strong>
+              </p>
+            </div>
+
+            <div class="leo-card left z-20" style="border-color:rgba(83,183,255,0.16)">
+              <div class="mono text-[11px] tracking-[0.12em] text-cyan-400 mb-1">RISK SHIELD</div>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Stop-Loss actif · exposition maîtrisée · capital protégé à <strong class="text-white">98.2%</strong>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="stats" class="relative py-10 z-10">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-5">
+      <div class="stat-card">
+        <div class="stat-value gradient-text">68.4%</div>
+        <div class="text-slate-500 text-sm mt-2 mono">Win rate IA</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value gradient-text">+24.8%</div>
+        <div class="text-slate-500 text-sm mt-2 mono">Rendement moyen / an</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value gradient-text">1ms</div>
+        <div class="text-slate-500 text-sm mt-2 mono">Temps d'exécution</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value gradient-text">12+</div>
+        <div class="text-slate-500 text-sm mt-2 mono">Marchés couverts</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features" class="relative py-10  z-10">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <div class="section-label">POURQUOI LEOTRADE</div>
+      <h2 class="syne font-black text-white mt-5 mb-4" style="font-size:clamp(2rem,3vw,3.4rem)">
+        Leo pense. <span class="gradient-text">Leo exécute.</span> Vous gardez le contrôle.
+      </h2>
+      <p class="text-slate-500 max-w-2xl mx-auto text-lg">
+        Une plateforme inttéligente pour surveiller, tester, exécuter et améliorer vos stratégies dans un seul environnement.
+      </p>
+      <div class="subtle-line max-w-md mx-auto mt-8"></div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="glass-card p-7">
+        <div class="feature-icon mb-5">
+          <svg class="w-5 h-5" style="color:var(--green)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <h3 class="syne font-bold text-white text-xl mb-3">Signaux IA temps réel</h3>
+        <p class="text-slate-500 text-sm leading-relaxed">Leo agrège indicateurs, momentum, volatilité et contexte marché pour produire des signaux exploitables avec niveau de confiance.</p>
+      </div>
+
+      <div class="glass-card p-7">
+        <div class="feature-icon mb-5" style="background:linear-gradient(180deg, rgba(83,183,255,0.10), rgba(83,183,255,0.04))">
+          <svg class="w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        </div>
+        <h3 class="syne font-bold text-white text-xl mb-3">Gestion du risque inttéligente</h3>
+        <p class="text-slate-500 text-sm leading-relaxed">Sizing automatique, stop-loss intelligent, take-profit, limites de drawdown et filtrage des signaux faibles pour préserver le capital.</p>
+      </div>
+
+      <div class="glass-card p-7">
+        <div class="feature-icon mb-5" style="background:linear-gradient(180deg, rgba(245,158,11,0.10), rgba(245,158,11,0.04))">
+          <svg class="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <h3 class="syne font-bold text-white text-xl mb-3">Backtesting avancé</h3>
+        <p class="text-slate-500 text-sm leading-relaxed">Testez vos approches sur données historiques, évaluez le Sharpe ratio, le profit factor, le drawdown et la stabilité hors échantillon.</p>
+      </div>
+
+      <div class="glass-card p-7">
+        <div class="feature-icon mb-5" style="background:linear-gradient(180deg, rgba(168,85,247,0.10), rgba(168,85,247,0.04))">
+          <svg class="w-5 h-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        </div>
+        <h3 class="syne font-bold text-white text-xl mb-3">Multi-actifs & multi-brokers</h3>
+        <p class="text-slate-500 text-sm leading-relaxed">Crypto, forex, matières premières, indices et actions via une interface unifiée pensée pour un desk moderne.</p>
+      </div>
+
+      <div class="glass-card p-7">
+        <div class="feature-icon mb-5" style="background:linear-gradient(180deg, rgba(236,72,153,0.10), rgba(236,72,153,0.04))">
+          <svg class="w-5 h-5 text-pink-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        </div>
+        <h3 class="syne font-bold text-white text-xl mb-3">Alertes & monitoring</h3>
+        <p class="text-slate-500 text-sm leading-relaxed">Recevez les signaux, exécutions, anomalies et changements de régime de marché sans quitter votre dashboard.</p>
+      </div>
+
+      <div class="glass-card p-7" style="border-color:rgba(0,247,166,0.26)">
+        <div class="feature-icon mb-5">
+          <svg class="w-5 h-5" style="color:var(--green)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        </div>
+        <h3 class="syne font-bold text-white text-xl mb-3">IA explicable</h3>
+        <p class="text-slate-500 text-sm leading-relaxed">Leo ne donne pas seulement un ordre : il vous montre pourquoi l'idée existe, à quel niveau agir et quelle exposition conserver.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="relative py-10  z-10">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="glass-card p-8 md:p-12 rounded-[30px] overflow-hidden relative">
+      <div class="absolute inset-0 opacity-20" style="background:radial-gradient(circle at 80% 20%, rgba(0,247,166,0.35), transparent 24%), radial-gradient(circle at 20% 80%, rgba(83,183,255,0.22), transparent 20%)"></div>
+      <div class="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div>
+          <div class="section-label">RENCONTREZ LEO</div>
+          <h2 class="syne font-black text-white text-2xl md:text-3xl mt-5 leading-tight">
+            Un co-trader humanoïde<br>
+            <span class="gradient-text">conçu pour performer.</span>
+          </h2>
+          <p class="text-slate-400 text-lg mt-6 leading-relaxed">
+            Leo combine présence visuelle, intelligence décisionnelle et rigueur quantitative.
+            Il surveille les marchés sans fatigue, explique ses signaux et s'intègre dans un workflow moderne de trading assisté par IA.
+          </p>
+
+          <div class="space-y-4 mt-8">
+            <div class="flex gap-3">
+              <div class="w-6 h-6 rounded-lg flex items-center justify-center mt-1" style="background:rgba(0,247,166,0.08); border:1px solid rgba(0,247,166,0.18)">
+                <svg class="w-3.5 h-3.5" style="color:var(--green)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div>
+                <div class="text-white font-semibold">Analyse continue</div>
+                <div class="text-slate-500 text-sm">Leo suit les marchés 24h/24, détecte les changements de structure et vous alerte au bon moment.</div>
+              </div>
+            </div>
+            <div class="flex gap-3">
+              <div class="w-6 h-6 rounded-lg flex items-center justify-center mt-1" style="background:rgba(83,183,255,0.08); border:1px solid rgba(83,183,255,0.18)">
+                <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div>
+                <div class="text-white font-semibold">Décisions lisibles</div>
+                <div class="text-slate-500 text-sm">Les signaux sont accompagnés de contexte, de confiance et de logique pour éviter l'effet boîte noire.</div>
+              </div>
+            </div>
+            <div class="flex gap-3">
+              <div class="w-6 h-6 rounded-lg flex items-center justify-center mt-1" style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.18)">
+                <svg class="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div>
+                <div class="text-white font-semibold">Amélioration continue</div>
+                <div class="text-slate-500 text-sm">Chaque stratégie peut être testée, optimisée et raffinée avant le moindre déploiement réel.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-8">
+            <a href="{% url 'account_signup' %}" class="btn-primary inline-flex items-center gap-2">
+              Activer Leo maintenant
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+            </a>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4">
+          <div class="glass-card p-5">
+            <div class="mono text-[11px] tracking-[0.14em] text-emerald-400">EXEMPLE DE RAISONNEMENT</div>
+            <p class="text-white font-semibold mt-3">“Momentum haussier confirmé, volatilité maîtrisée, entrée validée.”</p>
+            <p class="text-slate-500 text-sm mt-2">Leo résume les raisons principales d'un trade en langage clair avant exécution.</p>
+          </div>
+          <div class="glass-card p-5">
+            <div class="mono text-[11px] tracking-[0.14em] text-cyan-400">SIGNAL TYPE</div>
+            <div class="mt-3 flex items-center justify-between">
+              <div>
+                <div class="text-2xl font-black syne text-white">BUY BTC/USD</div>
+                <div class="text-slate-500 text-sm mt-1">Confiance 87% · R/R 3.2x</div>
+              </div>
+              <div class="px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-400/20 text-emerald-400 mono text-xs">VALIDÉ</div>
+            </div>
+          </div>
+          <div class="glass-card p-5">
+            <div class="mono text-[11px] tracking-[0.14em] text-amber-400">MODE DE DÉPLOIEMENT</div>
+            <div class="mt-3 grid grid-cols-2 gap-3">
+              <div class="rounded-2xl bg-slate-900/60 p-4 border border-white/5">
+                <div class="text-white font-semibold">Paper</div>
+                <div class="text-slate-500 text-sm mt-1">Simulation sécurisée</div>
+              </div>
+              <div class="rounded-2xl bg-slate-900/60 p-4 border border-white/5">
+                <div class="text-white font-semibold">Live</div>
+                <div class="text-slate-500 text-sm mt-1">Après validation</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="pricing" class="relative py-10   z-10">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center ">
+      <div class="section-label">TARIFS</div>
+      <h2 class="syne font-black text-white mt-5 text-3xl md:text-5xl">Choisissez votre <span class="gradient-text">niveau de puissance</span></h2>
+      <p class="text-slate-500 max-w-2xl mx-auto mt-4 text-lg">Commencez en paper trading et passez à un pilotage inttéligente à mesure que votre desk grandit.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="glass-card p-8">
+        <div class="mono text-[11px] tracking-[0.14em] text-slate-400">STARTER</div>
+        <div class="syne text-white text-4xl font-black mt-4">0€</div>
+        <div class="text-slate-500 mt-1">Pour découvrir Leo</div>
+        <ul class="mt-6 space-y-3 text-sm text-slate-400">
+          <li>Paper trading</li>
+          <li>Backtests de base</li>
+          <li>Dashboard standard</li>
+          <li>1 workspace</li>
+        </ul>
+        <a href="{% url 'account_signup' %}" class="btn-outline mt-8 inline-flex justify-center w-full">Commencer</a>
+      </div>
+
+      <div class="glass-card p-8 pricing-highlight">
+        <div class="mono text-[11px] tracking-[0.14em] text-emerald-400">PRO</div>
+        <div class="syne text-white text-4xl font-black mt-4">49€</div>
+        <div class="text-slate-500 mt-1">/ mois · pour un desk actif</div>
+        <ul class="mt-6 space-y-3 text-sm text-slate-300">
+          <li>Backtesting avancé</li>
+          <li>Signaux IA inttéligente</li>
+          <li>Modules risque & exécution</li>
+          <li>Multi-stratégies</li>
+          <li>Alertes temps réel</li>
+        </ul>
+        <a href="{% url 'account_signup' %}" class="btn-primary mt-8 inline-flex justify-center w-full">Passer en Pro</a>
+      </div>
+
+      <div class="glass-card p-8">
+        <div class="mono text-[11px] tracking-[0.14em] text-cyan-400">INSTITUTION</div>
+        <div class="syne text-white text-4xl font-black mt-4">Sur devis</div>
+        <div class="text-slate-500 mt-1">Pour équipes et desks avancés</div>
+        <ul class="mt-6 space-y-3 text-sm text-slate-400">
+          <li>Multi-utilisateurs</li>
+          <li>Infra dédiée</li>
+          <li>Connecteurs & intégrations</li>
+          <li>Reporting inttéligente</li>
+          <li>Accompagnement personnalisé</li>
+        </ul>
+        <a href="#" class="btn-outline mt-8 inline-flex justify-center w-full">Parler à l'équipe</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="faq" class="relative py-10  z-10">
+  <div class="max-w-4xl mx-auto px-6">
+    <div class="text-center mb-12">
+      <div class="section-label">FAQ</div>
+      <h2 class="syne font-black text-white text-3xl md:text-5xl mt-5">Questions <span class="gradient-text">fréquentes</span></h2>
+    </div>
+
+    <div class="glass-card p-6 md:p-8">
+      <div class="faq-item py-4">
+        <button class="faq-btn w-full flex items-center justify-between text-left" @click="activeQ = activeQ === 1 ? null : 1" :aria-expanded="activeQ===1">
+          <span class="text-white font-semibold">Leo trade-t-il automatiquement ?</span>
+          <span class="relative w-5 h-5 text-emerald-400"><span class="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-current"></span><span class="plus-line absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-current transition"></span></span>
+        </button>
+        <div x-show="activeQ===1" x-transition class="text-slate-500 text-sm leading-relaxed mt-3">Oui, selon la configuration choisie. Vous pouvez commencer en paper trading puis activer l'exécution réelle après validation de vos stratégies.</div>
+      </div>
+      <div class="faq-item py-4">
+        <button class="faq-btn w-full flex items-center justify-between text-left" @click="activeQ = activeQ === 2 ? null : 2" :aria-expanded="activeQ===2">
+          <span class="text-white font-semibold">Est-ce adapté aux débutants ?</span>
+          <span class="relative w-5 h-5 text-emerald-400"><span class="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-current"></span><span class="plus-line absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-current transition"></span></span>
+        </button>
+        <div x-show="activeQ===2" x-transition class="text-slate-500 text-sm leading-relaxed mt-3">Oui. L'interface inttéligente reste accessible, et Leo explique les signaux pour vous aider à comprendre les décisions prises.</div>
+      </div>
+      <div class="faq-item py-4">
+        <button class="faq-btn w-full flex items-center justify-between text-left" @click="activeQ = activeQ === 3 ? null : 3" :aria-expanded="activeQ===3">
+          <span class="text-white font-semibold">Puis-je garder le contrôle total ?</span>
+          <span class="relative w-5 h-5 text-emerald-400"><span class="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-current"></span><span class="plus-line absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-current transition"></span></span>
+        </button>
+        <div x-show="activeQ===3" x-transition class="text-slate-500 text-sm leading-relaxed mt-3">Oui. Leo peut fonctionner comme assistant, validateur de signaux ou moteur d'exécution, selon votre niveau d'autonomie souhaité.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="relative py-10 z-10">
+  <div class="max-w-4xl mx-auto px-6 text-center">
+    <h2 class="syne font-black text-white leading-tight" style="font-size:clamp(2.3rem,5vw,4.2rem)">
+      Prêt à laisser <span class="gradient-text">Leo piloter votre edge</span> ?
+    </h2>
+    <p class="text-slate-500 text-lg max-w-2xl mx-auto mt-5">
+      Rejoignez une nouvelle génération de traders assistés par IA avec une expérience visuelle inttéligente et un moteur de décision robuste.
+    </p>
+    <div class="flex flex-wrap justify-center gap-4 mt-10">
+      <a href="{% url 'account_signup' %}" class="btn-primary text-base py-4 px-10">Commencer gratuitement</a>
+      <a href="{% url 'account_login' %}" class="btn-outline text-base py-4 px-10">J'ai déjà un compte</a>
+    </div>
+    <p class="text-slate-700 text-xs mono mt-6">Paper trading · Sans carte requise · Annulation libre</p>
+  </div>
+</section>
+
+<footer class="border-t py-10 z-10 relative" style="border-color:rgba(255,255,255,0.05)">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-2xl flex items-center justify-center" style="background:linear-gradient(135deg,#00f7a6,#78ffd3)">
+          <svg viewBox="0 0 32 32" width="20" height="20" fill="none">
+            <path d="M6 22L12 14L17 18L25 8" stroke="#02120c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="25" cy="8" r="2.2" fill="#02120c"/>
+          </svg>
+        </div>
+        <div>
+          <div class="syne font-bold text-white">Leo<span style="color:var(--green)">Trade</span></div>
+          <div class="mono text-[10px] tracking-[0.14em] text-slate-600">AI TRADING DESK</div>
+        </div>
+      </div>
+      <p class="text-slate-700 text-xs mono">© 2026 LeoTrade · IA de trading de niveau institutionnel</p>
+      <div class="flex items-center gap-6 text-xs text-slate-700">
+        <a href="#" class="hover:text-slate-400 transition-colors">Confidentialité</a>
+        <a href="#" class="hover:text-slate-400 transition-colors">Conditions</a>
+        <a href="#" class="hover:text-slate-400 transition-colors">Contact</a>
+      </div>
+    </div>
+  </div>
+</footer>
+<script>
+function ticker() {
+    return {
+        data: [],
+
+        async fetchData() {
+            const res = await fetch("/trading/api/market-data/");
+            const json = await res.json();
+            this.data = json.data;
+        },
+
+        formatPrice(p) {
+            return new Intl.NumberFormat().format(p);
+        },
+
+        formatPercent(p) {
+            return `${p.toFixed(2)}%`;
+        },
+
+        init() {
+            this.fetchData();
+            setInterval(() => this.fetchData(), 5000); // refresh 5s
+        }
+    }
+}
+</script>
+</body>
+</html>

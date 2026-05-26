@@ -1,0 +1,190 @@
+{% extends "layout/base.html" %}
+{% block title %}{{ intent.title }} — LeoTrade{% endblock %}
+{% block page_title %}Détail mission IA{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Intent Intelligence</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">{{ intent.title }}</h2>
+        <p class="text-sm text-gray-500 mt-2">
+          {{ intent.portfolio.name }} · {{ intent.capital_amount }} {{ intent.capital_currency }} · {{ intent.execution_mode }}
+        </p>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <form method="post" action="{% url 'intent-analyze' intent.pk %}">
+          {% csrf_token %}
+          <button class="px-4 py-2 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-400/20">
+            Analyser par IA
+          </button>
+        </form>
+
+        <form method="post" action="{% url 'intent-launch' intent.pk %}">
+          {% csrf_token %}
+          <button class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">
+            Lancer la mission
+          </button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 md:grid-cols-5 gap-4">
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Capital</div>
+      <div class="text-2xl text-white font-semibold mt-2 mono">{{ intent.capital_amount }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Objectif</div>
+      <div class="text-2xl text-white font-semibold mt-2 mono">{{ intent.target_return_percent|floatformat:2 }}%</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Perte max</div>
+      <div class="text-2xl text-red-300 font-semibold mt-2 mono">{{ intent.max_loss_percent|floatformat:2 }}%</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Score faisabilité</div>
+      <div class="text-2xl text-amber-300 font-semibold mt-2 mono">{{ intent.ai_feasibility_score|floatformat:2 }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Retour actuel</div>
+      <div class="text-2xl {% if intent.actual_return_percent >= 0 %}text-emerald-400{% else %}text-red-400{% endif %} font-semibold mt-2 mono">
+        {{ intent.actual_return_percent|floatformat:2 }}%
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Analyse IA</h3>
+      <pre class="text-xs text-gray-300 whitespace-pre-wrap rounded-xl bg-black/20 border border-white/5 p-4 overflow-auto">{{ intent.ai_analysis }}</pre>
+    </div>
+
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Plan IA</h3>
+      <pre class="text-xs text-gray-300 whitespace-pre-wrap rounded-xl bg-black/20 border border-white/5 p-4 overflow-auto">{{ intent.ai_plan }}</pre>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Contexte mission</h3>
+      <div class="space-y-4 text-sm">
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Objectif utilisateur</div>
+          <div class="text-white mt-2 whitespace-pre-wrap">{{ intent.objective_prompt|default:"—" }}</div>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Statut</div>
+          <div class="text-white mt-2">{{ intent.status }}</div>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Stratégie liée</div>
+          <div class="text-white mt-2">
+            {% if intent.strategy %}
+              {{ intent.strategy.name }}
+            {% else %}
+              —
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">PnL mission</h3>
+      <div class="space-y-4 text-sm">
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">PnL réalisé</div>
+          <div class="text-white mt-2 mono">{{ intent.realized_pnl }}</div>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">PnL latent</div>
+          <div class="text-white mt-2 mono">{{ intent.unrealized_pnl }}</div>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Expiration</div>
+          <div class="text-white mt-2 mono">{{ intent.expires_at|date:"d/m/Y H:i:s"|default:"—" }}</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold">Ordres liés</h3>
+    </div>
+
+    {% if orders %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[1100px] text-sm">
+        <thead>
+          <tr class="border-b border-white/10 text-left">
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Date</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Symbole</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Side</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Quantité</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Prix</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Statut</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for order in orders %}
+          <tr class="table-row">
+            <td class="px-4 py-4 text-gray-300 mono">{{ order.created_at|date:"d/m/Y H:i" }}</td>
+            <td class="px-4 py-4 text-white">{{ order.symbol }}</td>
+            <td class="px-4 py-4">
+              {% if order.side == "BUY" %}
+                <span class="px-2 py-1 rounded text-xs mono pill-buy">BUY</span>
+              {% else %}
+                <span class="px-2 py-1 rounded text-xs mono pill-sell">SELL</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-4 text-white mono">{{ order.quantity }}</td>
+            <td class="px-4 py-4 text-white mono">{{ order.price|default:"—" }}</td>
+            <td class="px-4 py-4"><span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-300 border border-white/10">{{ order.status }}</span></td>
+            <td class="px-4 py-4 text-right">
+              <a href="{% url 'order-detail' order.pk %}" class="px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-xs mono">
+                Voir
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-14 text-center text-gray-500 text-sm">Aucun ordre lié.</div>
+    {% endif %}
+  </section>
+
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold">Événements</h3>
+    </div>
+
+    {% if events %}
+    <div class="divide-y divide-white/10">
+      {% for event in events %}
+      <div class="px-6 py-4">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <div class="text-white font-medium">{{ event.title|default:event.event_type }}</div>
+            <div class="text-xs text-gray-500 mt-1">{{ event.message }}</div>
+          </div>
+          <div class="text-xs mono text-gray-500">{{ event.created_at|date:"d/m/Y H:i:s" }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="py-14 text-center text-gray-500 text-sm">Aucun événement.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

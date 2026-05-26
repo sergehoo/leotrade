@@ -1,0 +1,154 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}LeoTrade{% endblock %}</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <!-- Aligné sur layout/base.html : IBM Plex + palette néon vert -->
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --green: #00ff9d;
+      --red: #ff4d6d;
+      --amber: #ffb703;
+      --blue: #3b82f6;
+      --border: rgba(255, 255, 255, 0.07);
+      --card-bg: rgba(15, 20, 32, 0.85);
+    }
+
+    * { font-family: 'IBM Plex Sans', sans-serif; }
+    .mono { font-family: 'IBM Plex Mono', monospace; }
+
+    body {
+      background-color: #080c14;
+      background-image:
+        radial-gradient(ellipse 80% 40% at 50% -10%, rgba(0, 255, 157, .06), transparent),
+        linear-gradient(rgba(0, 255, 157, .015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 157, .015) 1px, transparent 1px);
+      background-size: 100% 100%, 40px 40px, 40px 40px;
+      color: #e5e7eb;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 0 0 1px rgba(0, 255, 157, .08), 0 8px 32px rgba(0, 0, 0, .45);
+    }
+
+    .ticker {
+      border-bottom: 1px solid var(--border);
+      background: rgba(8, 12, 20, .92);
+    }
+
+    .ticker .pill {
+      color: var(--green);
+    }
+
+    .ticker .pill.down {
+      color: var(--red);
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50%     { opacity: .3; }
+    }
+
+    .live-dot {
+      animation: pulse-dot 1.5s ease-in-out infinite;
+    }
+
+    /* Boutons principaux : néon glow subtil cohérent avec le dashboard */
+    .btn-primary {
+      background: var(--green);
+      color: #080c14;
+      transition: filter .15s, transform .15s;
+    }
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    /* Inputs alignés sur la palette globale */
+    input[type="text"], input[type="email"], input[type="password"], input[type="number"], select, textarea {
+      background: rgba(8, 12, 20, 0.6);
+      border: 1px solid var(--border);
+      color: #e5e7eb;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: rgba(0, 255, 157, 0.4);
+      box-shadow: 0 0 0 3px rgba(0, 255, 157, 0.1);
+    }
+  </style>
+</head>
+<body class="h-full">
+
+  <!-- Ambient glow -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+    <div class="absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full"
+         style="background: rgba(0, 255, 157, 0.05); filter: blur(96px);"></div>
+  </div>
+
+  <!-- Ticker live (palette alignée — vert néon, pas émeraude) -->
+  <div class="ticker relative z-10">
+    <div class="flex items-center gap-6 px-6 py-2 text-xs mono text-gray-500 overflow-hidden">
+      <span class="font-bold tracking-widest" style="color: var(--green);">LEOTRADE</span>
+      <span>BTC <span class="pill">+2.34%</span></span>
+      <span>ETH <span class="pill">+1.87%</span></span>
+      <span>XAU <span class="pill down">-0.12%</span></span>
+      <span>EUR/USD <span class="pill">+0.08%</span></span>
+      <span>SPX <span class="pill">+0.54%</span></span>
+    </div>
+  </div>
+
+  <!-- Contenu centré -->
+  <main class="relative z-10 flex min-h-[calc(100vh-37px)] items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md">
+
+      <!-- Logo -->
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center gap-2 mb-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+               style="background: var(--green);">
+            <svg class="w-5 h-5" style="color: #080c14;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 17l4-8 4 4 4-6 4 5"/>
+            </svg>
+          </div>
+          <span class="text-xl font-semibold tracking-tight">
+            Leo<span style="color: var(--green);">Trade</span>
+          </span>
+        </div>
+        <p class="text-gray-500 text-sm">{% block subtitle %}Plateforme IA de trading{% endblock %}</p>
+      </div>
+
+      <!-- Card principale -->
+      <div class="card p-8">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="mb-4 px-4 py-3 rounded-lg text-sm
+              {% if message.tags == 'error' %}border text-red-300{% elif message.tags == 'success' %}border text-emerald-300{% else %}border text-blue-300{% endif %}"
+              style="
+                background: {% if message.tags == 'error' %}rgba(255,77,109,0.08){% elif message.tags == 'success' %}rgba(0,255,157,0.08){% else %}rgba(59,130,246,0.08){% endif %};
+                border-color: {% if message.tags == 'error' %}rgba(255,77,109,0.3){% elif message.tags == 'success' %}rgba(0,255,157,0.3){% else %}rgba(59,130,246,0.3){% endif %};">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+
+        {% block card_content %}{% endblock %}
+      </div>
+
+      {% block below_card %}{% endblock %}
+    </div>
+  </main>
+
+</body>
+</html>

@@ -1,0 +1,17 @@
+{% if kill_switch %}
+<div class="mb-6 rounded-2xl border border-red-500/30 bg-red-950/50 p-5 shadow-lg shadow-red-950/40">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+            <div class="text-xs font-bold uppercase tracking-[0.22em] text-red-300">Kill Switch Actif</div>
+            <h2 class="mt-1 text-xl font-bold text-white">{{ kill_switch.reason_code }}</h2>
+            <p class="mt-1 text-sm text-red-100">{{ kill_switch.reason }}</p>
+        </div>
+        <form method="post" action="{% url 'dashboard:resolve_kill_switch' portfolio.id %}">
+            {% csrf_token %}
+            <button class="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50">
+                Résoudre le kill switch
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}

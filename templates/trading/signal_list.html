@@ -1,0 +1,27 @@
+{% extends 'layout/base.html' %}
+{% block content %}
+<div class="rounded-2xl bg-slate-900 border border-slate-800 p-5">
+    <h1 class="text-xl font-semibold mb-4">Signaux</h1>
+    <table class="w-full text-sm">
+        <thead><tr class="text-slate-400 border-b border-slate-800"><th class="py-3 text-left">Actif</th><th>Signal</th><th>Confiance</th><th>Prix</th><th>Statut</th><th></th></tr></thead>
+        <tbody>
+            {% for signal in signals %}
+            <tr class="border-b border-slate-800/60">
+                <td class="py-3">{{ signal.strategy.asset.symbol }}</td>
+                <td>{{ signal.side }}</td>
+                <td>{{ signal.confidence|floatformat:2 }}</td>
+                <td>{{ signal.price }}</td>
+                <td>{{ signal.status }}</td>
+                <td>
+                    {% if signal.status == 'NEW' %}
+                    <form method="post" action="{% url 'execute-signal' signal.pk %}">{% csrf_token %}
+                        <button class="rounded-lg bg-emerald-500/90 px-3 py-1 text-slate-950 font-semibold">Exécuter</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

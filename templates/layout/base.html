@@ -1,0 +1,779 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>{% block title %}LeoTrade — Fund Dashboard{% endblock %}</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap"
+          rel="stylesheet"/>
+    <link rel="stylesheet" href="{% static 'css/leo_animations.css' %}"/>
+    <script src="{% static 'js/leo_websocket.js' %}"></script>
+    <script src="{% static 'js/leo_animations.js' %}"></script>
+    <script src="{% static 'js/leo_bootstrap.js' %}"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        @keyframes leoFloat {
+            0%, 100% {
+                transform: translateY(0px);
+            }
+            50% {
+                transform: translateY(-3px);
+            }
+        }
+
+        .leo-float {
+            animation: leoFloat 2s ease-in-out infinite;
+        }
+    </style>
+    <style>
+        :root {
+            --green: #00ff9d;
+            --red: #ff4d6d;
+            --amber: #ffb703;
+            --blue: #3b82f6;
+            --purple: #8b5cf6;
+            --border: rgba(255, 255, 255, 0.07);
+            --sidebar-bg: rgba(8, 12, 20, .97);
+            --topbar-bg: rgba(8, 12, 20, .92);
+            --card-bg: rgba(15, 20, 32, 0.85);
+        }
+
+        * {
+            font-family: 'IBM Plex Sans', sans-serif;
+        }
+
+        .mono {
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        body {
+            background-color: #080c14;
+            background-image: radial-gradient(ellipse 80% 40% at 50% -10%, rgba(0, 255, 157, .06), transparent),
+            linear-gradient(rgba(0, 255, 157, .015) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0, 255, 157, .015) 1px, transparent 1px);
+            background-size: 100% 100%, 40px 40px, 40px 40px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            backdrop-filter: blur(8px);
+        }
+
+        .card-glow {
+            box-shadow: 0 0 0 1px rgba(0, 255, 157, .12), 0 8px 32px rgba(0, 0, 0, .5);
+        }
+
+        .nav-link {
+            transition: color .15s, background .15s, border-color .15s, transform .15s;
+            border-left: 2px solid transparent;
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, .04);
+            color: #fff;
+            transform: translateX(1px);
+        }
+
+        .nav-link.active {
+            color: var(--green);
+            border-left-color: var(--green);
+            background: rgba(0, 255, 157, .04);
+        }
+
+        .section-title {
+            font-size: 10px;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+            color: #6b7280;
+            font-family: 'IBM Plex Mono', monospace;
+            padding: 0 12px;
+            margin-top: 10px;
+            margin-bottom: 6px;
+        }
+
+        .table-row {
+            border-bottom: 1px solid var(--border);
+            transition: background .15s;
+        }
+
+        .table-row:hover {
+            background: rgba(255, 255, 255, .02);
+        }
+
+        .table-row:last-child {
+            border-bottom: none;
+        }
+
+        .pill-buy {
+            background: rgba(0, 255, 157, .1);
+            color: var(--green);
+            border: 1px solid rgba(0, 255, 157, .25);
+        }
+
+        .pill-sell {
+            background: rgba(255, 77, 109, .1);
+            color: var(--red);
+            border: 1px solid rgba(255, 77, 109, .25);
+        }
+
+        .pill-hold {
+            background: rgba(255, 183, 3, .1);
+            color: var(--amber);
+            border: 1px solid rgba(255, 183, 3, .25);
+        }
+
+        .pill-open {
+            background: rgba(0, 255, 157, .1);
+            color: var(--green);
+            border: 1px solid rgba(0, 255, 157, .2);
+        }
+
+        .pill-filled {
+            background: rgba(59, 130, 246, .1);
+            color: var(--blue);
+            border: 1px solid rgba(59, 130, 246, .2);
+        }
+
+        .pill-placed {
+            background: rgba(255, 183, 3, .1);
+            color: var(--amber);
+            border: 1px solid rgba(255, 183, 3, .2);
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: .3;
+            }
+        }
+
+        .live-dot {
+            animation: pulse-dot 1.5s ease-in-out infinite;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, .1);
+            border-radius: 2px;
+        }
+
+        .quick-btn {
+            transition: all .15s ease;
+        }
+
+        .quick-btn:hover {
+            transform: translateY(-1px);
+            background: rgba(255, 255, 255, .08);
+        }
+
+        .mode-toggle {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, .03);
+            padding: 4px;
+            border-radius: 12px;
+        }
+
+        .mode-btn {
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 11px;
+            font-family: 'IBM Plex Mono', monospace;
+            transition: all .15s ease;
+        }
+
+        .mode-btn-active-paper {
+            background: rgba(255, 183, 3, .14);
+            color: var(--amber);
+            border: 1px solid rgba(255, 183, 3, .2);
+        }
+
+        .mode-btn-active-live {
+            background: rgba(0, 255, 157, .12);
+            color: var(--green);
+            border: 1px solid rgba(0, 255, 157, .2);
+        }
+
+        .sidebar-footer-card {
+            background: rgba(255, 255, 255, .03);
+            border: 1px solid rgba(255, 255, 255, .06);
+            border-radius: 12px;
+        }
+
+        /* ====== Refonte UX — sidebar mobile drawer ====== */
+        .leo-burger {
+            display: none;
+            width: 36px;
+            height: 36px;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            color: #e5e7eb;
+            cursor: pointer;
+        }
+
+        .leo-burger:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .leo-sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(2px);
+            z-index: 25;
+        }
+
+        body.leo-sidebar-locked {
+            overflow: hidden;
+        }
+
+        @media (max-width: 1023px) {
+            .leo-burger {
+                display: inline-flex;
+            }
+
+            [data-leo-sidebar] {
+                transform: translateX(-110%);
+                transition: transform 0.25s ease-out;
+            }
+
+            [data-leo-sidebar].leo-sidebar-open {
+                transform: translateX(0);
+            }
+
+            [data-leo-sidebar].leo-sidebar-open ~ .leo-sidebar-overlay {
+                display: block;
+            }
+
+            /* Le main content ne doit pas être décalé sur mobile */
+            main.leo-main {
+                margin-left: 0 !important;
+            }
+        }
+
+        /* ====== Refonte UX — tables responsives ====== */
+        .leo-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .leo-table-wrap > table {
+            min-width: 800px;
+        }
+
+        /* ====== Skip link accessibilité ====== */
+        .leo-skip-link {
+            position: absolute;
+            left: -1000px;
+            top: 0;
+            z-index: 100;
+            padding: 8px 12px;
+            background: var(--green);
+            color: #080c14;
+            border-radius: 0 0 8px 0;
+            font-weight: 600;
+        }
+
+        .leo-skip-link:focus {
+            left: 0;
+        }
+    </style>
+
+    {% block extra_head %}{% endblock %}
+</head>
+
+<body class="h-full text-gray-300 overflow-x-hidden" x-data="dashboardLayout()">
+
+<a href="#leo-main" class="leo-skip-link">Aller au contenu principal</a>
+
+<!-- Sidebar (drawer sur mobile via data-leo-sidebar) -->
+<aside data-leo-sidebar
+       class="fixed top-0 left-0 h-full w-64 flex flex-col z-30 border-r"
+       style="background: var(--sidebar-bg); border-color: var(--border)"
+       aria-label="Navigation principale">
+
+    <!-- Logo -->
+    <div class="px-5 py-5 border-b" style="border-color: var(--border)">
+        <a href="{% url 'dashboard' %}" class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                 style="background: var(--green)">
+                <svg class="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                     stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 17l4-8 4 4 4-6 4 5"/>
+                </svg>
+            </div>
+            <div>
+                <div class="mono text-white font-semibold text-sm tracking-wide">
+                    Leo<span style="color: var(--green)">Trade</span>
+                </div>
+                <div class="mt-1 flex items-center gap-1.5">
+                    <div class="w-1.5 h-1.5 rounded-full live-dot" style="background: var(--green)"></div>
+                    <span class="text-[10px] mono" style="color: var(--green)">SYSTÈME ACTIF</span>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="px-4 pt-4 space-y-3 border-b pb-4" style="border-color: var(--border)">
+        <div class="section-title !px-0 !mt-0 !mb-2">Actions rapides</div>
+
+        <div class="grid grid-cols-2 gap-2">
+            <a href="{% url 'signal-list' %}"
+               class="quick-btn rounded-xl px-3 py-2 text-xs text-gray-300 bg-white/5 border border-white/10 text-center mono">
+                Signaux
+            </a>
+            <a href="{% url 'trading:order-list' %}"
+               class="quick-btn rounded-xl px-3 py-2 text-xs text-gray-300 bg-white/5 border border-white/10 text-center mono">
+                Ordres
+            </a>
+            <a href="{% url 'backtest-list' %}"
+               class="quick-btn rounded-xl px-3 py-2 text-xs text-gray-300 bg-white/5 border border-white/10 text-center mono">
+                Backtests
+            </a>
+            <a href="{% url 'broker-list' %}"
+               class="quick-btn rounded-xl px-3 py-2 text-xs text-gray-300 bg-white/5 border border-white/10 text-center mono">
+                Brokers
+            </a>
+
+        </div>
+
+        <!-- Trading mode switch -->
+        <div>
+            <div class="flex items-center justify-between mb-2">
+                <div class="text-[10px] mono uppercase tracking-wider text-gray-600">Trading mode</div>
+                <span class="text-[10px] mono
+                    {% if trading_mode == 'LIVE' %}text-red-300{% else %}text-amber-300{% endif %}">
+                    ●&nbsp;{{ trading_mode|default:'PAPER' }}
+                </span>
+            </div>
+
+            <form method="post" action="{% url 'trading-mode-toggle' %}"
+                  data-leo-trading-mode-form>
+                {% csrf_token %}
+                <div class="mode-toggle w-full justify-between">
+                    <button type="submit" name="mode" value="PAPER"
+                            data-mode="PAPER"
+                            class="mode-btn flex-1 {% if trading_mode|default:'PAPER' == 'PAPER' %}mode-btn-active-paper{% else %}text-gray-500 hover:text-amber-300{% endif %}">
+                        PAPER
+                    </button>
+                    <button type="submit" name="mode" value="LIVE"
+                            data-mode="LIVE"
+                            class="mode-btn flex-1 {% if trading_mode == 'LIVE' %}mode-btn-active-live{% else %}text-gray-500 hover:text-red-300{% endif %}">
+                        LIVE
+                    </button>
+                </div>
+            </form>
+
+            <p class="text-[10px] text-gray-600 mono mt-2 leading-snug">
+                {% if trading_mode == 'LIVE' %}
+                    LIVE — chaque ordre est envoyé au broker réel.
+                {% else %}
+                    PAPER — ordres simulés localement, aucun appel broker.
+                {% endif %}
+            </p>
+        </div>
+
+     
+        <script>
+        (function () {
+            const form = document.querySelector('[data-leo-trading-mode-form]');
+            if (!form) return;
+            form.addEventListener('submit', function (event) {
+                const submitter = event.submitter;
+                if (!submitter || submitter.dataset.mode !== 'LIVE') return;
+                const ok = window.confirm(
+                    "Passer en mode LIVE ?\n\n"
+                    + "Tous tes brokers actifs vont basculer en LIVE et\n"
+                    + "les prochains ordres seront envoyés au broker réel\n"
+                    + "(Deriv, Binance, MT5).\n\n"
+                    + "Confirmer ?"
+                );
+                if (!ok) event.preventDefault();
+            });
+        })();
+        </script>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
+
+        <div class="section-title">Pilotage</div>
+
+        <a href="{% url 'dashboard' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                      d="M4 6h16M4 10h16M4 14h16M4 18h7"/>
+            </svg>
+            Dashboard
+        </a>
+        <a href="{% url 'trading:trade-idea-list' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'trade-idea-list' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            Opportunités IA
+        </a>
+        <a href="{% url 'trading:hedge-fund-dashboard' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'hedge-fund-dashboard' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                      d="M9 17v-6h13M9 5v6h13M5 5h.01M5 12h.01M5 19h.01"/>
+            </svg>
+            Hedge Fund AI
+        </a>
+
+        <a href="{% url 'trading:risk-monitor' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'risk-monitor' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Risk Monitor
+        </a>
+
+        <a href="{% url 'trading:learning-monitor' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'learning-monitor' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                      d="M9 12h6m-6 4h3m-5 4h10a2 2 0 002-2V6a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            Learning Monitor
+        </a>
+        <a href="{% url 'portfolio-list' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'portfolio-list' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            Portefeuilles
+        </a>
+
+        <a href="{% url 'broker-list' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'broker-list' or request.resolver_match.url_name == 'broker-detail' or request.resolver_match.url_name == 'broker-create' or request.resolver_match.url_name == 'broker-update' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M19 11H5m14-7H9m10 14H9"/>
+            </svg>
+            Brokers
+        </a>
+        <a href="{% url 'trading:deriv-contract-list' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'deriv-contract-list' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                      d="M8 7h8M8 12h8M8 17h8M4 7h.01M4 12h.01M4 17h.01"/>
+            </svg>
+            Contrats Deriv
+        </a>
+        <a href="{% url 'wallet-dashboard' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'wallet-dashboard' or request.resolver_match.url_name == 'wallet-history' or request.resolver_match.url_name == 'wallet-deposit' or request.resolver_match.url_name == 'wallet-withdraw' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                      d="M17 9V7a5 5 0 00-10 0v2M5 9h14l1 10a2 2 0 01-2 2H6a2 2 0 01-2-2L5 9z"/>
+            </svg>
+            Wallet
+        </a>
+
+        <a href="{% url 'kyc-dashboard' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'kyc-dashboard' or request.resolver_match.url_name == 'kyc-submit' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                      d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+            KYC / Conformité
+        </a>
+
+        <div class="section-title">Marché & exécution</div>
+
+        <a href="{% url 'asset-list' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'asset-list' or request.resolver_match.url_name == 'asset-chart' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 7h18M6 12h12M9 17h6"/>
+            </svg>
+            Marchés
+        </a>
+
+        <a href="{% url 'strategy-list' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'strategy-list' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                      d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            Stratégies
+        </a>
+
+        <a href="{% url 'signal-list' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'signal-list' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            Signaux
+            {% if stats.open_positions_count > 0 %}
+                <span class="ml-auto mono text-xs px-1.5 py-0.5 rounded"
+                      style="background: rgba(0,255,157,.15); color: var(--green)">
+            {{ stats.open_positions_count }}
+          </span>
+            {% endif %}
+        </a>
+
+        <a href="{% url 'trading:order-list' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'order-list' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+            Ordres
+        </a>
+
+        <a href="{% url 'backtest-list' %}"
+           class="nav-link {% if request.resolver_match.url_name == 'backtest-list' or request.resolver_match.url_name == 'backtest-detail' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Backtests
+        </a>
+
+        <div class="section-title">Administration</div>
+
+        <a href="/admin/"
+           class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                      d="M12 8c-1.657 0-3 .895-3 2v1H7a2 2 0 00-2 2v4h14v-4a2 2 0 00-2-2h-2v-1c0-1.105-1.343-2-3-2z"/>
+            </svg>
+            Admin
+        </a>
+    </nav>
+
+    <!-- Sidebar contextual info -->
+    <div class="px-4 py-4 border-t space-y-3" style="border-color: var(--border)">
+        {% if portfolio %}
+            <div class="sidebar-footer-card px-3 py-3">
+                <div class="text-xs text-gray-600 mb-1 mono uppercase tracking-wider">Portfolio actif</div>
+                <div class="text-xs text-gray-300 font-medium">{{ portfolio.name|default:"Portfolio principal" }}</div>
+                <div class="mt-2 flex flex-wrap gap-2">
+          <span class="text-[11px] px-1.5 py-0.5 rounded mono
+            {% if portfolio.broker_account.mode == 'PAPER' %}
+              bg-amber-500/10 text-amber-400 border border-amber-500/20
+            {% else %}
+              bg-green-500/10 text-green-400 border border-green-500/20
+            {% endif %}">
+            {{ portfolio.broker_account.mode }}
+          </span>
+                    <span class="text-[11px] px-1.5 py-0.5 rounded mono bg-white/5 text-gray-400 border border-white/10">
+            {{ portfolio.broker_account.broker }}
+          </span>
+                </div>
+            </div>
+        {% endif %}
+
+        {% if wallet %}
+            <div class="sidebar-footer-card px-3 py-3">
+                <div class="text-xs text-gray-600 mb-1 mono uppercase tracking-wider">Wallet</div>
+                <div class="text-sm text-white mono">{{ wallet.available_balance|default:"0.00" }} {{ wallet.currency|default:"USD" }}</div>
+                <div class="mt-2 flex gap-2">
+                    <a href="{% url 'wallet-deposit' %}"
+                       class="text-[11px] px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 mono">Déposer</a>
+                    <a href="{% url 'wallet-withdraw' %}"
+                       class="text-[11px] px-2 py-1 rounded bg-amber-500/10 text-amber-300 border border-amber-400/20 mono">Retirer</a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- User -->
+    <div class="px-4 py-3 border-t" style="border-color: var(--border)">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 min-w-0">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs mono font-bold text-black"
+                     style="background: var(--green)">
+                    {{ request.user.email|default:request.user.username|slice:":1"|upper }}
+                </div>
+                <div class="min-w-0">
+                    <div class="text-xs text-white font-medium truncate max-w-[120px]">
+                        {{ request.user.email|default:request.user.username|truncatechars:18 }}
+                    </div>
+                    <div class="text-[10px] text-gray-600 mono">
+                        {% if trading_mode == "LIVE" %}
+                            MODE LIVE
+                        {% else %}
+                            MODE PAPER
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <a href="{% url 'account_logout' %}"
+               class="p-1.5 rounded hover:bg-white/5 transition-colors text-gray-600 hover:text-gray-400">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                </svg>
+            </a>
+        </div>
+    </div>
+</aside>
+
+<!-- Overlay derrière la sidebar mobile (cliquable pour fermer) -->
+<div class="leo-sidebar-overlay" data-leo-burger aria-hidden="true"></div>
+
+<!-- Main -->
+<div class="ml-64 min-h-screen flex flex-col leo-main">
+
+    <!-- Topbar -->
+    <header class="sticky top-0 z-20 flex items-center justify-between px-6 py-3 border-b"
+            style="background: var(--topbar-bg); border-color: var(--border); backdrop-filter: blur(12px)">
+        <div class="flex items-center gap-3">
+            <button type="button" class="leo-burger" data-leo-burger
+                    aria-label="Ouvrir le menu de navigation" aria-expanded="false">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                     aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+            <div>
+                <h1 class="text-white font-semibold text-base">{% block page_title %}Fund Dashboard{% endblock %}</h1>
+                <p class="text-xs text-gray-500 mono" id="clock">--:--:-- UTC</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <div class="hidden lg:flex items-center gap-3 text-xs mono text-gray-400">
+                <span>BTC <span class="text-gray-200">42,381</span></span>
+                <span>ETH <span class="text-gray-200">2,241</span></span>
+                <span>XAU <span class="text-gray-200">2,012</span></span>
+            </div>
+
+            {# Badge connexion temps réel — propage l'état de LeoWS #}
+            {% include "_partials/_disconnect_badge.html" %}
+
+            <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                 style="background: rgba(0,255,157,.06); border: 1px solid rgba(0,255,157,.15)"
+                 role="status" aria-label="Statut du moteur IA">
+                <div class="w-1.5 h-1.5 rounded-full live-dot" style="background: var(--green)"
+                     aria-hidden="true"></div>
+                <span class="text-xs mono" style="color: var(--green)">IA ACTIVE</span>
+            </div>
+
+            <a href="{% url 'broker-list' %}"
+               title="{% if trading_mode == 'LIVE' %}Mode LIVE actif — les ordres sont envoyés au broker réel{% else %}Mode PAPER actif — les ordres sont simulés localement{% endif %}"
+               class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs mono transition-colors
+                    {% if trading_mode == 'LIVE' %}
+                      text-red-300 border-red-400/30 bg-red-500/10 hover:bg-red-500/20
+                    {% else %}
+                      text-amber-300 border-amber-400/30 bg-amber-500/10 hover:bg-amber-500/20
+                    {% endif %}">
+                <span class="w-1.5 h-1.5 rounded-full
+                    {% if trading_mode == 'LIVE' %}
+                      bg-red-400 live-dot
+                    {% else %}
+                      bg-amber-400
+                    {% endif %}" aria-hidden="true"></span>
+                <span class="font-semibold">{{ trading_mode|default:"PAPER" }}</span>
+                {% if trading_mode == 'LIVE' %}
+                    <span class="hidden md:inline text-[10px] opacity-80">RÉEL</span>
+                {% else %}
+                    <span class="hidden md:inline text-[10px] opacity-80">SIMULÉ</span>
+                {% endif %}
+            </a>
+        </div>
+    </header>
+
+    <!-- Messages -->
+    {% if messages %}
+        <div class="px-6 pt-4 space-y-2">
+            {% for message in messages %}
+                <div class="card px-4 py-3 text-sm {% if message.tags == 'error' %}border-red-500/20 text-red-300{% elif message.tags == 'success' %}border-green-500/20 text-green-300{% elif message.tags == 'warning' %}border-amber-500/20 text-amber-300{% else %}text-gray-300{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Content -->
+    <main id="leo-main" class="flex-1 px-6 py-6 space-y-6" tabindex="-1">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="px-6 py-3 border-t text-xs text-gray-700 mono flex items-center justify-between"
+            style="border-color: var(--border)">
+        <span>LeoTrade v1.0 — Hedge Fund Dashboard</span>
+        <span id="footer-clock"></span>
+    </footer>
+</div>
+
+<script>
+    function dashboardLayout() {
+        return {};
+    }
+
+    function updateClock() {
+        const now = new Date();
+        const utc = now.toUTCString().split(' ')[4] + ' UTC';
+        const el = document.getElementById('clock');
+        const fel = document.getElementById('footer-clock');
+
+        if (el) el.textContent = utc;
+        if (fel) fel.textContent = now.toLocaleDateString('fr-FR') + ' ' + utc;
+    }
+
+    updateClock();
+    setInterval(updateClock, 1000);
+</script>
+<script>
+    (function () {
+        // Notifications globales : passe par LeoWS (backoff exponentiel,
+        // état partagé avec le badge topbar, version-aware).
+        // L'ancien `alert()` est remplacé par LeoAnim.toast() — non-bloquant.
+        if (!window.LeoWS) {
+            console.warn("[notifications] LeoWS absent — flux temps réel désactivé");
+            return;
+        }
+        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+        const wsUrl = `${protocol}://${window.location.host}/ws/notifications/`;
+
+        LeoWS.connect(wsUrl, {
+            name: "user_notifications",
+            expectedEvent: "notification.created",
+            onMessage: function (_data, payload) {
+                if (!payload || !payload.message) return;
+                const kind = (payload.kind || payload.level || "info").toLowerCase();
+                const allowed = ["success", "error", "info"];
+                const safeKind = allowed.includes(kind) ? kind : "info";
+                if (window.LeoAnim && typeof LeoAnim.toast === "function") {
+                    LeoAnim.toast(payload.message, safeKind);
+                } else {
+                    console.info("[notification]", payload.message);
+                }
+            },
+        });
+    })();
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

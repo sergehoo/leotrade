@@ -1,0 +1,74 @@
+<div class="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+    <div class="mb-4 flex items-center justify-between">
+        <div>
+            <div class="text-xs uppercase tracking-[0.18em] text-slate-400">AI Radar</div>
+            <h3 class="mt-1 text-xl font-bold">Recommandations intelligentes</h3>
+        </div>
+        <div class="rounded-xl bg-indigo-500/15 px-3 py-2 text-xs font-semibold text-indigo-300">
+            {{ hero_stats.recommendations_count }} recommandations
+        </div>
+    </div>
+
+    <div id="ai-radar-list" class="space-y-4">
+        {% for rec in recommendations %}
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300">{{ rec.opportunity.symbol }}</span>
+                        <span class="rounded-full bg-indigo-500/15 px-2 py-1 text-xs text-indigo-300">{{ rec.recommendation_type }}</span>
+                        <span class="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300">{{ rec.status }}</span>
+                    </div>
+                    <p class="mt-3 text-sm leading-6 text-slate-300">
+                        {{ rec.ai_summary|default:"Recommandation IA générée." }}
+                    </p>
+
+                    <div class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4 text-sm">
+                        <div class="rounded-xl bg-slate-900 p-3">
+                            <div class="text-slate-500">Confiance IA</div>
+                            <div class="mt-1 font-bold">{{ rec.ai_confidence }}</div>
+                        </div>
+                        <div class="rounded-xl bg-slate-900 p-3">
+                            <div class="text-slate-500">Stake</div>
+                            <div class="mt-1 font-bold">{{ rec.stake_amount }}</div>
+                        </div>
+                        <div class="rounded-xl bg-slate-900 p-3">
+                            <div class="text-slate-500">Notional</div>
+                            <div class="mt-1 font-bold">{{ rec.recommended_notional }}</div>
+                        </div>
+                        <div class="rounded-xl bg-slate-900 p-3">
+                            <div class="text-slate-500">R/R</div>
+                            <div class="mt-1 font-bold">{{ rec.risk_reward_ratio }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex shrink-0 flex-wrap gap-2">
+                    <form method="post" action="{% url 'dashboard:recommendation_approve' rec.id %}">
+                        {% csrf_token %}
+                        <button class="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-400">
+                            Approuver
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'dashboard:recommendation_reject' rec.id %}">
+                        {% csrf_token %}
+                        <button class="rounded-xl bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-600">
+                            Rejeter
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'dashboard:recommendation_execute' rec.id %}">
+                        {% csrf_token %}
+                        <button class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                            Exécuter
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="rounded-2xl border border-dashed border-slate-700 p-6 text-sm text-slate-400">
+            Aucune recommandation IA disponible.
+        </div>
+        {% endfor %}
+    </div>
+</div>

@@ -1,0 +1,107 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Transaction Wallet — LeoTrade{% endblock %}
+{% block page_title %}Détail de transaction{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Wallet Transaction</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">{{ transaction.tx_type }}</h2>
+        <div class="text-sm text-gray-500 mt-2 mono">
+          {{ transaction.created_at|date:"d/m/Y H:i:s" }}
+        </div>
+      </div>
+
+      <div>
+        {% if transaction.status == "SUCCEEDED" %}
+          <span class="px-3 py-1.5 rounded-lg text-xs mono pill-open">SUCCEEDED</span>
+        {% elif transaction.status == "PENDING" or transaction.status == "PROCESSING" %}
+          <span class="px-3 py-1.5 rounded-lg text-xs mono pill-placed">{{ transaction.status }}</span>
+        {% elif transaction.status == "FAILED" %}
+          <span class="px-3 py-1.5 rounded-lg text-xs mono pill-sell">FAILED</span>
+        {% else %}
+          <span class="px-3 py-1.5 rounded-lg text-xs mono bg-white/5 text-gray-400 border border-white/10">{{ transaction.status }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div class="xl:col-span-2 card p-6">
+      <h3 class="text-white font-semibold mb-5">Informations</h3>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Montant</div>
+          <div class="text-white font-semibold mt-2 mono">{{ transaction.amount }} {{ transaction.currency }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Type</div>
+          <div class="text-white font-semibold mt-2">{{ transaction.tx_type }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Provider</div>
+          <div class="text-white font-semibold mt-2 mono">{{ transaction.provider|default:"—" }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Référence provider</div>
+          <div class="text-white font-semibold mt-2 mono break-all">{{ transaction.provider_reference|default:"—" }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4 md:col-span-2">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Description</div>
+          <div class="text-gray-300 mt-2">{{ transaction.description|default:"—" }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-5">Métadonnées</h3>
+      <div class="rounded-xl bg-black/20 border border-white/5 p-4 max-h-[340px] overflow-auto scrollbar-thin">
+        <pre class="text-xs text-gray-300 whitespace-pre-wrap">{{ transaction.metadata }}</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card p-6">
+    <h3 class="text-white font-semibold mb-5">Ledger</h3>
+
+    {% if ledger_entries %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[900px] text-sm">
+        <thead>
+          <tr class="text-left border-b border-white/10">
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Type</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Montant</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Avant</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Après</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in ledger_entries %}
+          <tr class="table-row">
+            <td class="px-4 py-3 text-white">{{ entry.entry_type }}</td>
+            <td class="px-4 py-3 mono text-gray-300">{{ entry.amount }} {{ entry.currency }}</td>
+            <td class="px-4 py-3 mono text-gray-400">{{ entry.balance_before }}</td>
+            <td class="px-4 py-3 mono text-white">{{ entry.balance_after }}</td>
+            <td class="px-4 py-3 mono text-gray-500">{{ entry.created_at|date:"d/m/Y H:i:s" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-500">Aucune écriture de ledger liée à cette transaction.</p>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

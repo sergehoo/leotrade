@@ -1,0 +1,46 @@
+{% extends "layout/base.html" %}
+{% block title %}Runs stratégie — LeoTrade{% endblock %}
+{% block page_title %}Runs des stratégies{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold">Historique des runs</h3>
+    </div>
+
+    {% if runs %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[1100px] text-sm">
+        <thead>
+          <tr class="border-b border-white/10 text-left">
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Stratégie</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Début</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Fin</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Status</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Runtime</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for run in runs %}
+          <tr class="table-row">
+            <td class="px-4 py-4 text-white">{{ run.strategy.name }}</td>
+            <td class="px-4 py-4 text-gray-300 mono">{{ run.run_started_at|date:"d/m/Y H:i:s" }}</td>
+            <td class="px-4 py-4 text-gray-300 mono">{{ run.run_finished_at|date:"d/m/Y H:i:s"|default:"—" }}</td>
+            <td class="px-4 py-4"><span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-300 border border-white/10">{{ run.status }}</span></td>
+            <td class="px-4 py-4 text-white mono">{{ run.runtime_ms }} ms</td>
+            <td class="px-4 py-4 text-right">
+              <a href="{% url 'strategy-run-detail' run.pk %}" class="px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-xs mono">Voir</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-16 text-center text-gray-500 text-sm">Aucun run.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,227 @@
+{% extends "layout/base.html" %}
+
+{% block title %}
+  {% if object %}Modifier une mission — LeoTrade{% else %}Nouvelle mission IA — LeoTrade{% endif %}
+{% endblock %}
+
+{% block page_title %}
+  {% if object %}Modifier la mission{% else %}Créer une mission d’investissement{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">AI Investment Intent</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">
+          {% if object %}Mettre à jour la mission{% else %}Créer une mission d’investissement pilotée par l’IA{% endif %}
+        </h2>
+        <p class="text-sm text-gray-500 mt-2 max-w-3xl">
+          Définissez le capital, l’horizon, l’objectif et le niveau de risque. LeoTrade analysera
+          automatiquement la faisabilité et proposera un plan d’exécution.
+        </p>
+      </div>
+
+      <a href="{% url 'intent-list' %}"
+         class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+        Retour à la liste
+      </a>
+    </div>
+  </section>
+
+  {% if form.non_field_errors %}
+  <section class="card p-4 border border-red-500/20 bg-red-500/5">
+    <div class="text-sm text-red-300">{{ form.non_field_errors }}</div>
+  </section>
+  {% endif %}
+
+  <form method="post" class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-6">
+    {% csrf_token %}
+
+    <section class="card p-6 space-y-8">
+
+      <div class="space-y-5">
+        <div>
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Mission identity</div>
+          <h3 class="text-white text-lg font-semibold mt-1">Configuration principale</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div class="md:col-span-2">
+            <label for="{{ form.title.id_for_label }}" class="block text-sm text-gray-400 mb-2">Titre</label>
+            {{ form.title }}
+            {% if form.title.errors %}<p class="mt-2 text-xs text-red-400">{{ form.title.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.portfolio.id_for_label }}" class="block text-sm text-gray-400 mb-2">Portefeuille</label>
+            {{ form.portfolio }}
+            {% if form.portfolio.errors %}<p class="mt-2 text-xs text-red-400">{{ form.portfolio.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.broker_account.id_for_label }}" class="block text-sm text-gray-400 mb-2">Compte broker</label>
+            {{ form.broker_account }}
+            {% if form.broker_account.errors %}<p class="mt-2 text-xs text-red-400">{{ form.broker_account.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div class="md:col-span-2">
+            <label for="{{ form.objective_prompt.id_for_label }}" class="block text-sm text-gray-400 mb-2">Brief utilisateur</label>
+            {{ form.objective_prompt }}
+            {% if form.objective_prompt.errors %}<p class="mt-2 text-xs text-red-400">{{ form.objective_prompt.errors|join:", " }}</p>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="border-t border-white/10 pt-8 space-y-5">
+        <div>
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Capital & objective</div>
+          <h3 class="text-white text-lg font-semibold mt-1">Capital et objectif</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div>
+            <label for="{{ form.capital_amount.id_for_label }}" class="block text-sm text-gray-400 mb-2">Capital</label>
+            {{ form.capital_amount }}
+            {% if form.capital_amount.errors %}<p class="mt-2 text-xs text-red-400">{{ form.capital_amount.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.capital_currency.id_for_label }}" class="block text-sm text-gray-400 mb-2">Devise</label>
+            {{ form.capital_currency }}
+            {% if form.capital_currency.errors %}<p class="mt-2 text-xs text-red-400">{{ form.capital_currency.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.duration_days.id_for_label }}" class="block text-sm text-gray-400 mb-2">Durée (jours)</label>
+            {{ form.duration_days }}
+            {% if form.duration_days.errors %}<p class="mt-2 text-xs text-red-400">{{ form.duration_days.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.target_return_percent.id_for_label }}" class="block text-sm text-gray-400 mb-2">Objectif de rendement (%)</label>
+            {{ form.target_return_percent }}
+            {% if form.target_return_percent.errors %}<p class="mt-2 text-xs text-red-400">{{ form.target_return_percent.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.max_loss_percent.id_for_label }}" class="block text-sm text-gray-400 mb-2">Perte max tolérée (%)</label>
+            {{ form.max_loss_percent }}
+            {% if form.max_loss_percent.errors %}<p class="mt-2 text-xs text-red-400">{{ form.max_loss_percent.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.max_open_positions.id_for_label }}" class="block text-sm text-gray-400 mb-2">Positions max ouvertes</label>
+            {{ form.max_open_positions }}
+            {% if form.max_open_positions.errors %}<p class="mt-2 text-xs text-red-400">{{ form.max_open_positions.errors|join:", " }}</p>{% endif %}
+          </div>
+        </div>
+
+        <div class="rounded-2xl bg-amber-500/5 border border-amber-400/10 p-4">
+          <div class="text-sm text-amber-200">
+            Les objectifs de rendement extrêmes peuvent être jugés non réalistes par l’analyse IA et
+            être automatiquement basculés en mode paper trading recommandé.
+          </div>
+        </div>
+      </div>
+
+      <div class="border-t border-white/10 pt-8 space-y-5">
+        <div>
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Execution policy</div>
+          <h3 class="text-white text-lg font-semibold mt-1">Risque et exécution</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div>
+            <label for="{{ form.risk_level.id_for_label }}" class="block text-sm text-gray-400 mb-2">Niveau de risque</label>
+            {{ form.risk_level }}
+            {% if form.risk_level.errors %}<p class="mt-2 text-xs text-red-400">{{ form.risk_level.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.execution_mode.id_for_label }}" class="block text-sm text-gray-400 mb-2">Mode d’exécution</label>
+            {{ form.execution_mode }}
+            {% if form.execution_mode.errors %}<p class="mt-2 text-xs text-red-400">{{ form.execution_mode.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.allowed_asset_classes.id_for_label }}" class="block text-sm text-gray-400 mb-2">Classes d’actifs autorisées</label>
+            {{ form.allowed_asset_classes }}
+            {% if form.allowed_asset_classes.errors %}<p class="mt-2 text-xs text-red-400">{{ form.allowed_asset_classes.errors|join:", " }}</p>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">
+          {% if object %}Mise à jour de mission{% else %}Création de mission{% endif %}
+        </div>
+
+        <div class="flex flex-wrap gap-3">
+          <a href="{% url 'intent-list' %}"
+             class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+            Annuler
+          </a>
+          <button type="submit"
+                  class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+            {% if object %}Enregistrer{% else %}Créer la mission{% endif %}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="space-y-6">
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">Aide rapide</h3>
+        <ul class="mt-4 space-y-3 text-sm text-gray-400">
+          <li>• Définis un objectif crédible.</li>
+          <li>• Utilise PAPER pour tester une idée agressive.</li>
+          <li>• Fixe une perte maximale raisonnable.</li>
+          <li>• Choisis un portefeuille cohérent avec ton broker.</li>
+        </ul>
+      </section>
+
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">Bonnes pratiques</h3>
+        <div class="mt-4 space-y-3 text-sm text-gray-400">
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-white font-medium">Commencer petit</div>
+            <div class="text-xs text-gray-500 mt-1">Teste d’abord la logique en paper avant d’utiliser le live.</div>
+          </div>
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-white font-medium">Objectif réaliste</div>
+            <div class="text-xs text-gray-500 mt-1">L’IA peut refuser ou ajuster un objectif trop agressif.</div>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const ids = [
+      "id_title", "id_portfolio", "id_broker_account", "id_objective_prompt",
+      "id_capital_amount", "id_capital_currency", "id_duration_days",
+      "id_target_return_percent", "id_max_loss_percent", "id_max_open_positions",
+      "id_risk_level", "id_execution_mode", "id_allowed_asset_classes"
+    ];
+
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.tagName === "TEXTAREA") {
+        el.className = "w-full min-h-[120px] rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30";
+      } else if (el.tagName === "SELECT") {
+        el.className = "w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30";
+      } else {
+        el.className = "w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30";
+      }
+    });
+  })();
+</script>
+{% endblock %}

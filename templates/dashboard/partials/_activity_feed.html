@@ -1,0 +1,22 @@
+<div class="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+    <div class="mb-4">
+        <div class="text-xs uppercase tracking-[0.18em] text-slate-400">Activity Feed</div>
+        <h3 class="mt-1 text-xl font-bold">Activité récente</h3>
+    </div>
+
+    <div class="space-y-3" id="activity-feed-list">
+        {% for item in activity_feed %}
+        <div class="rounded-xl bg-slate-950/80 p-4">
+            <div class="flex items-center justify-between gap-3">
+                <div class="font-semibold text-white">{{ item.title }}</div>
+                <div class="text-xs text-slate-500">{{ item.time }}</div>
+            </div>
+            <div class="mt-1 text-sm text-slate-400">{{ item.subtitle }}</div>
+        </div>
+        {% empty %}
+        <div class="rounded-xl border border-dashed border-slate-700 p-4 text-sm text-slate-400">
+            Pas d’activité récente.
+        </div>
+        {% endfor %}
+    </div>
+</div>

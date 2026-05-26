@@ -1,0 +1,53 @@
+{% extends "layout/base.html" %}
+{% block title %}Run stratégie — LeoTrade{% endblock %}
+{% block page_title %}Détail run{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="card card-glow p-6">
+    <div>
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Run Diagnostics</div>
+      <h2 class="text-white text-2xl font-semibold mt-1">{{ run.strategy.name }}</h2>
+      <p class="text-sm text-gray-500 mt-2">{{ run.run_started_at|date:"d/m/Y H:i:s" }}</p>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Status</div>
+      <div class="text-2xl text-white font-semibold mt-2">{{ run.status }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Runtime</div>
+      <div class="text-2xl text-white font-semibold mt-2 mono">{{ run.runtime_ms }} ms</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Candle time</div>
+      <div class="text-xl text-white font-semibold mt-2 mono">{{ run.candle_time|date:"d/m/Y H:i:s"|default:"—" }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Finished</div>
+      <div class="text-xl text-white font-semibold mt-2 mono">{{ run.run_finished_at|date:"d/m/Y H:i:s"|default:"—" }}</div>
+    </div>
+  </section>
+
+  {% if run.error_message %}
+  <section class="card p-6 border border-red-500/20 bg-red-500/5">
+    <h3 class="text-red-300 font-semibold">Erreur</h3>
+    <pre class="text-sm text-red-200 whitespace-pre-wrap mt-3">{{ run.error_message }}</pre>
+  </section>
+  {% endif %}
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Input snapshot</h3>
+      <pre class="text-xs text-gray-300 whitespace-pre-wrap rounded-xl bg-black/20 border border-white/5 p-4 overflow-auto">{{ run.input_snapshot }}</pre>
+    </div>
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Output snapshot</h3>
+      <pre class="text-xs text-gray-300 whitespace-pre-wrap rounded-xl bg-black/20 border border-white/5 p-4 overflow-auto">{{ run.output_snapshot }}</pre>
+    </div>
+  </section>
+</div>
+{% endblock %}

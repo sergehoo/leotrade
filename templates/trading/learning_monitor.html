@@ -1,0 +1,143 @@
+{% extends "layout/base.html" %}
+{% block title %}Learning Monitor — LeoTrade{% endblock %}
+{% block page_title %}Learning Monitor{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <section class="card card-glow p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Learning Agent</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">Apprentissage et reinforcement</h2>
+        <p class="text-sm text-gray-500 mt-2">
+          Win rate · expectancy · payoff ratio · multipliers · événements de renforcement
+        </p>
+      </div>
+      <a href="{% url 'trading:hedge-fund-dashboard' %}" class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300">
+        Retour dashboard
+      </a>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Performance des snapshots</h3>
+      <canvas id="learningChart" height="120"></canvas>
+    </div>
+
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Derniers reinforcement events</h3>
+      {% if reinforcement_events %}
+      <div class="space-y-3 max-h-[320px] overflow-auto">
+        {% for event in reinforcement_events %}
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-white font-medium">{{ event.event_type }}</div>
+              <div class="text-xs text-gray-500">
+                {% if event.strategy %}{{ event.strategy.name|truncatechars:26 }}{% else %}—{% endif %}
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="mono {% if event.net_value >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">
+                {{ event.net_value|floatformat:2 }}
+              </div>
+              <div class="text-xs text-gray-500">{{ event.created_at|date:"d/m H:i" }}</div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-gray-500 text-sm">Aucun événement de reinforcement.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold">Learning snapshots</h3>
+    </div>
+
+    {% if snapshots %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[1400px] text-sm">
+        <thead>
+          <tr class="border-b border-white/10 text-left">
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Stratégie</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Asset</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">TF</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Trades</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Win rate</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Avg pnl</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Expectancy</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Sharpe like</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Conf mult</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Risk mult</th>
+            <th class="px-4 py-3 text-xs mono uppercase text-gray-600">Size mult</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for snap in snapshots %}
+          <tr class="table-row">
+            <td class="px-4 py-4 text-white">
+              {% if snap.strategy %}{{ snap.strategy.name|truncatechars:28 }}{% else %}—{% endif %}
+            </td>
+            <td class="px-4 py-4 text-gray-300">
+              {% if snap.asset %}{{ snap.asset.symbol }}{% else %}—{% endif %}
+            </td>
+            <td class="px-4 py-4 text-gray-300 mono">
+              {% if snap.timeframe %}{{ snap.timeframe.code }}{% else %}—{% endif %}
+            </td>
+            <td class="px-4 py-4 mono text-white">{{ snap.total_trades }}</td>
+            <td class="px-4 py-4 mono text-emerald-400">{{ snap.win_rate|floatformat:2 }}</td>
+            <td class="px-4 py-4 mono {% if snap.avg_pnl >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">
+              {{ snap.avg_pnl|floatformat:2 }}
+            </td>
+            <td class="px-4 py-4 mono text-white">{{ snap.expectancy|floatformat:2 }}</td>
+            <td class="px-4 py-4 mono text-white">{{ snap.sharpe_like|floatformat:2 }}</td>
+            <td class="px-4 py-4 mono text-emerald-400">{{ snap.confidence_multiplier|floatformat:2 }}</td>
+            <td class="px-4 py-4 mono text-white">{{ snap.risk_multiplier|floatformat:2 }}</td>
+            <td class="px-4 py-4 mono text-white">{{ snap.size_multiplier|floatformat:2 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-16 text-center text-gray-500 text-sm">Aucun snapshot d’apprentissage disponible.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const chartData = {{ chart_data|safe }};
+  const ctx = document.getElementById('learningChart');
+
+  if (ctx && chartData.length) {
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: chartData.map(i => i.label),
+        datasets: [
+          { label: 'Win rate', data: chartData.map(i => i.win_rate) },
+          { label: 'Expectancy', data: chartData.map(i => i.expectancy) },
+          { label: 'Size multiplier', data: chartData.map(i => i.size_multiplier) }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { labels: { color: '#cbd5e1' } } },
+        scales: {
+          x: { ticks: { color: '#94a3b8' } },
+          y: { ticks: { color: '#94a3b8' } }
+        }
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

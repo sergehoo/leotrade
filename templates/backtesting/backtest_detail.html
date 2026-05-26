@@ -1,0 +1,27 @@
+{% extends 'layout/base.html' %}
+{% block content %}
+<div class="space-y-6">
+    <div class="rounded-2xl bg-slate-900 border border-slate-800 p-5">
+        <h1 class="text-2xl font-semibold">{{ backtest.name }}</h1>
+        <div class="text-slate-400 mt-2">{{ backtest.strategy.name }} · {{ backtest.status }}</div>
+    </div>
+    <div class="rounded-2xl bg-slate-900 border border-slate-800 p-5">
+        <h2 class="text-lg font-semibold mb-4">Métriques</h2>
+        <pre class="text-sm text-slate-300 whitespace-pre-wrap">{{ backtest.metrics }}</pre>
+    </div>
+    <div class="rounded-2xl bg-slate-900 border border-slate-800 p-5">
+        <h2 class="text-lg font-semibold mb-4">Equity curve</h2>
+        <div id="bt-chart" class="h-96"></div>
+    </div>
+</div>
+<script>
+const eq = {{ equity_json|safe }} || [];
+const x = eq.map(i => i.index || i.Date || i.date || '');
+const y = eq.map(i => i.Equity || i.equity || 0);
+Plotly.newPlot('bt-chart', [{x, y, type: 'scatter', mode: 'lines'}], {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: {color: '#cbd5e1'},
+});
+</script>
+{% endblock %}

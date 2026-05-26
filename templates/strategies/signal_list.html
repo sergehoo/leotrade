@@ -1,0 +1,127 @@
+{% extends "layout/base.html" %}
+{% block title %}Stratégies — LeoTrade{% endblock %}
+{% block page_title %}Stratégies IA{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Strategy Engine</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">Pilotage des stratégies</h2>
+        <p class="text-sm text-gray-500 mt-2">Supervisez les stratégies autonomes, leur statut et leur mode d’exécution.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Total</div>
+      <div class="text-2xl text-white font-semibold mt-2">{{ summary.count }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Actives</div>
+      <div class="text-2xl text-emerald-400 font-semibold mt-2">{{ summary.active_count }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Autonomes</div>
+      <div class="text-2xl text-blue-400 font-semibold mt-2">{{ summary.autonomous_count }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Live</div>
+      <div class="text-2xl text-amber-300 font-semibold mt-2">{{ summary.live_count }}</div>
+    </div>
+  </section>
+
+  <section class="card p-6">
+    <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="Nom stratégie"
+             class="w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5">
+      <select name="status" class="w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5">
+        <option value="">Tous statuts</option>
+        {% for s in "DRAFT,BACKTEST,PAPER,LIVE,PAUSED,ARCHIVED,FAILED"|split:"," %}
+          <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      <select name="strategy_type" class="w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5">
+        <option value="">Tous types</option>
+        <option value="RULE" {% if filters.strategy_type == "RULE" %}selected{% endif %}>RULE</option>
+        <option value="ML" {% if filters.strategy_type == "ML" %}selected{% endif %}>ML</option>
+        <option value="HYBRID" {% if filters.strategy_type == "HYBRID" %}selected{% endif %}>HYBRID</option>
+      </select>
+      <button type="submit" class="rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 px-4 py-2.5">
+        Filtrer
+      </button>
+    </form>
+  </section>
+
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold">Liste des stratégies</h3>
+    </div>
+
+    {% if strategies %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[1200px] text-sm">
+        <thead>
+          <tr class="text-left border-b border-white/10">
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Nom</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Type</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Asset</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">TF</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Statut</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Auto</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Live exec</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for strategy in strategies %}
+          <tr class="table-row">
+            <td class="px-4 py-4">
+              <div class="text-white font-medium">{{ strategy.name }}</div>
+              <div class="text-xs text-gray-500 mt-1 mono">{{ strategy.slug }}</div>
+            </td>
+            <td class="px-4 py-4 text-gray-300">{{ strategy.strategy_type }}</td>
+            <td class="px-4 py-4 text-white">{{ strategy.asset.symbol }}</td>
+            <td class="px-4 py-4 text-gray-300 mono">{{ strategy.timeframe.code }}</td>
+            <td class="px-4 py-4">
+              <span class="px-2 py-1 rounded text-xs mono
+                {% if strategy.status == 'LIVE' %}pill-open
+                {% elif strategy.status == 'PAUSED' or strategy.status == 'FAILED' %}pill-sell
+                {% else %}pill-placed{% endif %}">
+                {{ strategy.status }}
+              </span>
+            </td>
+            <td class="px-4 py-4">
+              {% if strategy.is_autonomous %}
+                <span class="px-2 py-1 rounded text-xs mono bg-blue-500/10 text-blue-300 border border-blue-400/20">ON</span>
+              {% else %}
+                <span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-400 border border-white/10">OFF</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-4">
+              {% if strategy.allow_live_execution %}
+                <span class="px-2 py-1 rounded text-xs mono bg-amber-500/10 text-amber-300 border border-amber-400/20">YES</span>
+              {% else %}
+                <span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-400 border border-white/10">NO</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-4 text-right">
+              <a href="{% url 'strategy-detail' strategy.pk %}"
+                 class="px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-xs mono">
+                Voir
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-16 text-center text-gray-500 text-sm">Aucune stratégie.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "layout/base.html" %}
+{% block title %}KYC — LeoTrade{% endblock %}
+{% block page_title %}KYC / Conformité{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl space-y-6">
+  <section class="card p-6">
+    <h2 class="text-white text-xl font-semibold">Mon dossier KYC</h2>
+    <div class="mt-4">
+      {% if kyc.status == "APPROVED" %}
+        <span class="px-3 py-1.5 rounded-lg text-xs mono pill-open">APPROUVÉ</span>
+      {% elif kyc.status == "PENDING" or kyc.status == "UNDER_REVIEW" %}
+        <span class="px-3 py-1.5 rounded-lg text-xs mono pill-placed">EN REVUE</span>
+      {% elif kyc.status == "REJECTED" %}
+        <span class="px-3 py-1.5 rounded-lg text-xs mono pill-sell">REJETÉ</span>
+      {% else %}
+        <span class="px-3 py-1.5 rounded-lg text-xs mono bg-white/5 text-gray-400 border border-white/10">NON COMMENCÉ</span>
+      {% endif %}
+    </div>
+
+    {% if kyc.rejection_reason %}
+      <div class="mt-4 text-sm text-red-300">{{ kyc.rejection_reason }}</div>
+    {% endif %}
+
+    <a href="{% url 'kyc-submit' %}" class="inline-flex mt-6 px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">
+      Soumettre / Mettre à jour
+    </a>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,94 @@
+{% extends "layout/base.html" %}
+{% block title %}Missions IA — LeoTrade{% endblock %}
+{% block page_title %}Missions d’investissement{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Trading Missions</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">Pilotage des missions IA</h2>
+        <p class="text-sm text-gray-500 mt-2">
+          Crée, analyse et lance des intentions d’investissement pilotées par l’intelligence artificielle.
+        </p>
+      </div>
+
+      <a href="{% url 'intent-create' %}"
+         class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+        Nouvelle mission
+      </a>
+    </div>
+  </section>
+
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold">Liste des missions</h3>
+    </div>
+
+    {% if intents %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[1250px] text-sm">
+        <thead>
+          <tr class="text-left border-b border-white/10">
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Titre</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Portefeuille</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Capital</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Objectif</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Risque</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Mode</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Statut</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Retour actuel</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for intent in intents %}
+          <tr class="table-row">
+            <td class="px-4 py-4">
+              <div class="text-white font-medium">{{ intent.title }}</div>
+              <div class="text-xs text-gray-500 mt-1 mono">{{ intent.created_at|date:"d/m/Y H:i" }}</div>
+            </td>
+            <td class="px-4 py-4 text-gray-300">{{ intent.portfolio.name }}</td>
+            <td class="px-4 py-4 text-white mono">{{ intent.capital_amount }} {{ intent.capital_currency }}</td>
+            <td class="px-4 py-4 text-gray-300 mono">{{ intent.target_return_percent|floatformat:2 }}%</td>
+            <td class="px-4 py-4">
+              <span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-300 border border-white/10">
+                {{ intent.risk_level }}
+              </span>
+            </td>
+            <td class="px-4 py-4">
+              {% if intent.execution_mode == "LIVE" %}
+                <span class="px-2 py-1 rounded text-xs mono bg-amber-500/10 text-amber-300 border border-amber-400/20">LIVE</span>
+              {% else %}
+                <span class="px-2 py-1 rounded text-xs mono bg-blue-500/10 text-blue-300 border border-blue-400/20">PAPER</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-4">
+              <span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-300 border border-white/10">
+                {{ intent.status }}
+              </span>
+            </td>
+            <td class="px-4 py-4 mono {% if intent.actual_return_percent >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">
+              {{ intent.actual_return_percent|floatformat:2 }}%
+            </td>
+            <td class="px-4 py-4 text-right">
+              <a href="{% url 'intent-detail' intent.pk %}"
+                 class="px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-xs mono">
+                Voir
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-16 text-center text-gray-500 text-sm">
+      Aucune mission créée.
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

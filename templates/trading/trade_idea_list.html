@@ -1,0 +1,723 @@
+{% extends "layout/base.html" %}
+{% block title %}Opportunités IA — LeoTrade{% endblock %}
+{% block page_title %}Opportunités IA{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="tradeIdeasRealtime()" x-init="init()" @keydown.window.slash.prevent="focusSearch()">
+
+  <section class="card card-glow p-6 overflow-hidden relative">
+    <div class="absolute inset-0 pointer-events-none opacity-40"
+         style="background: radial-gradient(circle at top right, rgba(16,185,129,.16), transparent 28%), radial-gradient(circle at bottom left, rgba(59,130,246,.10), transparent 32%);"></div>
+
+    <div class="relative flex flex-col 2xl:flex-row 2xl:items-center 2xl:justify-between gap-6">
+      <div class="max-w-4xl">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-400/20 bg-emerald-500/10 text-[11px] mono uppercase tracking-wider text-emerald-300">
+            <span class="w-2 h-2 rounded-full" :class="isLive && !paused ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'"></span>
+            AI Market Intelligence
+          </span>
+
+          <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/5 text-[11px] mono uppercase tracking-wider text-gray-400">
+            Cycle <span class="text-white" x-text="cycleCount"></span>
+          </span>
+        </div>
+
+        <h2 class="text-white text-2xl xl:text-3xl font-semibold mt-4">
+          Opportunités IA basées sur les données réelles du marché
+        </h2>
+
+        <p class="text-sm text-gray-400 mt-3 max-w-3xl leading-6">
+          Chaque opportunité est enrichie par les bougies récentes, le prix réel, la tendance,
+          la volatilité, le RSI, l’ATR, le régime marché et une décision IA explicable.
+        </p>
+
+        <div class="mt-5 flex flex-wrap items-center gap-3 text-xs mono">
+          <div class="px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+            <span class="text-gray-500">État :</span>
+            <span :class="isLive && !paused ? 'text-emerald-300' : 'text-red-300'"
+                  x-text="paused ? 'EN PAUSE' : (isLive ? 'ACTIF' : 'HORS LIGNE')"></span>
+          </div>
+
+          <div class="px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+            <span class="text-gray-500">Dernière MàJ :</span>
+            <span class="text-white ml-1" x-text="lastUpdated || '—'"></span>
+          </div>
+
+          <div class="px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+            <span class="text-gray-500">Prochain refresh :</span>
+            <span class="text-emerald-300 ml-1" x-text="paused ? 'PAUSE' : `${nextRefreshIn}s`"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-[300px] xl:min-w-[420px]">
+        <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div class="text-[10px] mono uppercase tracking-wider text-gray-600">Marché</div>
+          <div class="mt-2 text-lg text-white font-semibold" x-text="stats.totalMarket"></div>
+          <div class="text-xs text-gray-500">actifs analysés</div>
+        </div>
+
+        <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div class="text-[10px] mono uppercase tracking-wider text-gray-600">Décision IA</div>
+          <div class="mt-2 text-lg text-emerald-300 font-semibold" x-text="stats.executeCount"></div>
+          <div class="text-xs text-gray-500">exécutables</div>
+        </div>
+
+        <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div class="text-[10px] mono uppercase tracking-wider text-gray-600">Score moyen</div>
+          <div class="mt-2 text-lg text-emerald-400 font-semibold" x-text="formatNumber(stats.avgOverall)"></div>
+          <div class="text-xs text-gray-500">global IA</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card p-5 overflow-hidden relative">
+    <div class="relative flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+      <div class="flex items-start gap-4">
+        <div class="relative w-14 h-14 rounded-2xl flex items-center justify-center border border-emerald-400/20 bg-emerald-500/10 shadow-lg shadow-emerald-500/10 leo-float shrink-0">
+          <div class="robot-ring" :class="isLive && !paused ? 'robot-ring-active' : ''"></div>
+          <svg class="w-7 h-7 text-emerald-300 relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                  d="M9 3h6m-6 18h6m-8-4h10a2 2 0 002-2V9a2 2 0 00-2-2H7a2 2 0 00-2 2v6a2 2 0 002 2zm-1-8h12M9 13h.01M15 13h.01M10 17h4"/>
+          </svg>
+        </div>
+
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <h3 class="text-white text-lg font-semibold">Analyse IA en cours</h3>
+            <span class="px-2 py-1 rounded-full text-[10px] mono border"
+                  :class="isLive && !paused ? 'bg-emerald-500/10 text-emerald-300 border-emerald-400/20' : 'bg-red-500/10 text-red-300 border-red-400/20'"
+                  x-text="isLive && !paused ? 'SCANNING LIVE' : 'SCAN EN PAUSE'"></span>
+          </div>
+
+          <p class="text-sm text-gray-500 mt-1" x-text="aiStatusText"></p>
+
+          <div class="mt-4 max-w-2xl">
+            <div class="flex items-center justify-between text-[11px] mono text-gray-500 mb-2">
+              <span>Cycle d’analyse</span>
+              <span x-text="paused ? 'PAUSE' : `${scanProgress}%`"></span>
+            </div>
+
+            <div class="h-2.5 rounded-full bg-white/10 overflow-hidden border border-white/10">
+              <div class="h-full rounded-full transition-all duration-500"
+                   :class="isLive && !paused ? 'bg-emerald-400' : 'bg-red-400'"
+                   :style="`width:${scanProgress}%`"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <button type="button"
+                @click="togglePause()"
+                class="px-4 py-2.5 rounded-xl bg-white/5 text-gray-300 border border-white/10 text-xs mono hover:bg-white/10 transition">
+          <span x-text="paused ? 'Reprendre le flux' : 'Mettre en pause'"></span>
+        </button>
+
+        <button type="button"
+                @click="fetchIdeas(true)"
+                class="px-4 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 text-xs mono hover:bg-emerald-500/20 transition">
+          Rafraîchir maintenant
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-2 xl:grid-cols-6 gap-4">
+    <div class="card p-4">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Total</div>
+      <div class="mt-2 text-2xl font-semibold text-white" x-text="filteredIdeas.length"></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Execute</div>
+      <div class="mt-2 text-2xl font-semibold text-emerald-300" x-text="stats.executeCount"></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Plan</div>
+      <div class="mt-2 text-2xl font-semibold text-sky-300" x-text="stats.planCount"></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Watch</div>
+      <div class="mt-2 text-2xl font-semibold text-amber-300" x-text="stats.watchCount"></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Reject</div>
+      <div class="mt-2 text-2xl font-semibold text-red-300" x-text="stats.rejectCount"></div>
+    </div>
+    <div class="card p-4">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Régime dominant</div>
+      <div class="mt-2 text-xl font-semibold text-white" x-text="stats.dominantRegime || '—'"></div>
+    </div>
+  </section>
+
+  <template x-if="errorMessage">
+    <section class="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="font-medium">Le flux IA a rencontré un problème.</div>
+          <div class="text-red-200/80 mt-1" x-text="errorMessage"></div>
+        </div>
+        <button type="button" @click="errorMessage = ''"
+                class="text-xs mono px-3 py-1.5 rounded-lg border border-red-300/20 hover:bg-red-500/10">
+          Fermer
+        </button>
+      </div>
+    </section>
+  </template>
+
+  <section class="card p-5 sticky top-4 z-20 backdrop-blur-sm">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
+      <div>
+        <label class="block text-xs mono uppercase tracking-wider text-gray-600 mb-2">Recherche</label>
+        <input x-ref="searchInput"
+               type="text"
+               x-model.debounce.300ms="search"
+               @input.debounce.400ms="handleSearchInput()"
+               placeholder="BTC, R_100, CRASH..."
+               class="w-full rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-gray-600 px-4 py-2.5 outline-none focus:border-emerald-400/30">
+      </div>
+
+      <div>
+        <label class="block text-xs mono uppercase tracking-wider text-gray-600 mb-2">Statut</label>
+        <select x-model="statusFilter" @change="applyFiltersAndReload()"
+                class="w-full rounded-xl bg-white/5 border border-white/10 text-white px-4 py-2.5 outline-none">
+          <option value="">Tous</option>
+          <option value="NEW">NEW</option>
+          <option value="APPROVED">APPROVED</option>
+          <option value="REJECTED">REJECTED</option>
+          <option value="EXECUTED">EXECUTED</option>
+          <option value="EXPIRED">EXPIRED</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs mono uppercase tracking-wider text-gray-600 mb-2">Direction</label>
+        <select x-model="directionFilter" @change="applyFiltersAndReload()"
+                class="w-full rounded-xl bg-white/5 border border-white/10 text-white px-4 py-2.5 outline-none">
+          <option value="">Toutes</option>
+          <option value="BUY">BUY</option>
+          <option value="SELL">SELL</option>
+          <option value="CALL">CALL</option>
+          <option value="PUT">PUT</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs mono uppercase tracking-wider text-gray-600 mb-2">Décision IA</label>
+        <select x-model="aiDecisionFilter"
+                class="w-full rounded-xl bg-white/5 border border-white/10 text-white px-4 py-2.5 outline-none">
+          <option value="">Toutes</option>
+          <option value="EXECUTE">EXECUTE</option>
+          <option value="PLAN">PLAN</option>
+          <option value="WATCH">WATCH</option>
+          <option value="REJECT">REJECT</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs mono uppercase tracking-wider text-gray-600 mb-2">Régime</label>
+        <select x-model="marketRegimeFilter"
+                class="w-full rounded-xl bg-white/5 border border-white/10 text-white px-4 py-2.5 outline-none">
+          <option value="">Tous</option>
+          <option value="TRENDING">TRENDING</option>
+          <option value="RANGING">RANGING</option>
+          <option value="UNKNOWN">UNKNOWN</option>
+        </select>
+      </div>
+
+      <div class="flex items-end">
+        <button type="button"
+                @click="resetFilters()"
+                class="w-full rounded-xl bg-white/5 border border-white/10 text-gray-300 px-4 py-2.5 text-sm mono hover:bg-white/10 transition">
+          Réinitialiser
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+      <div>
+        <h3 class="text-white font-semibold">Opportunités enrichies par IA</h3>
+        <p class="text-xs text-gray-500 mt-1">
+          Prix, tendance, régime marché, indicateurs techniques, décision IA et justification.
+        </p>
+      </div>
+      <span class="text-xs mono text-gray-500">
+        <span x-text="filteredIdeas.length"></span> résultat(s)
+      </span>
+    </div>
+
+    <template x-if="loading">
+      <div class="py-16 text-center">
+        <div class="matrix-loader-wrap mx-auto">
+          <div class="matrix-loader-core"></div>
+        </div>
+        <div class="text-sm text-gray-400 mt-4">Leo AI analyse les marchés...</div>
+      </div>
+    </template>
+
+    <template x-if="!loading && filteredIdeas.length > 0">
+      <div class="overflow-x-auto max-h-[74vh]">
+        <table class="w-full min-w-[2100px] text-sm">
+          <thead class="sticky top-0 z-10 backdrop-blur bg-[#0b1220]/95">
+            <tr class="border-b border-white/10 text-left">
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Actif</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Prix réel</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Variation</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Régime</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Tendance</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Volatilité</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">RSI</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">ATR</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Signal EMA</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Direction</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Confiance</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Score</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Décision IA</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Justification IA</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Statut</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase text-right">Action</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <template x-for="idea in filteredIdeas" :key="idea.id">
+              <tr class="table-row transition-all duration-500 border-b border-white/[0.04]"
+                  :class="idea.isFresh ? 'bg-emerald-500/5 ring-1 ring-inset ring-emerald-400/10' : ''">
+
+                <td class="px-4 py-4">
+                  <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center border border-white/10 bg-white/5 text-xs mono text-white shrink-0">
+                      <span x-text="(idea.symbol || '').slice(0, 3)"></span>
+                    </div>
+                    <div>
+                      <div class="text-white font-medium" x-text="idea.symbol"></div>
+                      <div class="text-xs text-gray-500">
+                        <span x-text="idea.asset_class || '—'"></span> · <span x-text="idea.timeframe || '—'"></span>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+
+                <td class="px-4 py-4 text-white mono" x-text="formatPrice(idea.last_price)"></td>
+
+                <td class="px-4 py-4 mono">
+                  <span :class="Number(idea.price_change_pct || 0) >= 0 ? 'text-emerald-300' : 'text-red-300'"
+                        x-text="formatPercent(idea.price_change_pct)"></span>
+                </td>
+
+                <td class="px-4 py-4">
+                  <span class="px-2 py-1 rounded text-xs mono border"
+                        :class="regimeClass(idea.market_regime)"
+                        x-text="idea.market_regime || 'UNKNOWN'"></span>
+                </td>
+
+                <td class="px-4 py-4">
+                  <span class="px-2 py-1 rounded text-xs mono border"
+                        :class="trendClass(idea.trend_direction)"
+                        x-text="idea.trend_direction || 'UNKNOWN'"></span>
+                </td>
+
+                <td class="px-4 py-4">
+                  <span class="px-2 py-1 rounded text-xs mono border"
+                        :class="volatilityClass(idea.volatility_level)"
+                        x-text="idea.volatility_level || 'UNKNOWN'"></span>
+                </td>
+
+                <td class="px-4 py-4 mono" :class="rsiClass(idea.rsi)" x-text="formatMaybe(idea.rsi)"></td>
+                <td class="px-4 py-4 mono text-gray-300" x-text="formatMaybe(idea.atr)"></td>
+                <td class="px-4 py-4 mono text-gray-300" x-text="idea.ema_signal || '—'"></td>
+
+                <td class="px-4 py-4">
+                  <span class="px-2 py-1 rounded text-xs mono border"
+                        :class="['BUY', 'CALL'].includes(idea.direction) ? 'pill-buy' : 'pill-sell'"
+                        x-text="idea.direction"></span>
+                </td>
+
+                <td class="px-4 py-4">
+                  <div class="flex items-center gap-3">
+                    <div class="w-24 h-2 rounded-full bg-white/10 overflow-hidden">
+                      <div class="h-full rounded-full bg-emerald-400"
+                           :style="`width:${scorePercent(idea.confidence_score)}%`"></div>
+                    </div>
+                    <span class="text-white mono min-w-[48px]" x-text="formatNumber(idea.confidence_score)"></span>
+                  </div>
+                </td>
+
+                <td class="px-4 py-4">
+                  <span class="text-emerald-400 mono font-semibold" x-text="formatNumber(idea.overall_score)"></span>
+                  <span class="ml-2 text-[10px] mono px-1.5 py-0.5 rounded border border-white/10 bg-white/5 text-gray-400"
+                        x-text="scoreLabel(idea.overall_score)"></span>
+                </td>
+
+                <td class="px-4 py-4">
+                  <span class="px-2 py-1 rounded text-xs mono border"
+                        :class="decisionClass(idea.ai_decision)"
+                        x-text="idea.ai_decision || 'WATCH'"></span>
+                </td>
+
+                <td class="px-4 py-4 text-xs text-gray-300 leading-5 max-w-[420px]">
+                  <span x-text="idea.ai_reason || 'Analyse IA indisponible.'"></span>
+                </td>
+
+                <td class="px-4 py-4">
+                  <span class="px-2 py-1 rounded text-xs mono border border-white/10"
+                        :class="statusClass(idea.status)"
+                        x-text="idea.status"></span>
+                </td>
+
+                <td class="px-4 py-4 text-right">
+                  <a :href="idea.detail_url"
+                     class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-xs mono hover:bg-white/10 transition">
+                    Voir
+                  </a>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </template>
+
+    <template x-if="!loading && filteredIdeas.length === 0">
+      <div class="py-20 text-center">
+        <h4 class="text-white text-lg font-medium">Aucune opportunité IA trouvée</h4>
+        <p class="text-sm text-gray-500 mt-2">Aucun setup ne correspond aux filtres actuels.</p>
+        <button type="button" @click="resetFilters()"
+                class="mt-5 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm mono hover:bg-white/10 transition">
+          Réinitialiser les filtres
+        </button>
+      </div>
+    </template>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+@keyframes leoFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+@keyframes robotSpin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+@keyframes matrixPulse {
+  0%,100% { box-shadow: 0 0 0 rgba(16,185,129,0); opacity: .85; }
+  50% { box-shadow: 0 0 20px rgba(16,185,129,.25), 0 0 50px rgba(16,185,129,.08); opacity: 1; }
+}
+.leo-float { animation: leoFloat 2.4s ease-in-out infinite; }
+.robot-ring { position:absolute; inset:-6px; border-radius:18px; border:1px dashed rgba(16,185,129,0); pointer-events:none; }
+.robot-ring-active { border-color:rgba(16,185,129,.35); animation:robotSpin 4s linear infinite; }
+.matrix-loader-wrap { position:relative; width:72px; height:72px; display:grid; place-items:center; }
+.matrix-loader-wrap::after { content:""; position:absolute; inset:4px; border-radius:9999px; border-top:2px solid rgba(16,185,129,.95); border-right:2px solid rgba(16,185,129,.35); border-bottom:2px solid rgba(16,185,129,.12); border-left:2px solid transparent; animation:robotSpin 1.1s linear infinite; }
+.matrix-loader-core { width:44px; height:44px; border-radius:9999px; background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.25); animation:matrixPulse 1.5s ease-in-out infinite; }
+.table-row:hover { background:rgba(255,255,255,.03); }
+.pill-buy { background:rgba(16,185,129,.10); color:rgb(110,231,183); border-color:rgba(16,185,129,.20); }
+.pill-sell { background:rgba(239,68,68,.10); color:rgb(252,165,165); border-color:rgba(239,68,68,.20); }
+</style>
+
+<script>
+function tradeIdeasRealtime() {
+  return {
+    ideas: [],
+    loading: true,
+    isLive: true,
+    paused: false,
+    errorMessage: "",
+    lastUpdated: null,
+    timer: null,
+    progressTimer: null,
+    countdownTimer: null,
+    scanProgress: 0,
+    cycleCount: 0,
+    nextRefreshIn: 10,
+
+    search: new URLSearchParams(window.location.search).get("symbol") || "",
+    statusFilter: new URLSearchParams(window.location.search).get("status") || "",
+    directionFilter: new URLSearchParams(window.location.search).get("direction") || "",
+    aiDecisionFilter: "",
+    marketRegimeFilter: "",
+    sortBy: "-overall_score",
+
+    knownIds: new Set(),
+    liveFeedUrl: "{{ live_feed_url|escapejs }}",
+    abortController: null,
+
+    init() {
+      this.fetchIdeas(true);
+      this.startProgressLoop();
+      this.startCountdownLoop();
+
+      this.timer = setInterval(() => {
+        if (!this.paused && document.visibilityState === "visible") {
+          this.fetchIdeas(false);
+        }
+      }, 10000);
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && !this.paused) {
+          this.fetchIdeas(false);
+        }
+      });
+
+      window.addEventListener("beforeunload", () => {
+        if (this.timer) clearInterval(this.timer);
+        if (this.progressTimer) clearInterval(this.progressTimer);
+        if (this.countdownTimer) clearInterval(this.countdownTimer);
+        if (this.abortController) this.abortController.abort();
+      });
+    },
+
+    get aiStatusText() {
+      if (this.paused) return "Le scan IA est en pause.";
+      if (!this.isLive) return "Le flux IA est momentanément indisponible.";
+      if (this.stats.executeCount > 0) return `${this.stats.executeCount} opportunité(s) exécutable(s) détectée(s).`;
+      if (this.filteredIdeas.length === 0) return "Leo AI analyse les marchés et recherche des setups exploitables.";
+      return "Leo AI analyse les signaux, le risque, la volatilité et les régimes de marché.";
+    },
+
+    get filteredIdeas() {
+      let rows = [...this.ideas];
+
+      if (this.search) {
+        const q = this.search.toLowerCase().trim();
+        rows = rows.filter(i =>
+          (i.symbol || "").toLowerCase().includes(q) ||
+          (i.asset_class || "").toLowerCase().includes(q) ||
+          (i.timeframe || "").toLowerCase().includes(q)
+        );
+      }
+
+      if (this.statusFilter) rows = rows.filter(i => i.status === this.statusFilter);
+      if (this.directionFilter) rows = rows.filter(i => i.direction === this.directionFilter);
+      if (this.aiDecisionFilter) rows = rows.filter(i => i.ai_decision === this.aiDecisionFilter);
+      if (this.marketRegimeFilter) rows = rows.filter(i => i.market_regime === this.marketRegimeFilter);
+
+      rows.sort((a, b) => Number(b.overall_score || 0) - Number(a.overall_score || 0));
+      return rows;
+    },
+
+    get stats() {
+      const rows = this.filteredIdeas;
+      const avgOverall = rows.length ? rows.reduce((s, i) => s + Number(i.overall_score || 0), 0) / rows.length : 0;
+
+      const regimes = rows.reduce((acc, i) => {
+        const key = i.market_regime || "UNKNOWN";
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+
+      let dominantRegime = "";
+      let max = 0;
+      Object.entries(regimes).forEach(([k, v]) => {
+        if (v > max) {
+          max = v;
+          dominantRegime = k;
+        }
+      });
+
+      return {
+        totalMarket: new Set(rows.map(i => i.symbol)).size,
+        executeCount: rows.filter(i => i.ai_decision === "EXECUTE").length,
+        planCount: rows.filter(i => i.ai_decision === "PLAN").length,
+        watchCount: rows.filter(i => i.ai_decision === "WATCH").length,
+        rejectCount: rows.filter(i => i.ai_decision === "REJECT").length,
+        avgOverall,
+        dominantRegime,
+      };
+    },
+
+    focusSearch() {
+      if (this.$refs.searchInput) this.$refs.searchInput.focus();
+    },
+
+    handleSearchInput() {
+      this.syncUrl();
+      this.fetchIdeas(false);
+    },
+
+    applyFiltersAndReload() {
+      this.syncUrl();
+      this.fetchIdeas(true);
+    },
+
+    syncUrl() {
+      const params = new URLSearchParams(window.location.search);
+      if (this.statusFilter) params.set("status", this.statusFilter); else params.delete("status");
+      if (this.directionFilter) params.set("direction", this.directionFilter); else params.delete("direction");
+      if (this.search) params.set("symbol", this.search); else params.delete("symbol");
+      const qs = params.toString();
+      window.history.replaceState({}, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+    },
+
+    async fetchIdeas(showLoader = false) {
+      if (this.loading && !showLoader) return;
+      if (showLoader) this.loading = true;
+
+      if (this.abortController) this.abortController.abort();
+      this.abortController = new AbortController();
+
+      try {
+        const params = new URLSearchParams();
+        if (this.statusFilter) params.set("status", this.statusFilter);
+        if (this.directionFilter) params.set("direction", this.directionFilter);
+        if (this.search) params.set("symbol", this.search);
+
+        const url = params.toString() ? `${this.liveFeedUrl}?${params.toString()}` : this.liveFeedUrl;
+
+        const response = await fetch(url, {
+          signal: this.abortController.signal,
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "application/json"
+          }
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const payload = await response.json();
+        const incoming = Array.isArray(payload.ideas) ? payload.ideas : [];
+
+        incoming.forEach(item => {
+          item.isFresh = !this.knownIds.has(item.id);
+        });
+
+        this.ideas = incoming;
+        this.knownIds = new Set(incoming.map(i => i.id));
+        this.isLive = true;
+        this.errorMessage = "";
+        this.scanProgress = 100;
+        this.cycleCount += 1;
+        this.nextRefreshIn = 10;
+        this.lastUpdated = new Date().toLocaleTimeString("fr-FR");
+
+        setTimeout(() => {
+          this.ideas = this.ideas.map(i => ({ ...i, isFresh: false }));
+          if (!this.paused) this.scanProgress = 0;
+        }, 1500);
+
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        console.error("Erreur live feed IA:", error);
+        this.isLive = false;
+        this.scanProgress = 15;
+        this.errorMessage = "Impossible de récupérer le live feed IA.";
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    startProgressLoop() {
+      if (this.progressTimer) clearInterval(this.progressTimer);
+      this.progressTimer = setInterval(() => {
+        if (this.paused) return;
+        this.scanProgress += 2;
+        if (this.scanProgress >= 100) this.scanProgress = 0;
+      }, 100);
+    },
+
+    startCountdownLoop() {
+      if (this.countdownTimer) clearInterval(this.countdownTimer);
+      this.countdownTimer = setInterval(() => {
+        if (this.paused) return;
+        this.nextRefreshIn -= 1;
+        if (this.nextRefreshIn <= 0) this.nextRefreshIn = 10;
+      }, 1000);
+    },
+
+    togglePause() {
+      this.paused = !this.paused;
+      if (!this.paused) {
+        this.nextRefreshIn = 10;
+        this.fetchIdeas(false);
+      }
+    },
+
+    resetFilters() {
+      this.search = "";
+      this.statusFilter = "";
+      this.directionFilter = "";
+      this.aiDecisionFilter = "";
+      this.marketRegimeFilter = "";
+      this.syncUrl();
+      this.fetchIdeas(true);
+    },
+
+    formatNumber(value) {
+      return Number(value || 0).toFixed(2);
+    },
+
+    formatPrice(value) {
+      if (value === null || value === undefined) return "—";
+      return Number(value).toFixed(4);
+    },
+
+    formatPercent(value) {
+      if (value === null || value === undefined) return "—";
+      const n = Number(value || 0);
+      return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+    },
+
+    formatMaybe(value) {
+      if (value === null || value === undefined) return "—";
+      return Number(value).toFixed(2);
+    },
+
+    scorePercent(value) {
+      return Math.min(100, Math.max(0, Number(value || 0) * 100));
+    },
+
+    scoreLabel(score) {
+      const v = Number(score || 0);
+      if (v >= 0.85) return "A+";
+      if (v >= 0.75) return "A";
+      if (v >= 0.65) return "B";
+      if (v >= 0.50) return "C";
+      return "D";
+    },
+
+    statusClass(status) {
+      if (status === "NEW") return "bg-sky-500/10 text-sky-300";
+      if (status === "APPROVED") return "bg-emerald-500/10 text-emerald-300";
+      if (status === "REJECTED") return "bg-red-500/10 text-red-300";
+      if (status === "EXECUTED") return "bg-violet-500/10 text-violet-300";
+      if (status === "EXPIRED") return "bg-amber-500/10 text-amber-300";
+      return "bg-white/5 text-gray-300";
+    },
+
+    decisionClass(decision) {
+      if (decision === "EXECUTE") return "bg-emerald-500/10 text-emerald-300 border-emerald-400/20";
+      if (decision === "PLAN") return "bg-sky-500/10 text-sky-300 border-sky-400/20";
+      if (decision === "WATCH") return "bg-amber-500/10 text-amber-300 border-amber-400/20";
+      if (decision === "REJECT") return "bg-red-500/10 text-red-300 border-red-400/20";
+      return "bg-white/5 text-gray-300 border-white/10";
+    },
+
+    regimeClass(value) {
+      if (value === "TRENDING") return "bg-emerald-500/10 text-emerald-300 border-emerald-400/20";
+      if (value === "RANGING") return "bg-amber-500/10 text-amber-300 border-amber-400/20";
+      return "bg-white/5 text-gray-300 border-white/10";
+    },
+
+    trendClass(value) {
+      if (value === "BULLISH") return "bg-emerald-500/10 text-emerald-300 border-emerald-400/20";
+      if (value === "BEARISH") return "bg-red-500/10 text-red-300 border-red-400/20";
+      return "bg-white/5 text-gray-300 border-white/10";
+    },
+
+    volatilityClass(value) {
+      if (value === "HIGH") return "bg-red-500/10 text-red-300 border-red-400/20";
+      if (value === "MEDIUM") return "bg-amber-500/10 text-amber-300 border-amber-400/20";
+      if (value === "LOW") return "bg-sky-500/10 text-sky-300 border-sky-400/20";
+      return "bg-white/5 text-gray-300 border-white/10";
+    },
+
+    rsiClass(value) {
+      const n = Number(value || 0);
+      if (!value) return "text-gray-500";
+      if (n >= 70) return "text-red-300";
+      if (n <= 30) return "text-sky-300";
+      return "text-emerald-300";
+    }
+  }
+}
+</script>
+{% endblock %}

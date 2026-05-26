@@ -1,0 +1,161 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Dépôt — LeoTrade{% endblock %}
+{% block page_title %}Déposer des fonds{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl space-y-6">
+
+  <!-- Header -->
+  <section class="card card-glow p-6">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Funding</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">Alimenter votre wallet</h2>
+        <p class="text-sm text-gray-500 mt-2">
+          Choisissez un provider de paiement sécurisé pour créditer votre compte de trading.
+        </p>
+      </div>
+
+      <div class="rounded-xl bg-white/5 border border-white/10 px-4 py-3">
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Wallet actuel</div>
+        <div class="text-white font-semibold mt-1 mono">{{ wallet.available_balance|default:"0.00" }} {{ wallet.currency }}</div>
+      </div>
+    </div>
+  </section>
+
+  {% if form.non_field_errors %}
+  <section class="card p-4 border border-red-500/20 bg-red-500/5">
+    <div class="text-sm text-red-300">
+      {{ form.non_field_errors }}
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+    <!-- Form -->
+    <section class="xl:col-span-2 card p-6">
+      <h3 class="text-white font-semibold mb-5">Créer un dépôt</h3>
+
+      <form method="post" class="space-y-5">
+        {% csrf_token %}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <label for="{{ form.amount.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Montant
+            </label>
+            {{ form.amount }}
+            {% if form.amount.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.amount.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.currency.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Devise
+            </label>
+            {{ form.currency }}
+            {% if form.currency.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.currency.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <div>
+          <label for="{{ form.provider.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+            Provider
+          </label>
+          {{ form.provider }}
+          {% if form.provider.errors %}
+            <p class="mt-2 text-xs text-red-400">{{ form.provider.errors|join:", " }}</p>
+          {% endif %}
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-sm text-white font-medium">Important</div>
+          <ul class="mt-3 space-y-2 text-sm text-gray-400">
+            <li>• Le wallet est crédité après confirmation sécurisée du provider.</li>
+            <li>• Les webhooks servent de source de vérité pour la validation du dépôt.</li>
+            <li>• Vérifiez la devise avant de continuer.</li>
+          </ul>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 pt-2">
+          <button type="submit"
+                  class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+            Continuer vers le paiement
+          </button>
+
+          <a href="{% url 'wallet-dashboard' %}"
+             class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+            Annuler
+          </a>
+        </div>
+      </form>
+    </section>
+
+    <!-- Aside -->
+    <div class="space-y-6">
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">Providers disponibles</h3>
+        <div class="mt-4 space-y-3">
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-white font-medium">Stripe</div>
+            <div class="text-sm text-gray-400 mt-1">
+              Adapté aux paiements carte et aux flux checkout sécurisés.
+            </div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-white font-medium">Adyen</div>
+            <div class="text-sm text-gray-400 mt-1">
+              Intégration orientée paiement global et sessions checkout.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">Conseils</h3>
+        <ul class="mt-4 space-y-2 text-sm text-gray-400">
+          <li>• Déposez d’abord en mode PAPER si vous testez la plateforme.</li>
+          <li>• Évitez les montants incohérents avec votre profil de risque.</li>
+          <li>• Assurez-vous que votre KYC est prêt pour les futurs retraits.</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+
+  {% if adyen_session %}
+  <section class="card p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-white font-semibold">Session Adyen initialisée</h3>
+      <span class="px-2 py-1 rounded text-xs mono pill-open">READY</span>
+    </div>
+
+    <p class="text-sm text-gray-400">
+      Intègre ici Adyen Drop-in / Components côté frontend avec les données de session renvoyées par le backend.
+    </p>
+
+    <div class="mt-4 rounded-xl bg-black/20 border border-white/5 p-4 overflow-auto">
+      <pre class="text-xs text-gray-300 whitespace-pre-wrap">{{ adyen_session }}</pre>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const ids = ["id_amount", "id_currency", "id_provider"];
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.className = "w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30";
+    });
+  })();
+</script>
+{% endblock %}

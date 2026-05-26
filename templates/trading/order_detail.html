@@ -1,0 +1,297 @@
+{% extends "layout/base.html" %}
+{% load static %}
+
+{% block title %}Ordre #{{ order.id }} — LeoTrade{% endblock %}
+{% block page_title %}Détail ordre #{{ order.id }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-500">Order detail</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">
+          {{ order.symbol }}
+          {% if order.side == "BUY" %}
+            <span class="px-2 py-0.5 rounded text-[11px] mono pill-buy ml-2">BUY</span>
+          {% else %}
+            <span class="px-2 py-0.5 rounded text-[11px] mono pill-sell ml-2">SELL</span>
+          {% endif %}
+        </h2>
+        <p class="text-sm text-gray-400 mt-2 mono">
+          Créé le {{ order.created_at|date:"d/m/Y H:i:s" }}
+          {% if order.submitted_at %} · soumis le {{ order.submitted_at|date:"d/m/Y H:i:s" }}{% endif %}
+          {% if order.filled_at %} · rempli le {{ order.filled_at|date:"d/m/Y H:i:s" }}{% endif %}
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-start gap-2">
+        {% if order.mode == "LIVE" %}
+          <span class="px-3 py-1.5 rounded-lg text-xs mono"
+                style="background: rgba(0,255,157,0.1); color: var(--green); border: 1px solid rgba(0,255,157,0.25);">LIVE</span>
+        {% else %}
+          <span class="px-3 py-1.5 rounded-lg text-xs mono"
+                style="background: rgba(255,183,3,0.1); color: var(--amber); border: 1px solid rgba(255,183,3,0.25);">PAPER</span>
+        {% endif %}
+
+        {% if order.status == "FILLED" %}
+          <span class="px-3 py-1.5 rounded-lg text-xs mono pill-filled">{{ order.status }}</span>
+        {% elif order.status == "SUBMITTED" or order.status == "PENDING_SUBMIT" or order.status == "PARTIALLY_FILLED" %}
+          <span class="px-3 py-1.5 rounded-lg text-xs mono pill-placed">{{ order.status }}</span>
+        {% elif order.status == "REJECTED" or order.status == "FAILED" or order.status == "CANCELLED" or order.status == "EXPIRED" %}
+          <span class="px-3 py-1.5 rounded-lg text-xs mono"
+                style="background: rgba(255,77,109,0.1); color: var(--red); border: 1px solid rgba(255,77,109,0.25);">{{ order.status }}</span>
+        {% else %}
+          <span class="px-3 py-1.5 rounded-lg text-xs mono bg-white/5 text-gray-300 border border-white/10">{{ order.status }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <!-- KPI rapides -->
+  <section class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+    <div class="card p-4">
+      <div class="text-[11px] mono uppercase tracking-wider text-gray-500">Symbole</div>
+      <div class="text-lg text-white font-semibold mt-1 mono">{{ order.symbol }}</div>
+    </div>
+    <div class="card p-4">
+      <div class="text-[11px] mono uppercase tracking-wider text-gray-500">Type</div>
+      <div class="text-lg text-white font-semibold mt-1 mono">{{ order.order_type }}</div>
+    </div>
+    <div class="card p-4">
+      <div class="text-[11px] mono uppercase tracking-wider text-gray-500">Qté demandée</div>
+      <div class="text-lg text-white font-semibold mt-1 mono">{{ order.approved_quantity|default:order.requested_quantity }}</div>
+    </div>
+    <div class="card p-4">
+      <div class="text-[11px] mono uppercase tracking-wider text-gray-500">Qté remplie</div>
+      <div class="text-lg text-white font-semibold mt-1 mono">{{ order.filled_quantity|default:"0" }}</div>
+    </div>
+    <div class="card p-4">
+      <div class="text-[11px] mono uppercase tracking-wider text-gray-500">Prix moyen</div>
+      <div class="text-lg text-white font-semibold mt-1 mono">
+        {% if order.average_fill_price %}{{ order.average_fill_price }}{% else %}—{% endif %}
+      </div>
+    </div>
+    <div class="card p-4">
+      <div class="text-[11px] mono uppercase tracking-wider text-gray-500">Notional</div>
+      <div class="text-lg text-white font-semibold mt-1 mono">
+        {{ order.filled_notional|default:order.approved_notional|default:"—" }}
+      </div>
+    </div>
+  </section>
+
+  <!-- Contexte + IDs broker -->
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Contexte</h3>
+      <div class="space-y-3 text-sm">
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4 flex items-start justify-between gap-3">
+          <div>
+            <div class="text-gray-500">Broker</div>
+            <div class="text-white mt-1">{{ order.broker_account.name|default:"—" }}</div>
+          </div>
+          <div class="text-right">
+            <div class="text-gray-500 text-xs">Type</div>
+            <div class="text-gray-200 mono text-xs mt-1">{{ order.broker_account.broker|default:"—" }}</div>
+          </div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Portefeuille</div>
+          <div class="text-white mt-1">{{ order.portfolio.name|default:"—" }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Source</div>
+          <div class="text-white mt-1 mono text-sm">{{ order.source|default:"MANUAL" }}</div>
+        </div>
+
+        {% if order.trade_idea %}
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Trade idea</div>
+          <div class="text-white mt-1">
+            <a href="{% url 'trading:trade-idea-detail' order.trade_idea.pk %}"
+               style="color: var(--green);" class="hover:underline">
+              #{{ order.trade_idea.pk }} — {{ order.trade_idea.symbol|default:"" }}
+            </a>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if order.signal %}
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Signal</div>
+          <div class="text-white mt-1">
+            Signal #{{ order.signal.pk }} — {{ order.signal.direction|default:"" }}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if order.stop_loss or order.take_profit %}
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Stop loss / Take profit</div>
+          <div class="text-white mt-1 mono text-sm">
+            SL : {{ order.stop_loss|default:"—" }}
+            &nbsp;·&nbsp;
+            TP : {{ order.take_profit|default:"—" }}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Identifiants broker</h3>
+      <div class="space-y-3 text-sm">
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Idempotency key</div>
+          <div class="text-white mt-1 mono break-all text-xs">{{ order.idempotency_key|default:"—" }}</div>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Broker order ID</div>
+          <div class="text-white mt-1 mono break-all text-xs">{{ order.broker_order_id|default:"—" }}</div>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Broker client order ID</div>
+          <div class="text-white mt-1 mono break-all text-xs">{{ order.broker_client_order_id|default:"—" }}</div>
+        </div>
+
+        {% if broker_refs %}
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500 mb-2">Mappings broker (BrokerExternalRef)</div>
+          <ul class="space-y-1 mono text-xs">
+            {% for ref in broker_refs %}
+              <li class="flex items-center justify-between gap-2">
+                <span class="text-gray-400">{{ ref.broker }} / {{ ref.kind }}</span>
+                <span class="text-gray-200 break-all">{{ ref.external_id }}</span>
+                <span class="px-1.5 py-0.5 rounded text-[10px]"
+                      style="background: rgba(255,255,255,0.04); color: #9ca3af;">
+                  {{ ref.last_status|default:"—" }}
+                </span>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <!-- Fills (remplissages) -->
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+      <h3 class="text-white font-semibold">Remplissages</h3>
+      <span class="text-xs text-gray-500 mono">{{ fills|length }} fill(s)</span>
+    </div>
+
+    {% if fills %}
+      <div class="leo-table-wrap">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-white/10 text-left">
+              <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Date</th>
+              <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Broker fill ID</th>
+              <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase text-right">Quantité</th>
+              <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase text-right">Prix</th>
+              <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase text-right">Notional</th>
+              <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase text-right">Frais</th>
+              <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Liquidity</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in fills %}
+            <tr class="table-row">
+              <td class="px-4 py-3 text-gray-300 mono whitespace-nowrap">{{ f.fill_time|date:"d/m/Y H:i:s" }}</td>
+              <td class="px-4 py-3 text-gray-300 mono break-all text-xs">{{ f.broker_fill_id|default:"—" }}</td>
+              <td class="px-4 py-3 text-white mono text-right">{{ f.quantity }}</td>
+              <td class="px-4 py-3 text-white mono text-right">{{ f.price }}</td>
+              <td class="px-4 py-3 text-gray-200 mono text-right">{{ f.notional }}</td>
+              <td class="px-4 py-3 text-gray-300 mono text-right">{{ f.fee }} <span class="text-gray-500 text-xs">{{ f.fee_currency }}</span></td>
+              <td class="px-4 py-3 text-gray-300 text-xs">{{ f.liquidity_type|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="px-6 py-8">
+        {% include "_partials/_empty_state.html" with
+            icon="trades"
+            title="Aucun remplissage"
+            subtitle="Cet ordre n'a pas (encore) été rempli par le broker."
+        %}
+      </div>
+    {% endif %}
+  </section>
+
+  <!-- Événements / lifecycle -->
+  {% if events %}
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold">Cycle de vie</h3>
+    </div>
+    <ol class="px-6 py-4 space-y-3">
+      {% for event in events %}
+        <li class="flex items-start gap-3 text-sm">
+          <span class="mt-1 w-2 h-2 rounded-full flex-shrink-0"
+                style="background: var(--green); box-shadow: 0 0 6px rgba(0,255,157,0.5);"></span>
+          <div class="flex-1">
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-white font-medium mono text-xs">{{ event.event_type }}</span>
+              <span class="text-gray-500 mono text-[11px]">{{ event.created_at|date:"d/m/Y H:i:s" }}</span>
+            </div>
+            {% if event.message %}
+              <p class="text-gray-400 mt-1 text-[13px]">{{ event.message }}</p>
+            {% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+
+  <!-- Notes / diagnostic + metadata brut (collapsible) -->
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Notes d'exécution / diagnostic</h3>
+      <div class="rounded-xl bg-white/5 border border-white/10 p-4 min-h-[160px] text-sm text-gray-300 whitespace-pre-wrap mono text-xs">{% if order.execution_notes %}{{ order.execution_notes }}{% else %}—{% endif %}</div>
+    </div>
+
+    <div class="card p-6">
+      <details>
+        <summary class="text-white font-semibold cursor-pointer select-none">
+          Metadata brute
+        </summary>
+        <pre class="mt-4 text-xs text-gray-300 whitespace-pre-wrap rounded-xl bg-black/30 border border-white/5 p-4 overflow-auto max-h-96">{{ order.metadata|default:"{}" }}</pre>
+      </details>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* Mise à jour live : si on reçoit un order.update concernant CET ordre,
+   on le flash et on log dans la console. Pour un vrai refresh, on peut
+   recharger la page après quelques secondes — laissé à la discrétion. */
+(function () {
+  if (!window.LeoWS) return;
+  const orderId = "{{ order.id }}";
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  const wsUrl = `${protocol}://${window.location.host}/ws/orders/`;
+
+  LeoWS.connect(wsUrl, {
+    name: "order_detail",
+    expectedEvent: "order.update",
+    onMessage: function (_data, payload) {
+      if (String(payload.order_id) !== orderId) return;
+      if (window.LeoAnim) {
+        LeoAnim.toast(`Ordre mis à jour — ${payload.status || "update"}`, "info");
+      }
+    },
+  });
+})();
+</script>
+{% endblock %}

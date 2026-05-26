@@ -1,0 +1,329 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Wallet — LeoTrade{% endblock %}
+{% block page_title %}Wallet{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <section class="card card-glow p-6 animate-in">
+    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Treasury Center</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">Gestion de votre wallet</h2>
+        <p class="text-sm text-gray-500 mt-2 max-w-2xl">
+          Déposez des fonds, suivez vos transactions, gérez vos retraits et contrôlez votre trésorerie de trading.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <a href="{% url 'wallet-deposit' %}"
+           class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+          Déposer
+        </a>
+
+        <a href="{% url 'wallet-withdraw' %}"
+           class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-400/20 hover:bg-amber-500/15 transition">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4m0 0l4-4m-4 4l4 4"/>
+          </svg>
+          Retirer
+        </a>
+
+        <a href="{% url 'wallet-history' %}"
+           class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Historique
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- KPI Cards -->
+  <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 animate-in" style="animation-delay:.05s">
+
+    <div class="card card-glow p-5">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs text-gray-600 mono uppercase tracking-wider">Disponible</span>
+        <svg class="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1m0-1H9m3 0h3"/>
+        </svg>
+      </div>
+      <div class="text-2xl font-semibold text-white mono">
+        {{ wallet.available_balance|default:"0.00" }} {{ wallet.currency }}
+      </div>
+      <div class="text-xs text-gray-600 mt-1 mono">Solde mobilisable</div>
+    </div>
+
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs text-gray-600 mono uppercase tracking-wider">Bloqué</span>
+        <svg class="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 11c0 .552-.448 1-1 1s-1-.448-1-1 .448-1 1-1 1 .448 1 1zm0 0V8m8 4a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <div class="text-2xl font-semibold text-amber-400 mono">
+        {{ wallet.locked_balance|default:"0.00" }} {{ wallet.currency }}
+      </div>
+      <div class="text-xs text-gray-600 mt-1 mono">Retraits / fonds réservés</div>
+    </div>
+
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs text-gray-600 mono uppercase tracking-wider">Déposé</span>
+        <svg class="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16V4m0 12l-3-3m3 3l3-3m7-5v12m0 0l-3-3m3 3l3-3"/>
+        </svg>
+      </div>
+      <div class="text-2xl font-semibold text-emerald-400 mono">
+        {{ wallet.total_deposited|default:"0.00" }} {{ wallet.currency }}
+      </div>
+      <div class="text-xs text-gray-600 mt-1 mono">Cumul des dépôts</div>
+    </div>
+
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs text-gray-600 mono uppercase tracking-wider">Retiré</span>
+        <svg class="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+        </svg>
+      </div>
+      <div class="text-2xl font-semibold text-blue-400 mono">
+        {{ wallet.total_withdrawn|default:"0.00" }} {{ wallet.currency }}
+      </div>
+      <div class="text-xs text-gray-600 mt-1 mono">Cumul des retraits</div>
+    </div>
+  </section>
+
+  <!-- KYC / Summary -->
+  <section class="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-in" style="animation-delay:.1s">
+
+    <div class="xl:col-span-2 card p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-white font-semibold">Vue d’ensemble</h3>
+        <span class="text-xs mono text-gray-600 uppercase tracking-wider">Wallet summary</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Balance totale</div>
+          <div class="text-xl text-white font-semibold mt-2 mono">{{ wallet.total_balance }} {{ wallet.currency }}</div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Dépôts en attente</div>
+          <div class="text-xl text-amber-300 font-semibold mt-2 mono">
+            {{ summary.pending_deposit|default:"0.00" }} {{ wallet.currency }}
+          </div>
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Retraits en attente</div>
+          <div class="text-xl text-amber-300 font-semibold mt-2 mono">
+            {{ summary.pending_withdrawal|default:"0.00" }} {{ wallet.currency }}
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <div class="text-sm text-white font-medium">Capacité de retrait</div>
+            <div class="text-xs text-gray-500 mt-1">
+              {% if can_withdraw or wallet.can_withdraw %}
+                Votre compte peut initier un retrait.
+              {% else %}
+                Vérification ou solde insuffisant.
+              {% endif %}
+            </div>
+          </div>
+
+          {% if wallet.can_withdraw %}
+            <span class="px-2 py-1 rounded text-xs mono pill-open">ENABLED</span>
+          {% else %}
+            <span class="px-2 py-1 rounded text-xs mono pill-sell">DISABLED</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="space-y-6">
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">KYC / Conformité</h3>
+        <div class="mt-4">
+          {% if kyc_status == "APPROVED" %}
+            <span class="px-3 py-1.5 rounded-lg text-xs mono pill-open">APPROUVÉ</span>
+          {% elif kyc_status == "UNDER_REVIEW" or kyc_status == "PENDING" %}
+            <span class="px-3 py-1.5 rounded-lg text-xs mono pill-placed">EN REVUE</span>
+          {% else %}
+            <span class="px-3 py-1.5 rounded-lg text-xs mono pill-sell">À COMPLÉTER</span>
+          {% endif %}
+        </div>
+        <p class="text-sm text-gray-400 mt-4">
+          Les retraits exigent une conformité KYC validée.
+        </p>
+        <a href="{% url 'kyc-dashboard' %}"
+           class="inline-flex mt-4 px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+          Voir mon dossier
+        </a>
+      </section>
+
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">Destinations de retrait</h3>
+        {% if payout_destinations %}
+          <div class="mt-4 space-y-3">
+            {% for destination in payout_destinations %}
+            <div class="rounded-xl bg-white/5 border border-white/10 p-3">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <div class="text-sm text-white font-medium">{{ destination.label }}</div>
+                  <div class="text-xs text-gray-500 mono mt-1">{{ destination.destination_type }}</div>
+                </div>
+                {% if destination.is_default %}
+                  <span class="px-2 py-1 rounded text-xs mono bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">
+                    DEFAULT
+                  </span>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <a href="{% url 'payout-destination-list' %}"
+             class="inline-flex mt-4 px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+            Gérer les destinations
+          </a>
+        {% else %}
+          <p class="text-sm text-gray-400 mt-4">Aucune destination enregistrée.</p>
+          <a href="{% url 'payout-destination-create' %}"
+             class="inline-flex mt-4 px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+            Ajouter une destination
+          </a>
+        {% endif %}
+      </section>
+    </div>
+  </section>
+
+  <!-- Transactions -->
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6 animate-in" style="animation-delay:.15s">
+
+    <div class="card overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-white/10">
+        <h3 class="text-white font-semibold">Dernières transactions</h3>
+        <a href="{% url 'wallet-history' %}" class="text-xs mono text-gray-500 hover:text-gray-300 transition">
+          Voir tout →
+        </a>
+      </div>
+
+      {% if transactions %}
+      <div class="divide-y divide-white/10">
+        {% for tx in transactions %}
+        <a href="{% url 'wallet-transaction-detail' tx.pk %}"
+           class="flex items-center gap-4 px-6 py-4 hover:bg-white/[.02] transition">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0
+                      {% if tx.tx_type == 'DEPOSIT' %}
+                        bg-emerald-500/10 text-emerald-400 border border-emerald-400/20
+                      {% elif tx.tx_type == 'WITHDRAWAL' %}
+                        bg-amber-500/10 text-amber-400 border border-amber-400/20
+                      {% elif tx.tx_type == 'FEE' %}
+                        bg-red-500/10 text-red-400 border border-red-400/20
+                      {% else %}
+                        bg-white/5 text-gray-400 border border-white/10
+                      {% endif %}">
+            {% if tx.tx_type == "DEPOSIT" %}
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+            {% elif tx.tx_type == "WITHDRAWAL" %}
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4m0 0l4-4m-4 4l4 4"/>
+              </svg>
+            {% else %}
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+            {% endif %}
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium text-white">{{ tx.tx_type }}</div>
+            <div class="text-xs text-gray-500 mono mt-1">
+              {{ tx.provider|default:"MANUAL" }}{% if tx.provider_reference %} · {{ tx.provider_reference|truncatechars:18 }}{% endif %}
+            </div>
+          </div>
+
+          <div class="text-right">
+            <div class="text-sm text-white mono">{{ tx.amount }} {{ tx.currency }}</div>
+            <div class="mt-1">
+              {% if tx.status == "SUCCEEDED" %}
+                <span class="px-2 py-1 rounded text-[10px] mono pill-open">SUCCEEDED</span>
+              {% elif tx.status == "PENDING" or tx.status == "PROCESSING" %}
+                <span class="px-2 py-1 rounded text-[10px] mono pill-placed">{{ tx.status }}</span>
+              {% elif tx.status == "FAILED" %}
+                <span class="px-2 py-1 rounded text-[10px] mono pill-sell">FAILED</span>
+              {% else %}
+                <span class="px-2 py-1 rounded text-[10px] mono bg-white/5 text-gray-400 border border-white/10">{{ tx.status }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="py-14 text-center">
+        <p class="text-gray-500 text-sm">Aucune transaction pour le moment.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="card overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-white/10">
+        <h3 class="text-white font-semibold">Derniers retraits</h3>
+        <a href="{% url 'wallet-history' %}" class="text-xs mono text-gray-500 hover:text-gray-300 transition">
+          Historique →
+        </a>
+      </div>
+
+      {% if withdrawals %}
+      <div class="divide-y divide-white/10">
+        {% for wd in withdrawals %}
+        <a href="{% url 'wallet-withdrawal-detail' wd.pk %}"
+           class="flex items-center justify-between gap-4 px-6 py-4 hover:bg-white/[.02] transition">
+          <div>
+            <div class="text-sm text-white font-medium">{{ wd.amount }} {{ wd.currency }}</div>
+            <div class="text-xs text-gray-500 mono mt-1">
+              {{ wd.destination_type }}{% if wd.destination_masked %} · {{ wd.destination_masked }}{% endif %}
+            </div>
+          </div>
+
+          <div class="text-right">
+            {% if wd.status == "PAID" %}
+              <span class="px-2 py-1 rounded text-[10px] mono pill-open">PAID</span>
+            {% elif wd.status == "APPROVED" or wd.status == "UNDER_REVIEW" or wd.status == "PENDING" %}
+              <span class="px-2 py-1 rounded text-[10px] mono pill-placed">{{ wd.status }}</span>
+            {% elif wd.status == "REJECTED" or wd.status == "FAILED" %}
+              <span class="px-2 py-1 rounded text-[10px] mono pill-sell">{{ wd.status }}</span>
+            {% else %}
+              <span class="px-2 py-1 rounded text-[10px] mono bg-white/5 text-gray-400 border border-white/10">{{ wd.status }}</span>
+            {% endif %}
+            <div class="text-xs text-gray-500 mono mt-1">{{ wd.created_at|date:"d/m/Y H:i" }}</div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="py-14 text-center">
+        <p class="text-gray-500 text-sm">Aucun retrait demandé.</p>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+</div>
+{% endblock %}

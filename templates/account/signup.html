@@ -1,0 +1,116 @@
+{% extends "account/base.html" %}
+{% load i18n %}
+
+{% block title %}Inscription — LeoTrade{% endblock %}
+{% block subtitle %}Créez votre compte de trading{% endblock %}
+
+{% block card_content %}
+<h1 class="text-xl font-semibold text-white mb-6">Créer un compte</h1>
+
+<form method="POST" action="{% url 'account_signup' %}" x-data="{ loading: false, password: '', strength: 0 }"
+      @submit="loading = true">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="mb-4 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+      {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- Email -->
+  <div class="mb-4">
+    <label class="block text-xs text-gray-400 uppercase tracking-wider mb-2">Email</label>
+    <input type="email" name="email" value="{{ form.email.value|default:'' }}" required
+      autocomplete="email" placeholder="vous@exemple.com"
+      class="w-full bg-gray-800/60 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white
+             placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1
+             focus:ring-emerald-500 transition-colors
+             {% if form.email.errors %}border-red-500{% endif %}"/>
+    {% if form.email.errors %}
+      <p class="mt-1 text-xs text-red-400">{{ form.email.errors.0 }}</p>
+    {% endif %}
+  </div>
+
+  <!-- Mot de passe + jauge de force -->
+  <div class="mb-4" x-data="{ show: false }">
+    <label class="block text-xs text-gray-400 uppercase tracking-wider mb-2">Mot de passe</label>
+    <div class="relative">
+      <input :type="show ? 'text' : 'password'" name="password1" required
+        autocomplete="new-password" placeholder="Min. 8 caractères"
+        x-model="password"
+        @input="
+          let s = 0;
+          if (password.length >= 8) s++;
+          if (/[A-Z]/.test(password)) s++;
+          if (/[0-9]/.test(password)) s++;
+          if (/[^A-Za-z0-9]/.test(password)) s++;
+          strength = s;
+        "
+        class="w-full bg-gray-800/60 border border-gray-700 rounded-xl px-4 py-3 pr-12 text-sm text-white
+               placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1
+               focus:ring-emerald-500 transition-colors
+               {% if form.password1.errors %}border-red-500{% endif %}"/>
+      <button type="button" @click="show = !show"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+        <svg x-show="!show" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+        </svg>
+        <svg x-show="show" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+        </svg>
+      </button>
+    </div>
+    <!-- Jauge force mot de passe -->
+    <div class="mt-2 flex gap-1" x-show="password.length > 0">
+      <template x-for="i in [1,2,3,4]">
+        <div class="h-1 flex-1 rounded-full transition-all duration-300"
+             :class="i <= strength
+               ? (strength <= 1 ? 'bg-red-500' : strength === 2 ? 'bg-amber-500' : strength === 3 ? 'bg-blue-400' : 'bg-emerald-500')
+               : 'bg-gray-700'"></div>
+      </template>
+    </div>
+    <p class="mt-1 text-xs transition-colors"
+       x-show="password.length > 0"
+       :class="strength <= 1 ? 'text-red-400' : strength === 2 ? 'text-amber-400' : strength === 3 ? 'text-blue-400' : 'text-emerald-400'"
+       x-text="['', 'Faible', 'Moyen', 'Fort', 'Très fort'][strength]"></p>
+    {% if form.password1.errors %}
+      <p class="mt-1 text-xs text-red-400">{{ form.password1.errors.0 }}</p>
+    {% endif %}
+  </div>
+
+  <!-- Confirmation mot de passe -->
+  <div class="mb-6">
+    <label class="block text-xs text-gray-400 uppercase tracking-wider mb-2">Confirmer le mot de passe</label>
+    <input type="password" name="password2" required autocomplete="new-password" placeholder="••••••••"
+      class="w-full bg-gray-800/60 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white
+             placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1
+             focus:ring-emerald-500 transition-colors
+             {% if form.password2.errors %}border-red-500{% endif %}"/>
+    {% if form.password2.errors %}
+      <p class="mt-1 text-xs text-red-400">{{ form.password2.errors.0 }}</p>
+    {% endif %}
+  </div>
+
+  <button type="submit" :disabled="loading"
+          class="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed
+                 text-gray-950 font-semibold rounded-xl py-3 text-sm transition-all duration-200
+                 flex items-center justify-center gap-2">
+    <svg x-show="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+    </svg>
+    <span x-text="loading ? 'Création...' : 'Créer mon compte'">Créer mon compte</span>
+  </button>
+</form>
+{% endblock %}
+
+{% block below_card %}
+<p class="text-center text-sm text-gray-500 mt-4">
+  Déjà un compte ?
+  <a href="{% url 'account_login' %}" class="text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
+    Se connecter
+  </a>
+</p>
+{% endblock %}

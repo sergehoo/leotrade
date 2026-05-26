@@ -1,0 +1,243 @@
+{% extends "layout/base.html" %}
+
+{% block title %}
+  {% if object %}Modifier un broker — LeoTrade{% else %}Nouveau broker — LeoTrade{% endif %}
+{% endblock %}
+
+{% block page_title %}
+  {% if object %}Modifier le broker{% else %}Configurer un broker{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6" x-data="brokerForm()" x-init="init()">
+
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Broker Setup</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">
+          {% if object %}Mettre à jour le compte broker{% else %}Ajouter un compte broker{% endif %}
+        </h2>
+        <p class="text-sm text-gray-500 mt-2 max-w-3xl">
+          Connecte Binance, MT5 ou Deriv pour permettre à LeoTrade d’exécuter les signaux selon le mode PAPER ou LIVE.
+        </p>
+      </div>
+
+      <a href="{% url 'broker-list' %}"
+         class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+        Retour à la liste
+      </a>
+    </div>
+  </section>
+
+  {% if form.non_field_errors %}
+  <section class="card p-4 border border-red-500/20 bg-red-500/5">
+    <div class="text-sm text-red-300">{{ form.non_field_errors }}</div>
+  </section>
+  {% endif %}
+
+  <form method="post" class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-6">
+    {% csrf_token %}
+
+    <section class="card p-6 space-y-8">
+      <div class="space-y-5">
+        <div>
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Identity</div>
+          <h3 class="text-white text-lg font-semibold mt-1">Configuration générale</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <label for="{{ form.name.id_for_label }}" class="block text-sm text-gray-400 mb-2">Nom</label>
+            {{ form.name }}
+            {% if form.name.errors %}<p class="mt-2 text-xs text-red-400">{{ form.name.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.broker.id_for_label }}" class="block text-sm text-gray-400 mb-2">Broker</label>
+            {{ form.broker }}
+            {% if form.broker.errors %}<p class="mt-2 text-xs text-red-400">{{ form.broker.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.mode.id_for_label }}" class="block text-sm text-gray-400 mb-2">Mode</label>
+            {{ form.mode }}
+            {% if form.mode.errors %}<p class="mt-2 text-xs text-red-400">{{ form.mode.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div class="flex items-center gap-4 rounded-xl bg-white/5 border border-white/10 px-4 py-3 mt-7">
+            <label class="flex items-center gap-2 text-sm text-gray-300">
+              {{ form.is_active }} Actif
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-300">
+              {{ form.is_default }} Par défaut
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="border-t border-white/10 pt-8 space-y-5" x-show="broker === 'BINANCE'">
+        <div>
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Binance API</div>
+          <h3 class="text-white text-lg font-semibold mt-1">Accès Binance</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <label for="{{ form.api_key.id_for_label }}" class="block text-sm text-gray-400 mb-2">API Key</label>
+            {{ form.api_key }}
+            {% if form.api_key.errors %}<p class="mt-2 text-xs text-red-400">{{ form.api_key.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.api_secret.id_for_label }}" class="block text-sm text-gray-400 mb-2">API Secret</label>
+            {{ form.api_secret }}
+            {% if form.api_secret.errors %}<p class="mt-2 text-xs text-red-400">{{ form.api_secret.errors|join:", " }}</p>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="border-t border-white/10 pt-8 space-y-5" x-show="broker === 'MT5'">
+        <div>
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">MetaTrader 5</div>
+          <h3 class="text-white text-lg font-semibold mt-1">Connexion MT5</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <label for="{{ form.login.id_for_label }}" class="block text-sm text-gray-400 mb-2">Login</label>
+            {{ form.login }}
+            {% if form.login.errors %}<p class="mt-2 text-xs text-red-400">{{ form.login.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.password.id_for_label }}" class="block text-sm text-gray-400 mb-2">Mot de passe</label>
+            {{ form.password }}
+            {% if form.password.errors %}<p class="mt-2 text-xs text-red-400">{{ form.password.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.server.id_for_label }}" class="block text-sm text-gray-400 mb-2">Serveur</label>
+            {{ form.server }}
+            {% if form.server.errors %}<p class="mt-2 text-xs text-red-400">{{ form.server.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.terminal_path.id_for_label }}" class="block text-sm text-gray-400 mb-2">Chemin terminal</label>
+            {{ form.terminal_path }}
+            {% if form.terminal_path.errors %}<p class="mt-2 text-xs text-red-400">{{ form.terminal_path.errors|join:", " }}</p>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="border-t border-white/10 pt-8 space-y-5" x-show="broker === 'DERIV'">
+        <div>
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Deriv WebSocket</div>
+          <h3 class="text-white text-lg font-semibold mt-1">Connexion Deriv</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <label for="{{ form.deriv_token.id_for_label }}" class="block text-sm text-gray-400 mb-2">Token API</label>
+            {{ form.deriv_token }}
+            {% if form.deriv_token.errors %}<p class="mt-2 text-xs text-red-400">{{ form.deriv_token.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.deriv_app_id.id_for_label }}" class="block text-sm text-gray-400 mb-2">App ID</label>
+            {{ form.deriv_app_id }}
+            {% if form.deriv_app_id.errors %}<p class="mt-2 text-xs text-red-400">{{ form.deriv_app_id.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.deriv_currency.id_for_label }}" class="block text-sm text-gray-400 mb-2">Devise</label>
+            {{ form.deriv_currency }}
+            {% if form.deriv_currency.errors %}<p class="mt-2 text-xs text-red-400">{{ form.deriv_currency.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label for="{{ form.deriv_account_type.id_for_label }}" class="block text-sm text-gray-400 mb-2">Type de compte</label>
+            {{ form.deriv_account_type }}
+            {% if form.deriv_account_type.errors %}<p class="mt-2 text-xs text-red-400">{{ form.deriv_account_type.errors|join:", " }}</p>{% endif %}
+          </div>
+        </div>
+
+        <div class="rounded-2xl bg-blue-500/5 border border-blue-400/10 p-4 text-sm text-blue-200">
+          Pour Deriv, LeoTrade utilise une connexion WebSocket authentifiée. Assure-toi que ton token autorise bien les opérations de trading.
+        </div>
+      </div>
+
+      <div class="border-t border-white/10 pt-6 flex justify-end gap-3">
+        <a href="{% url 'broker-list' %}"
+           class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+          Annuler
+        </a>
+        <button type="submit"
+                class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+          Enregistrer
+        </button>
+      </div>
+    </section>
+
+    <aside class="space-y-6">
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">Aide rapide</h3>
+        <ul class="mt-4 space-y-3 text-sm text-gray-400">
+          <li>• Binance : idéal pour la crypto.</li>
+          <li>• MT5 : idéal pour forex/CFD.</li>
+          <li>• Deriv : idéal pour les contrats à durée fixe.</li>
+          <li>• Utilise PAPER avant LIVE.</li>
+        </ul>
+      </section>
+
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">Sécurité</h3>
+        <div class="mt-4 text-sm text-gray-400 space-y-3">
+          <p>• Ne partage jamais tes credentials.</p>
+          <p>• Utilise des clés restreintes quand c’est possible.</p>
+          <p>• Vérifie le mode sélectionné avant sauvegarde.</p>
+        </div>
+      </section>
+    </aside>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function brokerForm() {
+    return {
+      broker: "BINANCE",
+      init() {
+        const brokerField = document.getElementById("id_broker");
+        if (brokerField) {
+          this.broker = brokerField.value || "BINANCE";
+          brokerField.addEventListener("change", (e) => {
+            this.broker = e.target.value;
+          });
+        }
+      }
+    }
+  }
+
+  (function () {
+    const ids = [
+      "id_name", "id_broker", "id_mode", "id_api_key", "id_api_secret",
+      "id_login", "id_password", "id_server", "id_terminal_path",
+      "id_deriv_token", "id_deriv_app_id", "id_deriv_currency", "id_deriv_account_type"
+    ];
+
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.className = "w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30";
+    });
+
+    ["id_is_active", "id_is_default"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.className = "rounded border-white/20 bg-white/5 text-emerald-400 focus:ring-emerald-400/30";
+    });
+  })();
+</script>
+{% endblock %}

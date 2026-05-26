@@ -1,0 +1,20 @@
+{% extends 'layout/base.html' %}
+{% block content %}
+<div class="rounded-2xl bg-slate-900 border border-slate-800 p-5">
+    <h1 class="text-xl font-semibold mb-4">Backtests</h1>
+    <table class="w-full text-sm">
+        <thead><tr class="text-slate-400 border-b border-slate-800"><th class="py-3 text-left">Nom</th><th>Stratégie</th><th>Période</th><th>Statut</th><th></th></tr></thead>
+        <tbody>
+            {% for bt in backtests %}
+            <tr class="border-b border-slate-800/60">
+                <td class="py-3">{{ bt.name }}</td>
+                <td>{{ bt.strategy.name }}</td>
+                <td>{{ bt.start_date }} → {{ bt.end_date }}</td>
+                <td>{{ bt.status }}</td>
+                <td><a class="text-cyan-400" href="{% url 'backtest-detail' bt.pk %}">Voir</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

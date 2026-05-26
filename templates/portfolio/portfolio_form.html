@@ -1,0 +1,317 @@
+{% extends "layout/base.html" %}
+
+{% block title %}
+  {% if object %}Modifier le portefeuille — LeoTrade{% else %}Nouveau portefeuille — LeoTrade{% endif %}
+{% endblock %}
+
+{% block page_title %}
+  {% if object %}Modifier un portefeuille{% else %}Créer un portefeuille{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+
+  <!-- Header -->
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Portfolio Setup</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">
+          {% if object %}
+            Mettre à jour le portefeuille
+          {% else %}
+            Créer un nouveau portefeuille
+          {% endif %}
+        </h2>
+        <p class="text-sm text-gray-500 mt-2 max-w-3xl">
+          Définissez le broker rattaché, la devise de base, le capital initial et les paramètres de pilotage
+          de votre portefeuille de trading.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <a href="{% url 'portfolio-list' %}"
+           class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+          Retour à la liste
+        </a>
+      </div>
+    </div>
+  </section>
+
+  {% if form.non_field_errors %}
+  <section class="card p-4 border border-red-500/20 bg-red-500/5">
+    <div class="text-sm text-red-300">
+      {{ form.non_field_errors }}
+    </div>
+  </section>
+  {% endif %}
+
+  <form method="post" class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-6">
+    {% csrf_token %}
+
+    <!-- Main form -->
+    <section class="card p-6 space-y-8">
+
+      <!-- Section 1 -->
+      <div class="space-y-5">
+        <div>
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Configuration principale</div>
+          <h3 class="text-white text-lg font-semibold mt-1">Identité du portefeuille</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {% if form.name %}
+          <div class="md:col-span-2">
+            <label for="{{ form.name.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Nom du portefeuille
+            </label>
+            {{ form.name }}
+            {% if form.name.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.name.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if form.broker_account %}
+          <div>
+            <label for="{{ form.broker_account.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Compte broker
+            </label>
+            {{ form.broker_account }}
+            {% if form.broker_account.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.broker_account.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if form.base_currency %}
+          <div>
+            <label for="{{ form.base_currency.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Devise de base
+            </label>
+            {{ form.base_currency }}
+            {% if form.base_currency.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.base_currency.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if form.description %}
+          <div class="md:col-span-2">
+            <label for="{{ form.description.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Description
+            </label>
+            {{ form.description }}
+            {% if form.description.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.description.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Section 2 -->
+      <div class="border-t border-white/10 pt-8 space-y-5">
+        <div>
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Capitalisation</div>
+          <h3 class="text-white text-lg font-semibold mt-1">Balances et pilotage financier</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {% if form.starting_balance %}
+          <div>
+            <label for="{{ form.starting_balance.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Balance initiale
+            </label>
+            {{ form.starting_balance }}
+            {% if form.starting_balance.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.starting_balance.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if form.current_balance %}
+          <div>
+            <label for="{{ form.current_balance.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Balance courante
+            </label>
+            {{ form.current_balance }}
+            {% if form.current_balance.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.current_balance.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if form.equity %}
+          <div>
+            <label for="{{ form.equity.id_for_label }}" class="block text-sm text-gray-400 mb-2">
+              Equity
+            </label>
+            {{ form.equity }}
+            {% if form.equity.errors %}
+              <p class="mt-2 text-xs text-red-400">{{ form.equity.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
+          <div class="text-sm text-white font-medium">Conseil de structuration</div>
+          <p class="text-sm text-gray-400 mt-2 leading-relaxed">
+            Pour un nouveau portefeuille, il est recommandé d’aligner la balance courante et l’equity
+            sur la balance initiale au démarrage.
+          </p>
+        </div>
+      </div>
+
+      <!-- Section 3 -->
+      <div class="border-t border-white/10 pt-8 space-y-5">
+        <div>
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Statut opérationnel</div>
+          <h3 class="text-white text-lg font-semibold mt-1">Activation et priorité</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {% if form.is_active %}
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-4 flex items-center justify-between gap-4">
+            <div>
+              <div class="text-sm text-white font-medium">Portefeuille actif</div>
+              <div class="text-xs text-gray-500 mt-1">
+                Autorise l’utilisation opérationnelle du portefeuille.
+              </div>
+            </div>
+            <div class="shrink-0">
+              {{ form.is_active }}
+            </div>
+          </div>
+          {% endif %}
+
+          {% if form.is_default %}
+          <div class="rounded-2xl bg-white/5 border border-white/10 p-4 flex items-center justify-between gap-4">
+            <div>
+              <div class="text-sm text-white font-medium">Portefeuille par défaut</div>
+              <div class="text-xs text-gray-500 mt-1">
+                Utilisé comme portefeuille principal dans l’interface.
+              </div>
+            </div>
+            <div class="shrink-0">
+              {{ form.is_default }}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">
+          {% if object %}Mise à jour du portefeuille{% else %}Création d’un nouveau portefeuille{% endif %}
+        </div>
+
+        <div class="flex flex-wrap gap-3">
+          <a href="{% url 'portfolio-list' %}"
+             class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+            Annuler
+          </a>
+
+          <button type="submit"
+                  class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+            {% if object %}Enregistrer les modifications{% else %}Créer le portefeuille{% endif %}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sidebar -->
+    <aside class="space-y-6">
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">Aide rapide</h3>
+        <ul class="mt-4 space-y-3 text-sm text-gray-400">
+          <li>• Associez toujours le portefeuille au bon broker.</li>
+          <li>• Définissez une devise cohérente avec l’exécution réelle.</li>
+          <li>• Gardez un seul portefeuille par défaut pour éviter les ambiguïtés.</li>
+          <li>• Désactivez un portefeuille inactif au lieu de le supprimer immédiatement.</li>
+        </ul>
+      </section>
+
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">Bonnes pratiques</h3>
+        <div class="mt-4 space-y-3 text-sm text-gray-400">
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-white font-medium">Paper d’abord</div>
+            <div class="text-xs text-gray-500 mt-1">
+              Commencez par un environnement PAPER avant d’utiliser le live trading.
+            </div>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="text-white font-medium">Séparation claire</div>
+            <div class="text-xs text-gray-500 mt-1">
+              Utilisez un portefeuille par stratégie ou par type d’actifs.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {% if object %}
+      <section class="card p-6">
+        <h3 class="text-white font-semibold">Résumé actuel</h3>
+        <div class="mt-4 space-y-3 text-sm">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-gray-500">Nom</span>
+            <span class="text-white">{{ object.name }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-gray-500">Devise</span>
+            <span class="text-white mono">{{ object.base_currency }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-gray-500">Balance</span>
+            <span class="text-white mono">{{ object.current_balance }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-gray-500">Equity</span>
+            <span class="text-white mono">{{ object.equity }}</span>
+          </div>
+        </div>
+      </section>
+      {% endif %}
+    </aside>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const ids = [
+      "id_broker_account",
+      "id_name",
+      "id_description",
+      "id_base_currency",
+      "id_starting_balance",
+      "id_current_balance",
+      "id_equity"
+    ];
+
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      if (el.tagName === "TEXTAREA") {
+        el.className = "w-full min-h-[120px] rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30";
+      } else if (el.tagName === "SELECT") {
+        el.className = "w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30";
+      } else {
+        el.className = "w-full rounded-xl bg-white/5 border border-white/10 text-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/30";
+      }
+    });
+
+    ["id_is_active", "id_is_default"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.className = "rounded border-white/20 bg-white/5 text-emerald-400 focus:ring-emerald-400/30";
+    });
+  })();
+</script>
+{% endblock %}

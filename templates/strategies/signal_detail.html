@@ -1,0 +1,92 @@
+{% extends "layout/base.html" %}
+{% block title %}Signal — LeoTrade{% endblock %}
+{% block page_title %}Détail signal{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Signal Analysis</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">{{ signal.strategy.name }}</h2>
+        <p class="text-sm text-gray-500 mt-2">{{ signal.candle_time|date:"d/m/Y H:i:s" }}</p>
+      </div>
+
+      <div class="flex gap-3">
+        <form method="post" action="{% url 'signal-approve' signal.pk %}">
+          {% csrf_token %}
+          <button class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">
+            Approuver
+          </button>
+        </form>
+        <form method="post" action="{% url 'signal-reject' signal.pk %}">
+          {% csrf_token %}
+          <button class="px-4 py-2 rounded-lg bg-red-500/10 text-red-300 border border-red-400/20">
+            Rejeter
+          </button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Side</div>
+      <div class="text-2xl text-white font-semibold mt-2">{{ signal.side }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Confidence</div>
+      <div class="text-2xl text-white font-semibold mt-2">{{ signal.confidence|floatformat:2 }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Prix</div>
+      <div class="text-2xl text-white font-semibold mt-2 mono">{{ signal.price }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">RR</div>
+      <div class="text-2xl text-white font-semibold mt-2 mono">{{ signal.rr_ratio|floatformat:2 }}</div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <h3 class="text-white font-semibold">Contexte</h3>
+      <div class="mt-4 space-y-3 text-sm">
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Stratégie</div>
+          <div class="text-white mt-2">{{ signal.strategy.name }}</div>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Reason</div>
+          <div class="text-white mt-2 whitespace-pre-wrap">{{ signal.reason|default:"—" }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <h3 class="text-white font-semibold">Statut opérationnel</h3>
+      <div class="mt-4 space-y-3 text-sm">
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Status</div>
+          <div class="text-white mt-2">{{ signal.status }}</div>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-gray-500">Expires at</div>
+          <div class="text-white mt-2 mono">{{ signal.expires_at|date:"d/m/Y H:i:s"|default:"—" }}</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Features snapshot</h3>
+      <pre class="text-xs text-gray-300 whitespace-pre-wrap rounded-xl bg-black/20 border border-white/5 p-4 overflow-auto">{{ signal.features_snapshot }}</pre>
+    </div>
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Model output</h3>
+      <pre class="text-xs text-gray-300 whitespace-pre-wrap rounded-xl bg-black/20 border border-white/5 p-4 overflow-auto">{{ signal.model_output }}</pre>
+    </div>
+  </section>
+</div>
+{% endblock %}

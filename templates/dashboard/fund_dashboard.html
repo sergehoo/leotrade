@@ -1,0 +1,865 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<div x-data="fundDashboardLive()" x-init="init()" class="space-y-6">
+
+  {% if not portfolio %}
+    <div class="card p-6 text-center animate-in">
+      <svg class="w-12 h-12 mx-auto mb-3 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+      </svg>
+      <p class="text-gray-400 text-sm">Aucun portfolio configuré.</p>
+      <p class="text-gray-600 text-xs mt-1">Créez un compte broker pour commencer à trader.</p>
+      <a href="/brokers/create/" class="inline-block mt-4 px-4 py-2 rounded-lg text-sm font-medium text-black mono"
+         style="background:var(--green)">Configurer un broker</a>
+    </div>
+  {% else %}
+
+  <section class="card card-glow p-6 overflow-hidden relative">
+    <div class="absolute inset-0 opacity-30 pointer-events-none"
+         style="background:
+         radial-gradient(circle at top right, rgba(0,255,157,.10), transparent 35%),
+         radial-gradient(circle at bottom left, rgba(59,130,246,.08), transparent 35%);"></div>
+
+    <div class="relative flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Hedge Fund Live Desk</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">Portfolio monitor temps réel</h2>
+        <p class="text-sm text-gray-500 mt-2 max-w-3xl">
+          Surveillance live des positions, du P&amp;L, des ordres, des fills et de l’exposition.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="px-3 py-2 rounded-xl bg-white/5 border border-white/10 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full"
+                :class="isLive && !paused ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'"></span>
+          <span class="text-xs mono text-gray-300"
+                x-text="paused ? 'FLUX EN PAUSE' : (isLive ? 'WEBSOCKET LIVE' : 'OFFLINE / FALLBACK')"></span>
+        </div>
+
+        <div class="px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+          <span class="text-xs mono text-gray-400">Dernière mise à jour :</span>
+          <span class="text-xs mono text-white ml-1" x-text="lastUpdated || '—'"></span>
+        </div>
+
+        <button type="button"
+                @click="togglePause()"
+                class="px-3 py-2 rounded-xl bg-white/5 text-gray-300 border border-white/10 text-xs mono hover:bg-white/10 transition">
+          <span x-text="paused ? 'Reprendre' : 'Pause'"></span>
+        </button>
+
+        <button type="button"
+                @click="fetchDashboard(true)"
+                class="px-3 py-2 rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 text-xs mono hover:bg-emerald-500/20 transition">
+          Rafraîchir
+        </button>
+      </div>
+    </div>
+
+    <div class="relative mt-5">
+      <div class="flex items-center justify-between text-[11px] mono text-gray-500 mb-2">
+        <span>Cycle de surveillance</span>
+        <span x-text="paused ? 'PAUSE' : `${Math.round(scanProgress)}%`"></span>
+      </div>
+
+      <div class="h-2.5 rounded-full bg-white/10 overflow-hidden border border-white/10">
+        <div class="h-full rounded-full transition-all duration-300"
+             :class="isLive && !paused ? 'bg-emerald-400' : 'bg-red-400'"
+             :style="`width:${scanProgress}%`"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+    <div class="lg:col-span-8 grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div class="card card-glow p-5">
+        <div class="text-xs text-gray-600 mono uppercase tracking-wider">Balance</div>
+        <div class="mono text-white text-xl font-semibold mt-2" x-text="money(stats.balance)"></div>
+        <div class="text-xs text-gray-600 mt-1 mono">Capital total</div>
+      </div>
+
+      <div class="card card-glow p-5">
+        <div class="text-xs text-gray-600 mono uppercase tracking-wider">Équité</div>
+        <div class="mono text-white text-xl font-semibold mt-2" x-text="money(stats.equity)"></div>
+        <div class="text-xs text-gray-600 mt-1 mono">Valeur nette live</div>
+      </div>
+
+      <div class="card card-glow p-5">
+        <div class="text-xs text-gray-600 mono uppercase tracking-wider">Cash dispo</div>
+        <div class="mono text-cyan-300 text-xl font-semibold mt-2" x-text="money(stats.available_cash)"></div>
+        <div class="text-xs text-gray-600 mt-1 mono">Disponible à trader</div>
+      </div>
+
+      <div class="card card-glow p-5">
+        <div class="text-xs text-gray-600 mono uppercase tracking-wider">Cash verrouillé</div>
+        <div class="mono text-amber-300 text-xl font-semibold mt-2" x-text="money(stats.locked_cash)"></div>
+        <div class="text-xs text-gray-600 mt-1 mono">Ordres en cours</div>
+      </div>
+
+      <div class="card card-glow p-5">
+        <div class="text-xs text-gray-600 mono uppercase tracking-wider">PnL réalisé</div>
+        <div class="mono text-xl font-semibold mt-2"
+             :class="Number(stats.realized_pnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'"
+             x-text="money(stats.realized_pnl)"></div>
+        <div class="text-xs text-gray-600 mt-1 mono">Historique clôturé</div>
+      </div>
+
+      <div class="card card-glow p-5">
+        <div class="text-xs text-gray-600 mono uppercase tracking-wider">PnL latent</div>
+        <div class="mono text-xl font-semibold mt-2"
+             :class="Number(stats.unrealized_pnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'"
+             x-text="money(stats.unrealized_pnl)"></div>
+        <div class="text-xs text-gray-600 mt-1 mono">Positions ouvertes</div>
+      </div>
+
+      <div class="card card-glow p-5">
+        <div class="text-xs text-gray-600 mono uppercase tracking-wider">Positions</div>
+        <div class="mono text-white text-xl font-semibold mt-2" x-text="stats.open_positions_count"></div>
+        <div class="text-xs text-gray-600 mt-1 mono">
+          <span x-text="stats.long_positions_count"></span> long /
+          <span x-text="stats.short_positions_count"></span> short
+        </div>
+      </div>
+
+      <div class="card card-glow p-5">
+        <div class="text-xs text-gray-600 mono uppercase tracking-wider">Ordres</div>
+        <div class="mono text-white text-xl font-semibold mt-2">
+          <span x-text="stats.filled_orders"></span>
+          <span class="text-gray-600 text-sm"> / <span x-text="stats.orders_count"></span></span>
+        </div>
+        <div class="text-xs text-gray-600 mt-1 mono">Fillés / total</div>
+      </div>
+    </div>
+
+    <div class="lg:col-span-4 card p-5 border border-white/10 bg-white/[0.03]">
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">PnL global</div>
+        <div class="text-xs mono px-2 py-1 rounded-lg border"
+             :class="Number(stats.total_pnl || 0) >= 0 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-400/20' : 'bg-red-500/10 text-red-300 border-red-400/20'">
+          <span x-text="Number(stats.total_pnl || 0) >= 0 ? 'POSITIVE' : 'NEGATIVE'"></span>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <div class="text-3xl mono font-semibold"
+             :class="Number(stats.total_pnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'"
+             x-text="money(stats.total_pnl)"></div>
+        <div class="mt-1 text-sm mono"
+             :class="Number(stats.pnl_percent || 0) >= 0 ? 'text-emerald-300' : 'text-red-300'"
+             x-text="percent(stats.pnl_percent)"></div>
+      </div>
+
+      <div class="mt-5 space-y-3">
+        <div>
+          <div class="flex justify-between text-[11px] mono text-gray-500 mb-1">
+            <span>Trades gagnants</span>
+            <span x-text="stats.winners_count"></span>
+          </div>
+          <div class="h-2 rounded-full bg-white/10 overflow-hidden">
+            <div class="h-full rounded-full bg-emerald-400"
+                 :style="`width:${positionWinRate()}%`"></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex justify-between text-[11px] mono text-gray-500 mb-1">
+            <span>Trades perdants</span>
+            <span x-text="stats.losers_count"></span>
+          </div>
+          <div class="h-2 rounded-full bg-white/10 overflow-hidden">
+            <div class="h-full rounded-full bg-red-400"
+                 :style="`width:${positionLossRate()}%`"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-5 rounded-xl bg-white/5 border border-white/10 p-4">
+        <div class="text-[11px] mono text-gray-500">Lecture rapide</div>
+        <div class="mt-2 text-sm text-gray-300 leading-6">
+          <span x-show="Number(stats.total_pnl || 0) >= 0">
+            Le portefeuille évolue positivement avec une exposition active maîtrisée.
+          </span>
+          <span x-show="Number(stats.total_pnl || 0) < 0">
+            Le portefeuille est sous pression. Surveille les positions et le cash verrouillé.
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-white mono uppercase tracking-wider flex items-center gap-2">
+        <div class="w-1 h-4 rounded-full" style="background:var(--green)"></div>
+        Positions ouvertes live
+        <span x-show="positions.length"
+              class="mono text-xs px-1.5 py-0.5 rounded"
+              style="background:rgba(0,255,157,.1); color:var(--green)"
+              x-text="positions.length"></span>
+      </h2>
+    </div>
+
+    <div class="space-y-4" x-show="positions.length > 0">
+      <template x-for="position in positions" :key="position.id">
+        <div class="card p-5">
+          <div class="flex flex-col 2xl:flex-row gap-5">
+            <div class="2xl:w-[390px]">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="text-white font-semibold text-lg mono" x-text="position.symbol"></div>
+                  <div class="text-xs text-gray-500" x-text="position.asset_name || 'Asset'"></div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <template x-if="position.is_synthetic">
+                    <span class="px-2 py-1 rounded text-[10px] mono font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                      SYNTH
+                    </span>
+                  </template>
+
+                  <span class="px-2 py-1 rounded text-xs mono font-semibold"
+                        :class="position.side === 'LONG' ? 'pill-buy' : 'pill-sell'"
+                        x-text="position.side"></span>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3 mt-4">
+                <div class="rounded-xl bg-white/5 border border-white/10 p-3">
+                  <div class="text-[11px] text-gray-600 mono">Entrée</div>
+                  <div class="text-white mono mt-1" x-text="money(position.entry_price)"></div>
+                </div>
+
+                <div class="rounded-xl bg-white/5 border border-white/10 p-3">
+                  <div class="text-[11px] text-gray-600 mono">Prix live</div>
+                  <div class="text-white mono mt-1" x-text="money(position.current_price)"></div>
+                </div>
+
+                <div class="rounded-xl bg-white/5 border border-white/10 p-3">
+                  <div class="text-[11px] text-gray-600 mono">Quantité</div>
+                  <div class="text-white mono mt-1" x-text="qty(position.quantity)"></div>
+                </div>
+
+                <div class="rounded-xl bg-white/5 border border-white/10 p-3">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="text-[11px] text-gray-600 mono">PnL</div>
+                    <template x-if="position.is_synthetic">
+                      <span class="text-[10px] mono text-amber-300">indicatif</span>
+                    </template>
+                  </div>
+
+                  <template x-if="!position.is_synthetic">
+                    <div class="mono mt-1 font-semibold"
+                         :class="Number(position.pnl_value || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'">
+                      <span x-text="money(position.pnl_value)"></span>
+                      <span class="text-xs ml-1" x-text="percent(position.pnl_percent)"></span>
+                    </div>
+                  </template>
+
+                  <template x-if="position.is_synthetic">
+                    <div class="mono mt-1 font-semibold text-gray-300">—</div>
+                  </template>
+                </div>
+              </div>
+
+              <div class="mt-4 grid grid-cols-1 gap-3">
+                <div class="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <div class="flex items-center justify-between text-[11px] mono text-gray-500 mb-1">
+                    <span>Progression vers TP</span>
+                    <span x-text="position.take_profit ? money(position.take_profit) : '—'"></span>
+                  </div>
+                  <div class="h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div class="h-full rounded-full bg-emerald-400 transition-all duration-300"
+                         :style="`width:${clamp(position.progress_to_tp)}%`"></div>
+                  </div>
+                </div>
+
+                <div class="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <div class="flex items-center justify-between text-[11px] mono text-gray-500 mb-1">
+                    <span>Pression vers SL</span>
+                    <span x-text="position.stop_loss ? money(position.stop_loss) : '—'"></span>
+                  </div>
+                  <div class="h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div class="h-full rounded-full bg-red-400 transition-all duration-300"
+                         :style="`width:${clamp(position.progress_to_sl)}%`"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-4 flex items-center justify-between">
+                <div class="text-xs mono text-gray-500">
+                  Ouvert : <span x-text="dateShort(position.opened_at)"></span>
+                </div>
+                <button type="button"
+                        @click="openPositionModal(position)"
+                        class="px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-xs mono hover:bg-white/10 transition">
+                  Détail
+                </button>
+              </div>
+            </div>
+
+            <div class="flex-1 min-h-[280px]">
+              <div class="flex items-center justify-between mb-3">
+                <div class="text-xs mono uppercase tracking-wider text-gray-600">Évolution du trade</div>
+
+                <template x-if="!position.is_synthetic">
+                  <div class="text-xs mono"
+                       :class="Number(position.pnl_value || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'"
+                       x-text="Number(position.pnl_value || 0) >= 0 ? 'Momentum favorable' : 'Trade sous pression'"></div>
+                </template>
+
+                <template x-if="position.is_synthetic">
+                  <div class="text-xs mono text-amber-300">Contrat synthétique</div>
+                </template>
+              </div>
+
+              <div class="rounded-2xl border border-white/10 bg-white/[0.02] p-3 h-[260px]">
+                <div class="w-full h-full">
+                  <canvas :id="`position-chart-${position.id}`"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <div class="card py-12 text-center" x-show="positions.length === 0">
+      <svg class="w-10 h-10 text-gray-800 mb-3 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 12l3-3 3 3 4-4"/>
+      </svg>
+      <p class="text-gray-600 text-sm mono">Aucune position ouverte</p>
+      <p class="text-gray-700 text-xs mt-1">Leo surveille les marchés...</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-white mono uppercase tracking-wider flex items-center gap-2">
+        <div class="w-1 h-4 rounded-full" style="background:var(--blue)"></div>
+        Ordres récents
+      </h2>
+    </div>
+
+    <div class="card overflow-hidden">
+      <template x-if="recentOrders.length > 0">
+        <div class="divide-y" style="border-color:var(--border)">
+          <template x-for="order in recentOrders" :key="order.id">
+            <div class="flex items-center gap-3 px-4 py-3 hover:bg-white/[.02] transition-colors">
+              <span class="w-14 text-center px-1.5 py-1 rounded text-xs mono font-bold flex-shrink-0"
+                    :class="order.side === 'BUY' ? 'pill-buy' : 'pill-sell'"
+                    x-text="order.side"></span>
+
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-semibold text-white mono" x-text="order.symbol"></div>
+                <div class="text-xs text-gray-600">
+                  <span x-text="order.order_type"></span> ·
+                  <span x-text="qty(order.quantity)"></span>
+                </div>
+              </div>
+
+              <div class="text-right flex-shrink-0">
+                <div class="mono text-sm text-gray-300" x-text="money(order.price)"></div>
+                <div class="text-xs text-gray-600 mono" x-text="dateShort(order.created_at)"></div>
+              </div>
+
+              <span class="text-xs mono px-2 py-0.5 rounded flex-shrink-0"
+                    :class="orderStatusClass(order.status)"
+                    x-text="order.status"></span>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <template x-if="recentOrders.length === 0">
+        <div class="flex flex-col items-center justify-center py-10">
+          <p class="text-gray-700 text-xs mono">Aucun ordre</p>
+        </div>
+      </template>
+    </div>
+  </section>
+
+  <div x-show="selectedPosition !== null"
+       x-transition
+       class="fixed inset-0 z-50 flex items-center justify-center p-4"
+       style="background:rgba(0,0,0,.6);"
+       @click.self="closePositionModal()">
+
+    <div class="w-full max-w-5xl rounded-2xl border border-white/10 bg-[#0b0f14] shadow-2xl overflow-hidden">
+      <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+        <div>
+          <div class="text-white text-lg font-semibold mono" x-text="selectedPosition?.symbol || ''"></div>
+          <div class="text-xs text-gray-500">Vue détaillée live de la position</div>
+        </div>
+        <button @click="closePositionModal()" class="text-gray-400 hover:text-white text-xl">&times;</button>
+      </div>
+
+      <div class="p-6 grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-6">
+        <div class="space-y-4">
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="flex items-center justify-between gap-2">
+              <div class="text-xs mono text-gray-600 uppercase">P&amp;L Live</div>
+              <template x-if="selectedPosition?.is_synthetic">
+                <span class="text-[10px] mono text-amber-300">indisponible</span>
+              </template>
+            </div>
+
+            <template x-if="selectedPosition && !selectedPosition.is_synthetic">
+              <div>
+                <div class="mt-2 text-2xl mono font-semibold"
+                     :class="Number(selectedPosition?.pnl_value || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'"
+                     x-text="money(selectedPosition?.pnl_value || 0)"></div>
+                <div class="text-xs mono mt-1"
+                     :class="Number(selectedPosition?.pnl_value || 0) >= 0 ? 'text-emerald-300' : 'text-red-300'"
+                     x-text="percent(selectedPosition?.pnl_percent || 0)"></div>
+              </div>
+            </template>
+
+            <template x-if="selectedPosition && selectedPosition.is_synthetic">
+              <div class="mt-2 text-xl mono font-semibold text-gray-300">—</div>
+            </template>
+          </div>
+
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4 space-y-3">
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-500">Entrée</span>
+              <span class="text-white mono" x-text="money(selectedPosition?.entry_price || 0)"></span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-500">Prix live</span>
+              <span class="text-white mono" x-text="money(selectedPosition?.current_price || 0)"></span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-500">SL</span>
+              <span class="text-red-300 mono" x-text="selectedPosition?.stop_loss ? money(selectedPosition.stop_loss) : '—'"></span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-500">TP</span>
+              <span class="text-emerald-300 mono" x-text="selectedPosition?.take_profit ? money(selectedPosition.take_profit) : '—'"></span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-500">Quantité</span>
+              <span class="text-white mono" x-text="qty(selectedPosition?.quantity || 0)"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-white/10 bg-white/[0.02] p-4 h-[420px]">
+          <div class="w-full h-full">
+            <canvas id="selected-position-chart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% endif %}
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://unpkg.com/chart.js@4.4.3/dist/chart.umd.js"></script>
+
+<script>
+function fundDashboardLive() {
+  const chartStore = new Map();
+  let selectedChart = null;
+
+  return {
+    loading: true,
+    fetching: false,
+    isLive: false,
+    paused: false,
+    timer: null,
+    progressTimer: null,
+    ws: null,
+    reconnectTimer: null,
+    scanProgress: 0,
+    lastUpdated: null,
+    refreshIntervalMs: 5000,
+    _beforeUnloadHandler: null,
+
+    stats: {
+      balance: 0,
+      equity: 0,
+      available_cash: 0,
+      locked_cash: 0,
+      realized_pnl: 0,
+      unrealized_pnl: 0,
+      total_pnl: 0,
+      pnl_percent: 0,
+      open_positions_count: 0,
+      orders_count: 0,
+      filled_orders: 0,
+      submitted_orders: 0,
+      long_positions_count: 0,
+      short_positions_count: 0,
+      winners_count: 0,
+      losers_count: 0,
+    },
+
+    positions: [],
+    recentOrders: [],
+    selectedPosition: null,
+
+    init() {
+      this.fetchDashboard(true);
+      this.connectWebSocket();
+      this.startProgressLoop();
+
+      this.timer = setInterval(() => {
+        if (!this.paused && !this.isLive) {
+          this.fetchDashboard(false);
+        }
+      }, this.refreshIntervalMs);
+
+      this._beforeUnloadHandler = () => this.cleanup();
+      window.addEventListener("beforeunload", this._beforeUnloadHandler);
+    },
+
+    cleanup() {
+      if (this.timer) clearInterval(this.timer);
+      if (this.progressTimer) clearInterval(this.progressTimer);
+      if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+      if (this.ws) {
+        try { this.ws.close(); } catch (e) {}
+      }
+      if (this._beforeUnloadHandler) {
+        window.removeEventListener("beforeunload", this._beforeUnloadHandler);
+      }
+      this.destroyAllCharts();
+    },
+
+    connectWebSocket() {
+      // Délégation au manager global LeoWS :
+      //  - backoff exponentiel (1s → 60s, plafonné) au lieu de 3s fixe
+      //  - état partagé avec le badge topbar (online/reconnecting/offline)
+      //  - gracieux quand Daphne n'est pas dispo (pas de spam serveur)
+      // Sans LeoWS, on reste en HTTP polling uniquement (fetchDashboard).
+      if (!window.LeoWS) {
+        console.warn("[fund_dashboard] LeoWS absent — fallback HTTP polling");
+        this.isLive = false;
+        return;
+      }
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const wsUrl = `${protocol}://${window.location.host}/ws/dashboard/live/`;
+
+      // Si une connexion existe déjà (cas Alpine init double), on la ferme
+      try { this.leoConn && this.leoConn.close(); } catch (e) {}
+
+      this.leoConn = window.LeoWS.connect(wsUrl, {
+        name: "fund_dashboard",
+        expectedEvent: "dashboard.update",
+        onOpen: () => {
+          this.isLive = true;
+          this.lastUpdated = new Date().toLocaleTimeString("fr-FR");
+        },
+        onClose: () => {
+          this.isLive = false;
+        },
+        onMessage: (data, payload) => {
+          if (this.paused) return;
+          try {
+            this.handleRealtimePayload(payload || data || {});
+            this.lastUpdated = new Date().toLocaleTimeString("fr-FR");
+            this.scanProgress = 0;
+          } catch (e) {
+            console.error("[fund_dashboard] WS parse error:", e);
+          }
+        },
+      });
+    },
+
+    scheduleReconnect() {
+      // No-op : LeoWS gère la reconnexion avec backoff exponentiel.
+      // Méthode conservée pour ne pas casser d'anciens callers.
+    },
+
+    async fetchDashboard(showLoader = false) {
+      if (this.fetching) return;
+      this.fetching = true;
+      if (showLoader) this.loading = true;
+
+      try {
+        const response = await fetch("{% url 'fund-dashboard-live' %}", {
+          headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        this.applyFullSnapshot(payload);
+        this.lastUpdated = new Date().toLocaleTimeString("fr-FR");
+        this.scanProgress = 0;
+      } catch (error) {
+        console.error("Erreur dashboard live:", error);
+        this.isLive = false;
+      } finally {
+        this.fetching = false;
+        this.loading = false;
+      }
+    },
+
+    applyFullSnapshot(payload) {
+      this.stats = payload?.stats || this.stats;
+      this.positions = Array.isArray(payload?.positions) ? payload.positions : [];
+      this.recentOrders = Array.isArray(payload?.recent_orders) ? payload.recent_orders : [];
+      this.$nextTick(() => {
+        this.renderCharts();
+        this.refreshSelectedPosition();
+      });
+    },
+
+    handleRealtimePayload(payload) {
+      if (!payload || !payload.kind) return;
+
+      if (payload.kind === "portfolio_metrics" || payload.kind === "dashboard_snapshot") {
+        this.fetchDashboard(false);
+        return;
+      }
+
+      if (payload.kind === "fill" || payload.kind === "position_or_fill_update") {
+        this.fetchDashboard(false);
+        return;
+      }
+
+      if (payload.kind === "order_created" || payload.kind === "event") {
+        this.fetchDashboard(false);
+        return;
+      }
+
+      if (payload.kind === "kill_switch_triggered" || payload.kind === "kill_switch_resolved") {
+        this.fetchDashboard(false);
+        return;
+      }
+    },
+
+    refreshSelectedPosition() {
+      if (!this.selectedPosition) return;
+      const fresh = this.positions.find(p => String(p.id) === String(this.selectedPosition.id));
+      if (fresh) {
+        this.selectedPosition = JSON.parse(JSON.stringify(fresh));
+        this.$nextTick(() => this.renderSelectedChart());
+      } else {
+        this.closePositionModal();
+      }
+    },
+
+    buildLineConfig(values, isSynthetic = false) {
+      return {
+        type: "line",
+        data: {
+          labels: values.map(() => ""),
+          datasets: [{
+            data: values,
+            borderColor: isSynthetic ? "#f59e0b" : "#00ff9d",
+            backgroundColor: isSynthetic ? "rgba(245,158,11,.08)" : "rgba(0,255,157,.08)",
+            fill: true,
+            tension: 0.35,
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          parsing: false,
+          normalized: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { mode: "index", intersect: false }
+          },
+          interaction: { mode: "nearest", intersect: false },
+          scales: {
+            x: { display: false, grid: { display: false } },
+            y: {
+              ticks: { color: "#6b7280", maxTicksLimit: 5 },
+              grid: { color: "rgba(255,255,255,.06)" }
+            }
+          }
+        }
+      };
+    },
+
+    renderCharts() {
+      if (typeof Chart === "undefined") return;
+
+      const activeIds = new Set(this.positions.map(position => String(position.id)));
+
+      chartStore.forEach((chart, key) => {
+        if (!activeIds.has(String(key))) {
+          if (chart) chart.destroy();
+          chartStore.delete(key);
+        }
+      });
+
+      this.positions.forEach(position => {
+        const chartKey = String(position.id);
+        const canvasId = `position-chart-${position.id}`;
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+
+        const values = (Array.isArray(position.chart) ? position.chart : [])
+          .map(p => Number((p && (p.c ?? p.close)) ?? 0))
+          .filter(v => Number.isFinite(v));
+
+        const existing = chartStore.get(chartKey);
+
+        if (!values.length) {
+          if (existing) {
+            existing.destroy();
+            chartStore.delete(chartKey);
+          }
+          return;
+        }
+
+        if (existing) {
+          existing.data.labels = values.map(() => "");
+          existing.data.datasets[0].data = values;
+          existing.update("none");
+          return;
+        }
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const chart = new Chart(ctx, this.buildLineConfig(values, !!position.is_synthetic));
+        chartStore.set(chartKey, chart);
+      });
+    },
+
+    openPositionModal(position) {
+      this.selectedPosition = JSON.parse(JSON.stringify(position));
+      this.$nextTick(() => this.renderSelectedChart());
+    },
+
+    closePositionModal() {
+      this.selectedPosition = null;
+      if (selectedChart) {
+        selectedChart.destroy();
+        selectedChart = null;
+      }
+    },
+
+    renderSelectedChart() {
+      if (typeof Chart === "undefined") return;
+
+      const canvas = document.getElementById("selected-position-chart");
+      if (!canvas || !this.selectedPosition) return;
+
+      const values = (Array.isArray(this.selectedPosition.chart) ? this.selectedPosition.chart : [])
+        .map(p => Number((p && (p.c ?? p.close)) ?? 0))
+        .filter(v => Number.isFinite(v));
+
+      if (!values.length) {
+        if (selectedChart) {
+          selectedChart.destroy();
+          selectedChart = null;
+        }
+        return;
+      }
+
+      if (selectedChart) {
+        selectedChart.data.labels = values.map(() => "");
+        selectedChart.data.datasets[0].data = values;
+        selectedChart.update("none");
+        return;
+      }
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      selectedChart = new Chart(ctx, this.buildLineConfig(values, !!this.selectedPosition.is_synthetic));
+    },
+
+    destroyAllCharts() {
+      chartStore.forEach(chart => chart && chart.destroy());
+      chartStore.clear();
+
+      if (selectedChart) {
+        selectedChart.destroy();
+        selectedChart = null;
+      }
+    },
+
+    startProgressLoop() {
+      if (this.progressTimer) clearInterval(this.progressTimer);
+
+      const stepMs = 100;
+      const step = 100 / (this.refreshIntervalMs / stepMs);
+
+      this.progressTimer = setInterval(() => {
+        if (this.paused) return;
+        this.scanProgress += step;
+        if (this.scanProgress >= 100) this.scanProgress = 0;
+      }, stepMs);
+    },
+
+    togglePause() {
+      this.paused = !this.paused;
+    },
+
+    clamp(value) {
+      const n = Number(value || 0);
+      if (n < 0) return 0;
+      if (n > 100) return 100;
+      return n;
+    },
+
+    positionWinRate() {
+      const total = Number(this.stats.open_positions_count || 0);
+      if (!total) return 0;
+      return (Number(this.stats.winners_count || 0) / total) * 100;
+    },
+
+    positionLossRate() {
+      const total = Number(this.stats.open_positions_count || 0);
+      if (!total) return 0;
+      return (Number(this.stats.losers_count || 0) / total) * 100;
+    },
+
+    money(value) {
+      return new Intl.NumberFormat("fr-FR", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(Number(value || 0));
+    },
+
+    qty(value) {
+      return Number(value || 0).toFixed(4);
+    },
+
+    percent(value) {
+      const n = Number(value || 0);
+      return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+    },
+
+    dateShort(value) {
+      if (!value) return "—";
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return "—";
+      return d.toLocaleString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    },
+
+    orderStatusClass(status) {
+      if (status === "FILLED") return "pill-filled";
+      if (status === "SUBMITTED") return "pill-open";
+      if (status === "PARTIALLY_FILLED") return "bg-cyan-500/10 text-cyan-300";
+      if (status === "PENDING" || status === "PENDING_SUBMIT") return "bg-amber-500/10 text-amber-300";
+      if (status === "FAILED" || status === "REJECTED") return "bg-red-500/10 text-red-300";
+      return "bg-white/5 text-gray-300";
+    }
+  };
+}
+</script>
+{% endblock %}

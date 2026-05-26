@@ -1,0 +1,214 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Backtests — LeoTrade{% endblock %}
+{% block page_title %}Backtests{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header + stats correctes (count_total / done / running / failed) -->
+  <section class="card card-glow p-6">
+    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-500">Research Engine</div>
+        <h2 class="text-white text-xl font-semibold mt-1">Historique des backtests</h2>
+        <p class="text-sm text-gray-400 mt-2">
+          Simule tes stratégies sur l'historique de marché. Lance un nouveau backtest depuis
+          n'importe quelle stratégie ; le calcul tourne en arrière-plan, le résultat apparaît ici.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mono text-xs min-w-full lg:min-w-[520px]">
+        <div class="px-3 py-2 rounded-lg border border-white/10 bg-white/5">
+          <div class="text-gray-500">Total</div>
+          <div class="text-white text-base">{{ count_total|default:0 }}</div>
+        </div>
+        <div class="px-3 py-2 rounded-lg" style="background: rgba(0,255,157,0.06); border: 1px solid rgba(0,255,157,0.2);">
+          <div class="text-gray-400">Terminés</div>
+          <div style="color: var(--green);" class="text-base">{{ count_done|default:0 }}</div>
+        </div>
+        <div class="px-3 py-2 rounded-lg" style="background: rgba(255,183,3,0.06); border: 1px solid rgba(255,183,3,0.2);">
+          <div class="text-gray-400">En cours</div>
+          <div style="color: var(--amber);" class="text-base">{{ count_running|default:0 }}</div>
+        </div>
+        <div class="px-3 py-2 rounded-lg" style="background: rgba(255,77,109,0.06); border: 1px solid rgba(255,77,109,0.2);">
+          <div class="text-gray-400">Échoués</div>
+          <div style="color: var(--red);" class="text-base">{{ count_failed|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Lancer un backtest : sélection de stratégie -->
+  <section class="card p-6">
+    <div class="flex items-start justify-between flex-wrap gap-4">
+      <div>
+        <h3 class="text-white font-semibold">Lancer un nouveau backtest</h3>
+        <p class="text-sm text-gray-400 mt-1">
+          Choisis une stratégie ; le backtest s'exécute en arrière-plan via Celery (durée ≈ 5-30 s selon le volume de bougies).
+        </p>
+      </div>
+    </div>
+
+    {% if available_strategies %}
+      <div class="mt-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {% for strat in available_strategies %}
+          <form method="post" action="{% url 'launch-backtest' strat.id %}"
+                class="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col justify-between gap-3 hover:bg-white/8 transition">
+            {% csrf_token %}
+            <div>
+              <div class="text-white font-medium">{{ strat.name }}</div>
+              <div class="text-[11px] mono text-gray-500 mt-1">
+                {{ strat.asset.symbol|default:"—" }}
+                {% if strat.timeframe %} · {{ strat.timeframe.code }}{% endif %}
+                {% if strat.status %} · {{ strat.status }}{% endif %}
+              </div>
+            </div>
+            <button type="submit"
+                    class="px-3 py-1.5 rounded-lg text-xs mono font-medium self-start"
+                    style="background: var(--green); color: #080c14;">
+              ▶ Lancer le backtest
+            </button>
+          </form>
+        {% endfor %}
+      </div>
+    {% else %}
+      {% include "_partials/_empty_state.html" with
+          icon="search"
+          title="Aucune stratégie disponible"
+          subtitle="Crée d'abord une stratégie pour pouvoir la backtester. Tu peux importer une stratégie systémique ou en générer une via le module IA."
+          cta_url="/strategies/"
+          cta_label="Voir mes stratégies"
+      %}
+    {% endif %}
+  </section>
+
+  <!-- Table -->
+  <section class="card p-0 overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold">Liste des exécutions</h3>
+      <div class="text-xs mono text-gray-600 uppercase tracking-wider">
+        {{ backtests|length }} ligne{{ backtests|length|pluralize }}
+      </div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[980px] text-sm">
+        <thead>
+          <tr class="text-left text-gray-500 border-b border-white/10">
+            <th class="px-6 py-4 font-medium">Nom</th>
+            <th class="px-6 py-4 font-medium">Stratégie</th>
+            <th class="px-6 py-4 font-medium">Période</th>
+            <th class="px-6 py-4 font-medium">Capital initial</th>
+            <th class="px-6 py-4 font-medium">Commission</th>
+            <th class="px-6 py-4 font-medium">Statut</th>
+            <th class="px-6 py-4 font-medium text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bt in backtests %}
+          <tr class="table-row">
+            <td class="px-6 py-4 align-top">
+              <div class="text-white font-medium">{{ bt.name }}</div>
+              <div class="text-xs text-gray-600 mono mt-1">
+                créé le {{ bt.created_at|date:"d/m/Y H:i" }}
+              </div>
+            </td>
+
+            <td class="px-6 py-4 align-top">
+              <div class="text-gray-300">{{ bt.strategy.name }}</div>
+              <div class="text-xs text-gray-600 mono mt-1">
+                {{ bt.strategy.asset.symbol|default:"—" }}
+                {% if bt.strategy.timeframe %}
+                  · {{ bt.strategy.timeframe.code }}
+                {% endif %}
+              </div>
+            </td>
+
+            <td class="px-6 py-4 align-top">
+              <div class="text-gray-300">
+                {{ bt.start_date|date:"d/m/Y" }} → {{ bt.end_date|date:"d/m/Y" }}
+              </div>
+            </td>
+
+            <td class="px-6 py-4 align-top">
+              <div class="text-white mono">{{ bt.initial_cash }}</div>
+            </td>
+
+            <td class="px-6 py-4 align-top">
+              <div class="text-gray-300 mono">{{ bt.commission }}</div>
+            </td>
+
+            <td class="px-6 py-4 align-top">
+              {% if bt.status == "DONE" %}
+                <span class="px-2 py-1 rounded text-xs mono pill-open">DONE</span>
+              {% elif bt.status == "RUNNING" %}
+                <span class="px-2 py-1 rounded text-xs mono pill-placed">RUNNING</span>
+              {% elif bt.status == "FAILED" %}
+                <span class="px-2 py-1 rounded text-xs mono pill-sell">FAILED</span>
+              {% else %}
+                <span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-400 border border-white/10">
+                  {{ bt.status }}
+                </span>
+              {% endif %}
+            </td>
+
+            <td class="px-6 py-4 align-top text-right">
+              <a href="{% url 'backtest-detail' bt.pk %}"
+                 class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10 transition-colors">
+                Voir
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" class="px-6 py-12 text-center">
+              <div class="flex flex-col items-center justify-center gap-3">
+                <div class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                </div>
+                <div class="text-white font-medium">Aucun backtest disponible</div>
+                <div class="text-sm text-gray-500">
+                  Lance un premier backtest depuis une stratégie pour remplir cette section.
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Pagination -->
+  {% if is_paginated %}
+  <section class="flex items-center justify-between">
+    <div class="text-xs mono text-gray-600">
+      Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+    </div>
+
+    <div class="flex items-center gap-2">
+      {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}"
+         class="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-sm text-gray-300 hover:bg-white/10 transition">
+        Précédent
+      </a>
+      {% endif %}
+
+      {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}"
+         class="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-sm text-gray-300 hover:bg-white/10 transition">
+        Suivant
+      </a>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}

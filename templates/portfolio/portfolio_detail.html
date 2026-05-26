@@ -1,0 +1,338 @@
+{% extends "layout/base.html" %}
+
+{% block title %}{{ portfolio.name }} — LeoTrade{% endblock %}
+{% block page_title %}Détail portefeuille{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="card card-glow p-6">
+    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Portfolio Intelligence</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">{{ portfolio.name }}</h2>
+        <p class="text-sm text-gray-500 mt-2">
+          {{ portfolio.broker_account.name }} · {{ portfolio.broker_account.broker }} · {{ portfolio.base_currency }}
+        </p>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <form method="post" action="{% url 'portfolio-import-live' portfolio.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="px-4 py-2 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-400/20">
+            Import live broker
+          </button>
+        </form>
+
+        <form method="post" action="{% url 'portfolio-snapshot-create' portfolio.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="px-4 py-2 rounded-lg bg-purple-500/10 text-purple-300 border border-purple-400/20">
+            Snapshot
+          </button>
+        </form>
+
+        <a href="{% url 'position-create' portfolio.pk %}"
+           class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">
+          Ajouter position
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Balance</div>
+      <div class="text-xl text-white font-semibold mt-2 mono">{{ stats.balance }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Equity</div>
+      <div class="text-xl text-white font-semibold mt-2 mono">{{ stats.equity }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">PnL latent</div>
+      <div class="text-xl mt-2 mono {% if stats.unrealized_pnl >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">
+        {{ stats.unrealized_pnl }}
+      </div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">PnL réalisé</div>
+      <div class="text-xl mt-2 mono {% if stats.realized_pnl >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">
+        {{ stats.realized_pnl }}
+      </div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Drawdown</div>
+      <div class="text-xl text-amber-300 font-semibold mt-2 mono">{{ stats.drawdown|floatformat:2 }}%</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Max DD</div>
+      <div class="text-xl text-red-300 font-semibold mt-2 mono">{{ stats.max_drawdown|floatformat:2 }}%</div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-white font-semibold">Courbe d’equity</h3>
+        <span class="text-xs mono text-gray-500">Balance / Equity / Drawdown</span>
+      </div>
+      <div class="h-[340px]">
+        <canvas id="equityChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-white font-semibold">Performance journalière / mensuelle</h3>
+        <span class="text-xs mono text-gray-500">Returns</span>
+      </div>
+      <div class="h-[340px]">
+        <canvas id="performanceChart"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-white font-semibold">Exposition par classe d’actifs</h3>
+        <span class="text-xs mono text-gray-500">Open exposure</span>
+      </div>
+      <div class="h-[320px]">
+        <canvas id="exposureChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-white font-semibold">Corrélation des positions</h3>
+        <span class="text-xs mono text-gray-500">Rolling correlation</span>
+      </div>
+
+      {% if correlation_rows %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-white/10 text-left">
+              <th class="px-3 py-2 text-xs text-gray-600 mono uppercase">Asset A</th>
+              <th class="px-3 py-2 text-xs text-gray-600 mono uppercase">Asset B</th>
+              <th class="px-3 py-2 text-xs text-gray-600 mono uppercase">Corr</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in correlation_rows %}
+            <tr class="table-row">
+              <td class="px-3 py-3 text-white mono">{{ row.asset_a.symbol }}</td>
+              <td class="px-3 py-3 text-white mono">{{ row.asset_b.symbol }}</td>
+              <td class="px-3 py-3 mono
+                {% if row.correlation_value > 0.7 %}text-red-300
+                {% elif row.correlation_value < -0.3 %}text-emerald-300
+                {% else %}text-gray-300{% endif %}">
+                {{ row.correlation_value|floatformat:3 }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-500">Pas assez de données pour calculer la corrélation.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold">Positions ouvertes</h3>
+    </div>
+
+    {% if open_positions %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[1150px] text-sm">
+        <thead>
+          <tr class="text-left border-b border-white/10">
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Asset</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Classe</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Side</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Qté</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Entrée</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Prix actuel</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Exposition</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">PnL</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pos in open_positions %}
+          <tr class="table-row">
+            <td class="px-4 py-4 text-white">{{ pos.asset.symbol }}</td>
+            <td class="px-4 py-4 text-gray-400">{{ pos.asset.asset_class }}</td>
+            <td class="px-4 py-4">
+              {% if pos.side == "LONG" %}
+                <span class="px-2 py-1 rounded text-xs mono pill-buy">LONG</span>
+              {% else %}
+                <span class="px-2 py-1 rounded text-xs mono pill-sell">SHORT</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-4 mono text-gray-300">{{ pos.quantity }}</td>
+            <td class="px-4 py-4 mono text-gray-300">{{ pos.entry_price }}</td>
+            <td class="px-4 py-4 mono text-white">{{ pos.current_price|default:"—" }}</td>
+            <td class="px-4 py-4 mono text-gray-300">{{ pos.exposure_value }}</td>
+            <td class="px-4 py-4 mono {% if pos.pnl >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">
+              {{ pos.pnl }}
+            </td>
+            <td class="px-4 py-4">
+              <div class="flex justify-end gap-2">
+                <a href="{% url 'position-update' pos.pk %}" class="px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-400/20 text-xs mono">
+                  Modifier
+                </a>
+                <a href="{% url 'position-delete' pos.pk %}" class="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-300 border border-red-400/20 text-xs mono">
+                  Supprimer
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-14 text-center">
+      <p class="text-gray-500 text-sm">Aucune position ouverte.</p>
+    </div>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const equityData = {{ equity_chart_json|safe }};
+    const perfData = {{ performance_chart_json|safe }};
+    const exposureData = {{ asset_exposure_json|safe }};
+
+    const commonGrid = {
+      color: "rgba(255,255,255,0.05)"
+    };
+
+    const commonTicks = {
+      color: "#6b7280"
+    };
+
+    const equityCtx = document.getElementById("equityChart");
+    if (equityCtx) {
+      new Chart(equityCtx, {
+        type: "line",
+        data: {
+          labels: equityData.labels,
+          datasets: [
+            {
+              label: "Equity",
+              data: equityData.equity,
+              borderColor: "#00ff9d",
+              backgroundColor: "rgba(0,255,157,0.08)",
+              fill: true,
+              pointRadius: 0,
+              tension: 0.3
+            },
+            {
+              label: "Balance",
+              data: equityData.balance,
+              borderColor: "#3b82f6",
+              backgroundColor: "transparent",
+              fill: false,
+              pointRadius: 0,
+              tension: 0.25
+            },
+            {
+              label: "Drawdown %",
+              data: equityData.drawdown,
+              borderColor: "#ffb703",
+              backgroundColor: "transparent",
+              fill: false,
+              pointRadius: 0,
+              tension: 0.25,
+              yAxisID: "y1"
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { grid: commonGrid, ticks: commonTicks },
+            y: { grid: commonGrid, ticks: commonTicks },
+            y1: {
+              position: "right",
+              grid: { display: false },
+              ticks: commonTicks
+            }
+          },
+          plugins: {
+            legend: { labels: { color: "#cbd5e1" } }
+          }
+        }
+      });
+    }
+
+    const perfCtx = document.getElementById("performanceChart");
+    if (perfCtx) {
+      new Chart(perfCtx, {
+        type: "bar",
+        data: {
+          labels: perfData.labels,
+          datasets: [
+            {
+              label: "Daily %",
+              data: perfData.daily,
+              borderWidth: 0
+            },
+            {
+              label: "Monthly %",
+              data: perfData.monthly,
+              borderWidth: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { grid: commonGrid, ticks: commonTicks },
+            y: { grid: commonGrid, ticks: commonTicks }
+          },
+          plugins: {
+            legend: { labels: { color: "#cbd5e1" } }
+          }
+        }
+      });
+    }
+
+    const exposureCtx = document.getElementById("exposureChart");
+    if (exposureCtx) {
+      new Chart(exposureCtx, {
+        type: "doughnut",
+        data: {
+          labels: exposureData.labels,
+          datasets: [
+            {
+              data: exposureData.values,
+              borderColor: "rgba(8,12,20,1)",
+              borderWidth: 2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: "#cbd5e1" } }
+          }
+        }
+      });
+    }
+  })();
+</script>
+{% endblock %}

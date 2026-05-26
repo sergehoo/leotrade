@@ -1,0 +1,130 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Portefeuilles — LeoTrade{% endblock %}
+{% block page_title %}Portefeuilles{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <section class="card card-glow p-6">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-600">Portfolio Management</div>
+        <h2 class="text-white text-xl font-semibold mt-1">Gestion des portefeuilles</h2>
+        <p class="text-sm text-gray-500 mt-2">
+          Organisez vos stratégies et exécutions par broker, compte et allocation.
+        </p>
+      </div>
+
+      <a href="{% url 'portfolio-create' %}"
+         class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+        Nouveau portefeuille
+      </a>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Total</div>
+      <div class="text-2xl text-white font-semibold mt-2">{{ summary.count }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Actifs</div>
+      <div class="text-2xl text-white font-semibold mt-2">{{ summary.active_count }}</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Défaut</div>
+      <div class="text-xl text-white font-semibold mt-2">
+        {% if summary.default %}{{ summary.default.name }}{% else %}—{% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold">Liste des portefeuilles</h3>
+    </div>
+
+    {% if portfolios %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[1000px] text-sm">
+        <thead>
+          <tr class="text-left border-b border-white/10">
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Nom</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Broker</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Balance</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Equity</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Devise</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider">Statut</th>
+            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase tracking-wider text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for portfolio in portfolios %}
+          <tr class="table-row">
+            <td class="px-4 py-4">
+              <div class="text-white font-medium">{{ portfolio.name }}</div>
+              {% if portfolio.is_default %}
+                <div class="mt-1">
+                  <span class="px-2 py-1 rounded text-[10px] mono bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">
+                    DEFAULT
+                  </span>
+                </div>
+              {% endif %}
+            </td>
+
+            <td class="px-4 py-4 text-gray-300">
+              {{ portfolio.broker_account.name }}
+              <div class="text-xs text-gray-500 mono mt-1">{{ portfolio.broker_account.broker }}</div>
+            </td>
+
+            <td class="px-4 py-4 mono text-white">{{ portfolio.current_balance }}</td>
+            <td class="px-4 py-4 mono text-white">{{ portfolio.equity }}</td>
+            <td class="px-4 py-4 mono text-gray-300">{{ portfolio.base_currency }}</td>
+
+            <td class="px-4 py-4">
+              {% if portfolio.is_active %}
+                <span class="px-2 py-1 rounded text-xs mono pill-open">ACTIVE</span>
+              {% else %}
+                <span class="px-2 py-1 rounded text-xs mono pill-sell">INACTIVE</span>
+              {% endif %}
+            </td>
+
+            <td class="px-4 py-4">
+              <div class="flex justify-end gap-2">
+                <a href="{% url 'portfolio-detail' portfolio.pk %}" class="px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-xs mono">Voir</a>
+                <a href="{% url 'portfolio-update' portfolio.pk %}" class="px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-400/20 text-xs mono">Modifier</a>
+
+                {% if not portfolio.is_default %}
+                <form method="post" action="{% url 'portfolio-set-default' portfolio.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 text-xs mono">
+                    Default
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="px-6 py-2">
+        {% include "_partials/_empty_state.html" with
+            icon="positions"
+            title="Aucun portefeuille configuré"
+            subtitle="Crée un portefeuille pour commencer à suivre tes positions et tes performances. Un portefeuille = un compte de trading lié à un broker (Deriv, Binance, MT5)."
+            cta_url="/portfolio/create/"
+            cta_label="Créer un portefeuille"
+            secondary_url="/brokers/"
+            secondary_label="Gérer mes brokers"
+        %}
+      </div>
+    {% endif %}
+  </section>
+</div>
+
+
+{% endblock %}

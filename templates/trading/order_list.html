@@ -1,0 +1,235 @@
+{% extends "layout/base.html" %}
+{% load static %}
+
+{% block title %}Ordres — LeoTrade{% endblock %}
+{% block page_title %}Ordres de trading{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header + stats -->
+  <section class="card card-glow p-6">
+    <div class="flex items-start justify-between flex-wrap gap-4">
+      <div>
+        <div class="text-xs mono uppercase tracking-wider text-gray-500">Order Book</div>
+        <h2 class="text-white text-2xl font-semibold mt-1">Historique des ordres</h2>
+        <p class="text-sm text-gray-400 mt-2">
+          Suivi unifié des ordres soumis (PAPER + LIVE), tous brokers confondus.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mono text-xs">
+        <div class="px-3 py-2 rounded-lg border border-white/10 bg-white/5">
+          <div class="text-gray-500">Total</div>
+          <div class="text-white text-base">{{ count_total|default:0 }}</div>
+        </div>
+        <div class="px-3 py-2 rounded-lg" style="background: rgba(0,255,157,0.06); border: 1px solid rgba(0,255,157,0.2);">
+          <div class="text-gray-400">Remplis</div>
+          <div style="color: var(--green);" class="text-base">{{ count_filled|default:0 }}</div>
+        </div>
+        <div class="px-3 py-2 rounded-lg" style="background: rgba(255,183,3,0.06); border: 1px solid rgba(255,183,3,0.2);">
+          <div class="text-gray-400">Ouverts</div>
+          <div style="color: var(--amber);" class="text-base">{{ count_open|default:0 }}</div>
+        </div>
+        <div class="px-3 py-2 rounded-lg" style="background: rgba(255,77,109,0.06); border: 1px solid rgba(255,77,109,0.2);">
+          <div class="text-gray-400">Rejetés / échoués</div>
+          <div style="color: var(--red);" class="text-base">{{ count_failed|default:0 }}</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Filtres -->
+  <section class="card p-4">
+    <form method="get" class="flex flex-wrap items-end gap-3" data-no-disable="true">
+      <div>
+        <label for="status" class="block text-[10px] mono uppercase tracking-wider text-gray-500 mb-1">Statut</label>
+        <select id="status" name="status"
+                class="rounded-lg px-3 py-1.5 text-sm bg-white/5 border border-white/10 text-gray-200">
+          <option value="">Tous</option>
+          <option value="PENDING_SUBMIT" {% if filters.status == "PENDING_SUBMIT" %}selected{% endif %}>En attente</option>
+          <option value="SUBMITTED" {% if filters.status == "SUBMITTED" %}selected{% endif %}>Soumis</option>
+          <option value="PARTIALLY_FILLED" {% if filters.status == "PARTIALLY_FILLED" %}selected{% endif %}>Partiel</option>
+          <option value="FILLED" {% if filters.status == "FILLED" %}selected{% endif %}>Rempli</option>
+          <option value="CANCELLED" {% if filters.status == "CANCELLED" %}selected{% endif %}>Annulé</option>
+          <option value="REJECTED" {% if filters.status == "REJECTED" %}selected{% endif %}>Rejeté</option>
+          <option value="FAILED" {% if filters.status == "FAILED" %}selected{% endif %}>Échoué</option>
+          <option value="EXPIRED" {% if filters.status == "EXPIRED" %}selected{% endif %}>Expiré</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="mode" class="block text-[10px] mono uppercase tracking-wider text-gray-500 mb-1">Mode</label>
+        <select id="mode" name="mode"
+                class="rounded-lg px-3 py-1.5 text-sm bg-white/5 border border-white/10 text-gray-200">
+          <option value="">Tous</option>
+          <option value="PAPER" {% if filters.mode == "PAPER" %}selected{% endif %}>Paper</option>
+          <option value="LIVE"  {% if filters.mode == "LIVE"  %}selected{% endif %}>Live</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="symbol" class="block text-[10px] mono uppercase tracking-wider text-gray-500 mb-1">Symbole</label>
+        <input type="text" id="symbol" name="symbol" value="{{ filters.symbol }}"
+               placeholder="BTCUSDT, EURUSD…"
+               class="rounded-lg px-3 py-1.5 text-sm bg-white/5 border border-white/10 text-gray-200" />
+      </div>
+
+      <button type="submit" class="px-4 py-1.5 rounded-lg text-sm font-medium" style="background: var(--green); color: #080c14;">
+        Filtrer
+      </button>
+      {% if filters.status or filters.mode or filters.symbol %}
+        <a href="{% url 'trading:order-list' %}" class="px-3 py-1.5 rounded-lg text-sm text-gray-300 border border-white/10 hover:bg-white/5">
+          Réinitialiser
+        </a>
+      {% endif %}
+    </form>
+  </section>
+
+  <!-- Liste -->
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+      <h3 class="text-white font-semibold">Liste des ordres</h3>
+      <span class="text-xs text-gray-500 mono">{{ paginator.count|default:orders|length }} résultats</span>
+    </div>
+
+    {% if orders %}
+    <div class="leo-table-wrap">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-white/10 text-left">
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Date</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Mode</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Broker</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Portefeuille</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Symbole</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Side</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Type</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase text-right">Qté demandée</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase text-right">Qté remplie</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase text-right">Prix moyen</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Statut</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for order in orders %}
+          <tr class="table-row leo-fade-in" data-order-id="{{ order.id }}">
+            <td class="px-4 py-3 text-gray-300 mono whitespace-nowrap">{{ order.created_at|date:"d/m/Y H:i" }}</td>
+
+            <td class="px-4 py-3">
+              {% if order.mode == "LIVE" %}
+                <span class="px-2 py-0.5 rounded text-[11px] mono" style="background: rgba(0,255,157,0.1); color: var(--green); border: 1px solid rgba(0,255,157,0.25);">LIVE</span>
+              {% else %}
+                <span class="px-2 py-0.5 rounded text-[11px] mono" style="background: rgba(255,183,3,0.1); color: var(--amber); border: 1px solid rgba(255,183,3,0.25);">PAPER</span>
+              {% endif %}
+            </td>
+
+            <td class="px-4 py-3 text-gray-200">{{ order.broker_account.name|default:"—" }}</td>
+            <td class="px-4 py-3 text-gray-300">{{ order.portfolio.name|default:"—" }}</td>
+            <td class="px-4 py-3 text-white mono">{{ order.symbol }}</td>
+
+            <td class="px-4 py-3">
+              {% if order.side == "BUY" %}
+                <span class="px-2 py-0.5 rounded text-[11px] mono pill-buy">BUY</span>
+              {% else %}
+                <span class="px-2 py-0.5 rounded text-[11px] mono pill-sell">SELL</span>
+              {% endif %}
+            </td>
+
+            <td class="px-4 py-3 text-gray-300 mono text-xs">{{ order.order_type }}</td>
+            <td class="px-4 py-3 text-white mono text-right">{{ order.approved_quantity|default:order.requested_quantity }}</td>
+            <td class="px-4 py-3 text-gray-200 mono text-right">{{ order.filled_quantity|default:"0" }}</td>
+            <td class="px-4 py-3 text-gray-200 mono text-right">
+              {% if order.average_fill_price %}{{ order.average_fill_price }}{% else %}—{% endif %}
+            </td>
+
+            <td class="px-4 py-3">
+              {% if order.status == "FILLED" %}
+                <span class="px-2 py-0.5 rounded text-[11px] mono pill-filled">{{ order.status }}</span>
+              {% elif order.status == "SUBMITTED" or order.status == "PENDING_SUBMIT" or order.status == "PARTIALLY_FILLED" %}
+                <span class="px-2 py-0.5 rounded text-[11px] mono pill-placed">{{ order.status }}</span>
+              {% elif order.status == "REJECTED" or order.status == "FAILED" or order.status == "CANCELLED" or order.status == "EXPIRED" %}
+                <span class="px-2 py-0.5 rounded text-[11px] mono" style="background: rgba(255,77,109,0.1); color: var(--red); border: 1px solid rgba(255,77,109,0.25);">{{ order.status }}</span>
+              {% else %}
+                <span class="px-2 py-0.5 rounded text-[11px] mono bg-white/5 text-gray-300 border border-white/10">{{ order.status }}</span>
+              {% endif %}
+            </td>
+
+            <td class="px-4 py-3 text-right">
+              <a href="{% url 'trading:order-detail' order.pk %}"
+                 class="px-3 py-1.5 rounded-lg bg-white/5 text-gray-200 border border-white/10 text-xs mono hover:bg-white/10">
+                Voir
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# Pagination #}
+    {% if is_paginated %}
+      <div class="px-6 py-3 border-t border-white/10 flex items-center justify-between text-sm">
+        <span class="text-gray-500 mono">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        <div class="flex items-center gap-2">
+          {% if page_obj.has_previous %}
+            <a class="px-3 py-1 rounded border border-white/10 hover:bg-white/5 text-gray-200"
+               href="?page={{ page_obj.previous_page_number }}{% if filters.status %}&status={{ filters.status }}{% endif %}{% if filters.mode %}&mode={{ filters.mode }}{% endif %}{% if filters.symbol %}&symbol={{ filters.symbol }}{% endif %}">
+              Précédent
+            </a>
+          {% endif %}
+          {% if page_obj.has_next %}
+            <a class="px-3 py-1 rounded border border-white/10 hover:bg-white/5 text-gray-200"
+               href="?page={{ page_obj.next_page_number }}{% if filters.status %}&status={{ filters.status }}{% endif %}{% if filters.mode %}&mode={{ filters.mode }}{% endif %}{% if filters.symbol %}&symbol={{ filters.symbol }}{% endif %}">
+              Suivant
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+
+    {% else %}
+      {# Empty state — explique au client pourquoi c'est vide ET ce qu'il peut faire #}
+      <div class="px-6 py-2">
+        {% include "_partials/_empty_state.html" with
+            icon="orders"
+            title="Aucun ordre pour le moment"
+            subtitle="Dès qu'une stratégie ou une trade idea sera exécutée, l'ordre apparaîtra ici en temps réel — y compris les essais en mode PAPER."
+            cta_url="/trading/ideas/"
+            cta_label="Voir les Trade Ideas"
+            secondary_url="/strategies/"
+            secondary_label="Mes stratégies"
+        %}
+      </div>
+    {% endif %}
+  </section>
+</div>
+
+<script>
+/* Mise à jour live des lignes : à chaque event order.update reçu, on flash
+   la ligne concernée si déjà présente, sinon on rafraîchit la page. */
+(function () {
+  if (!window.LeoWS) return;
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  const wsUrl = `${protocol}://${window.location.host}/ws/orders/`;
+
+  LeoWS.connect(wsUrl, {
+    name: "orders_list",
+    expectedEvent: "order.update",
+    onMessage: function (_data, payload) {
+      const id = payload.order_id;
+      if (!id) return;
+      const row = document.querySelector(`tr[data-order-id="${id}"]`);
+      if (row && window.LeoAnim) {
+        const sign = (payload.status === "FILLED") ? 1 : -1;
+        LeoAnim.tickRow(row, sign);
+      } else if (window.LeoAnim) {
+        // Nouvel ordre absent du tableau : toast pour informer
+        LeoAnim.toast(`Nouvel ordre ${payload.symbol || ""} — ${payload.status || ""}`, "info");
+      }
+    },
+  });
+})();
+</script>
+{% endblock %}

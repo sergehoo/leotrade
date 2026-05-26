@@ -1,0 +1,22 @@
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <div class="text-xs uppercase tracking-[0.18em] text-slate-400">Balance</div>
+        <div class="mt-2 text-2xl font-black" data-dashboard-balance>{{ hero_stats.balance }}</div>
+    </div>
+    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <div class="text-xs uppercase tracking-[0.18em] text-slate-400">Equity</div>
+        <div class="mt-2 text-2xl font-black text-emerald-400" data-dashboard-equity>{{ hero_stats.equity }}</div>
+    </div>
+    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <div class="text-xs uppercase tracking-[0.18em] text-slate-400">Cash disponible</div>
+        <div class="mt-2 text-2xl font-black" data-dashboard-available-cash>{{ hero_stats.available_cash }}</div>
+    </div>
+    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <div class="text-xs uppercase tracking-[0.18em] text-slate-400">PnL non réalisé</div>
+        <div class="mt-2 text-2xl font-black" data-dashboard-unrealized>{{ hero_stats.unrealized_pnl }}</div>
+    </div>
+    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <div class="text-xs uppercase tracking-[0.18em] text-slate-400">Drawdown</div>
+        <div class="mt-2 text-2xl font-black text-amber-400" data-dashboard-drawdown>{{ hero_stats.drawdown }}%</div>
+    </div>
+</div>
