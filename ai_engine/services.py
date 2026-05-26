@@ -11,10 +11,14 @@ Stratégie :
   4. Logger TOUTE décision dans AIDecisionLog (audit, retraining)
 
 Configuration (settings) :
-    AI_PRIMARY_PROVIDER   = "CLAUDE" | "OLLAMA" | "HEURISTIC"
-    AI_SECONDARY_PROVIDER = "OLLAMA" | "CLAUDE" | "HEURISTIC" | None
+    AI_PRIMARY_PROVIDER   = "CLAUDE" | "DEEPSEEK" | "OLLAMA" | "HEURISTIC"
+    AI_SECONDARY_PROVIDER = "DEEPSEEK" | "CLAUDE" | "OLLAMA" | "HEURISTIC" | None
     ANTHROPIC_API_KEY     = "..."
     AI_CLAUDE_MODEL       = "claude-opus-4-5"
+    DEEPSEEK_API_KEY      = "sk-..."
+    AI_DEEPSEEK_MODEL     = "deepseek-chat"      # ou "deepseek-reasoner" (R1)
+    AI_DEEPSEEK_BASE_URL  = "https://api.deepseek.com"   # optionnel
+    AI_DEEPSEEK_TIMEOUT   = 60.0
     AI_OLLAMA_BASE_URL    = "http://localhost:11434"
     AI_OLLAMA_MODEL       = "llama3"
     AI_FORCE_FALLBACK     = False  # mettre True pour désactiver les LLMs (test/économie)
@@ -43,6 +47,9 @@ def _get_provider_instance(name: str):
     if name == "CLAUDE":
         from .providers.claude import ClaudeProvider
         return ClaudeProvider()
+    if name == "DEEPSEEK":
+        from .providers.deepseek import DeepSeekProvider
+        return DeepSeekProvider()
     if name == "OLLAMA":
         from .providers.ollama import OllamaProvider
         return OllamaProvider()
