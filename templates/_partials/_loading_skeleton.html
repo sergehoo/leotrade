@@ -1,0 +1,29 @@
+{% comment %}
+Composant : Skeleton Loader.
+
+Usage :
+    {% include "_partials/_loading_skeleton.html" with rows=5 cols=4 %}
+
+Variables :
+    - rows : nombre de "lignes" squelettes (default 3)
+    - cols : nombre de "colonnes" squelettes par ligne (default 1)
+    - height : hauteur CSS de chaque ligne (default "20px")
+
+Animation continue type "shimmer", performante (CSS transform + opacity).
+{% endcomment %}
+
+<div class="space-y-3" role="status" aria-live="polite" aria-label="Chargement en cours">
+  {% with row_count=rows|default:3 col_count=cols|default:1 line_height=height|default:"20px" %}
+    {% for _ in row_count|rjust:row_count %}
+      <div class="grid gap-3" style="grid-template-columns: repeat({{ col_count }}, minmax(0, 1fr));">
+        {% for _ in col_count|rjust:col_count %}
+          <div class="skeleton-line" style="height: {{ line_height }};"></div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  {% endwith %}
+
+  <span class="sr-only">Chargement en cours…</span>
+</div>
+
+{# Le CSS du skeleton est dans static/css/leo_animations.css (sprint 5) #}

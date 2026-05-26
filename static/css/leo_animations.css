@@ -1,0 +1,153 @@
+/* =============================================================================
+ * leo_animations.css — Animations financières LeoTrade
+ * =============================================================================
+ *
+ * À inclure dans layout/base.html :
+ *   <link rel="stylesheet" href="{% static 'css/leo_animations.css' %}">
+ *
+ * Tous les keyframes respectent la palette globale :
+ *   --green : #00ff9d   (gain / hausse / ouverture)
+ *   --red   : #ff4d6d   (perte / baisse / fermeture stop)
+ *   --amber : #ffb703   (warning / pending)
+ *
+ * Performances : on utilise uniquement opacity et background-color
+ * (pas de width/height/box-shadow animés en boucle) pour éviter le repaint.
+ * ============================================================================= */
+
+/* ----- Flash sur changement de valeur ------------------------------------- */
+
+@keyframes leo-flash-up {
+  0%   { background-color: rgba(0, 255, 157, 0.35); }
+  100% { background-color: transparent; }
+}
+
+@keyframes leo-flash-down {
+  0%   { background-color: rgba(255, 77, 109, 0.35); }
+  100% { background-color: transparent; }
+}
+
+.leo-flash-up {
+  animation: leo-flash-up 0.55s ease-out;
+  border-radius: 4px;
+}
+
+.leo-flash-down {
+  animation: leo-flash-down 0.55s ease-out;
+  border-radius: 4px;
+}
+
+/* ----- Apparition douce d'une ligne (nouvelle position, nouveau trade) ---- */
+
+@keyframes leo-fade-in {
+  0%   { opacity: 0; transform: translateY(-4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.leo-fade-in {
+  animation: leo-fade-in 0.3s ease-out;
+}
+
+/* ----- Disparition (fermeture de position) -------------------------------- */
+
+@keyframes leo-fade-out {
+  0%   { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(4px); }
+}
+
+.leo-fade-out {
+  animation: leo-fade-out 0.3s ease-in forwards;
+}
+
+/* ----- Skeleton loader (shimmer) ------------------------------------------ */
+
+.skeleton-line {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  min-height: 16px;
+}
+
+.skeleton-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 50%,
+    transparent 100%
+  );
+  animation: leo-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes leo-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ----- Ticker scrolling (topbar) ------------------------------------------ */
+
+@keyframes leo-ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.leo-ticker-track {
+  display: inline-flex;
+  gap: 32px;
+  white-space: nowrap;
+  animation: leo-ticker 60s linear infinite;
+  will-change: transform;
+}
+
+.leo-ticker-track:hover {
+  animation-play-state: paused;
+}
+
+/* ----- Pulse indicateur d'ordre en vol (PENDING_SUBMIT, SUBMITTED) -------- */
+
+@keyframes leo-pulse-amber {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 183, 3, 0.5); }
+  50%      { box-shadow: 0 0 0 6px rgba(255, 183, 3, 0); }
+}
+
+.leo-pending-pulse {
+  animation: leo-pulse-amber 1.6s ease-in-out infinite;
+  border-radius: 999px;
+}
+
+/* ----- Slide pour les toasts d'erreur / info ------------------------------- */
+
+@keyframes leo-toast-in {
+  0%   { opacity: 0; transform: translateX(20px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes leo-toast-out {
+  0%   { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0; transform: translateX(20px); }
+}
+
+.leo-toast-in  { animation: leo-toast-in  0.25s ease-out; }
+.leo-toast-out { animation: leo-toast-out 0.25s ease-in forwards; }
+
+/* ----- Respect des préférences utilisateur (accessibilité) ----------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .leo-flash-up,
+  .leo-flash-down,
+  .leo-fade-in,
+  .leo-fade-out,
+  .leo-toast-in,
+  .leo-toast-out,
+  .leo-pending-pulse,
+  .leo-ticker-track {
+    animation: none !important;
+  }
+
+  .skeleton-line::after {
+    animation: none !important;
+    opacity: 0.4;
+  }
+}

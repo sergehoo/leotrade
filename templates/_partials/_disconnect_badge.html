@@ -1,0 +1,68 @@
+{% comment %}
+Composant : badge de statut de connexion temps réel.
+
+Usage : à inclure dans la topbar.
+    {% include "_partials/_disconnect_badge.html" %}
+
+Le badge est piloté par leo_websocket.js qui modifie la classe sur
+[data-leo-connection-badge].
+États visuels :
+    - data-state="online"        → rond vert pulsant + "Live"
+    - data-state="reconnecting"  → rond orange pulsant + "Reconnexion…"
+    - data-state="offline"       → rond rouge fixe + "Hors-ligne"
+
+Accessible : role=status + aria-live=polite pour annoncer les changements.
+{% endcomment %}
+
+<div data-leo-connection-badge data-state="online"
+     class="leo-connection-badge inline-flex items-center gap-2 px-2.5 py-1 rounded-md border text-[11px] mono"
+     role="status" aria-live="polite" aria-label="Statut de la connexion temps réel">
+  <span class="leo-connection-dot live-dot" aria-hidden="true"></span>
+  <span class="leo-connection-text">Live</span>
+</div>
+
+<style>
+  .leo-connection-badge {
+    background: rgba(8, 12, 20, 0.6);
+    border-color: rgba(255, 255, 255, 0.07);
+    transition: border-color .2s, background .2s, color .2s;
+  }
+
+  .leo-connection-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px rgba(0, 255, 157, 0.5);
+  }
+
+  /* Online (default) */
+  .leo-connection-badge[data-state="online"] {
+    color: var(--green);
+    border-color: rgba(0, 255, 157, 0.3);
+  }
+
+  /* Reconnecting */
+  .leo-connection-badge[data-state="reconnecting"] {
+    color: var(--amber);
+    border-color: rgba(255, 183, 3, 0.35);
+    background: rgba(255, 183, 3, 0.04);
+  }
+  .leo-connection-badge[data-state="reconnecting"] .leo-connection-dot {
+    background: var(--amber);
+    box-shadow: 0 0 8px rgba(255, 183, 3, 0.55);
+    animation: pulse-dot 0.8s ease-in-out infinite;
+  }
+
+  /* Offline */
+  .leo-connection-badge[data-state="offline"] {
+    color: var(--red);
+    border-color: rgba(255, 77, 109, 0.35);
+    background: rgba(255, 77, 109, 0.06);
+  }
+  .leo-connection-badge[data-state="offline"] .leo-connection-dot {
+    background: var(--red);
+    box-shadow: 0 0 8px rgba(255, 77, 109, 0.55);
+    animation: none;
+  }
+</style>

@@ -1,0 +1,515 @@
+{% extends "layout/base.html" %}
+{% load l10n %}
+
+{% block title %}{{ asset.symbol }} — Détail actif{% endblock %}
+{% block page_title %}Actif {{ asset.symbol }}{% endblock %}
+
+{% block content %}
+    <style>
+        [x-cloak] {
+            display: none !important;
+        }
+    </style>
+
+    <div class="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.08),_transparent_35%),linear-gradient(180deg,#020617_0%,#07111f_100%)] text-slate-100"
+         x-data="assetDetailApp()"
+         x-init="init()">
+
+        <div class="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+            <nav class="flex items-center gap-2 text-xs text-slate-500">
+                <a href="{% url 'asset-list' %}" class="hover:text-cyan-400 transition">Marchés</a>
+                <span>/</span>
+                <span class="text-slate-300 font-semibold">{{ asset.symbol }}</span>
+            </nav>
+        </div>
+
+        <div class="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8 space-y-6">
+
+            <div class="flex flex-col lg:flex-row lg:items-start gap-6">
+
+                <div class="flex-1 rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-2xl shadow-black/20 backdrop-blur">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex items-center gap-4">
+                            <div class="flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-500/20 bg-cyan-500/10 text-xl font-black text-cyan-300 shrink-0">
+                                {{ asset.symbol|slice:":3" }}
+                            </div>
+
+                            <div>
+                                <div class="flex items-center gap-3">
+                                    <h1 class="text-2xl font-black tracking-tight text-white">{{ asset.symbol }}</h1>
+
+                                    {% if asset.is_active %}
+                                        <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">
+                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    ACTIF
+                  </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center gap-1.5 rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-1 text-xs font-semibold text-rose-300">
+                    <span class="h-1.5 w-1.5 rounded-full bg-rose-400"></span>
+                    INACTIF
+                  </span>
+                                    {% endif %}
+                                </div>
+
+                                <p class="mt-1 text-sm text-slate-400">
+                                    {{ asset.name|default:"Instrument de marché" }}
+                                </p>
+
+                                <div class="mt-2 flex flex-wrap gap-2 text-xs">
+                <span class="rounded-full border border-slate-700 bg-slate-950/70 px-2.5 py-1 text-slate-300">
+                  {{ asset.get_asset_class_display }}
+                </span>
+
+                                    <span class="rounded-full border {% if asset.exchange == 'DERIV' %}border-violet-500/20 bg-violet-500/10 text-violet-300{% elif asset.exchange == 'BINANCE' %}border-amber-500/20 bg-amber-500/10 text-amber-300{% else %}border-slate-700 bg-slate-950/70 text-slate-300{% endif %} px-2.5 py-1 font-semibold">
+                  {{ asset.exchange }}
+                </span>
+
+                                    {% if asset.base_asset and asset.quote_asset %}
+                                        <span class="rounded-full border border-slate-700 bg-slate-950/70 px-2.5 py-1 text-slate-300">
+                    {{ asset.base_asset }}/{{ asset.quote_asset }}
+                  </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="text-right shrink-0">
+                            <p class="text-xs uppercase tracking-widest text-slate-500">Dernier prix</p>
+
+                            <p class="mt-1 text-3xl font-black text-white mono"
+                               x-text="lastPrice !== null ? Number(lastPrice).toFixed(4) : '—'">
+                                {% if latest_candle %}{{ latest_candle.close|floatformat:4 }}{% else %}—{% endif %}
+                            </p>
+
+                            <p class="mt-1 text-xs font-semibold"
+                               :class="changePercent !== null && changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'"
+                               x-text="changePercent !== null ? (changePercent >= 0 ? '+' : '') + Number(changePercent).toFixed(2) + '%' : ''">
+                                {% if price_change_pct %}
+                                    {% if price_change_pct >= 0 %}+{% endif %}{{ price_change_pct|floatformat:2 }}%
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+
+                    {% if latest_candle %}
+                        <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-3">
+                                <p class="text-xs text-slate-500 uppercase tracking-widest">Open</p>
+                                <p class="mt-1 font-bold text-slate-200 mono">{{ latest_candle.open|floatformat:4 }}</p>
+                            </div>
+
+                            <div class="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                                <p class="text-xs text-emerald-400 uppercase tracking-widest">High</p>
+                                <p class="mt-1 font-bold text-emerald-300 mono">{{ latest_candle.high|floatformat:4 }}</p>
+                            </div>
+
+                            <div class="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-3">
+                                <p class="text-xs text-rose-400 uppercase tracking-widest">Low</p>
+                                <p class="mt-1 font-bold text-rose-300 mono">{{ latest_candle.low|floatformat:4 }}</p>
+                            </div>
+
+                            <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-3">
+                                <p class="text-xs text-slate-500 uppercase tracking-widest">Volume</p>
+                                <p class="mt-1 font-bold text-slate-200 mono">{{ latest_candle.volume|floatformat:2 }}</p>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    <div class="mt-6 flex flex-wrap gap-3">
+                        <a href="{% url 'asset-chart' asset.pk %}"
+                           class="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-400">
+                            Voir le graphique
+                        </a>
+
+                        <a href="{% url 'asset-list' %}"
+                           class="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:border-slate-600 hover:text-white">
+                            ← Retour aux marchés
+                        </a>
+                    </div>
+                </div>
+
+                <div class="w-full lg:w-96 rounded-3xl border border-cyan-500/20 bg-slate-900/80 p-6 shadow-2xl shadow-black/30 backdrop-blur">
+                    <div class="mb-5">
+                        <div class="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-medium uppercase tracking-widest text-cyan-300">
+                            ⚡ Trade rapide
+                        </div>
+                        <h2 class="mt-2 text-lg font-bold text-white">Passer un ordre sur {{ asset.symbol }}</h2>
+                        <p class="mt-1 text-xs text-slate-400">Exécution immédiate au marché via votre broker
+                            connecté.</p>
+                    </div>
+
+                    <div x-show="tradeResult"
+                         x-cloak
+                         x-transition
+                         class="mb-4 rounded-2xl border p-4 text-sm"
+                         :class="tradeResult && tradeResult.ok ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-rose-500/30 bg-rose-500/10 text-rose-200'">
+                        <p class="font-bold"
+                           x-text="tradeResult && tradeResult.ok ? '✅ Ordre exécuté' : '❌ Erreur'"></p>
+                        <p class="mt-1 text-xs whitespace-pre-line"
+                           x-text="tradeResult ? (tradeResult.message || tradeResult.error || 'Réponse inconnue.') : ''"></p>
+
+                        <template x-if="tradeResult && tradeResult.ok">
+                            <div class="mt-2 space-y-1 text-xs mono text-slate-300">
+                                <p>Order ID : <span class="text-white" x-text="tradeResult.order_id || '—'"></span></p>
+                                <template x-if="tradeResult.contract_id">
+                                    <p>Contract : <span class="text-white" x-text="tradeResult.contract_id"></span></p>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+
+                    {% if not brokers %}
+                        <div class="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200">
+                            <p class="font-semibold">Aucun broker configuré</p>
+                            <p class="mt-1 text-xs">Connectez un broker dans vos paramètres pour passer des ordres.</p>
+                        </div>
+                    {% else %}
+                        <form @submit.prevent="submitTrade" class="space-y-4">
+                            {% csrf_token %}
+
+                            <div>
+                                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-400">Broker</label>
+                                <select name="broker_account"
+                                        x-model="form.broker_account"
+                                        required
+                                        class="w-full rounded-2xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-500">
+                                    <option value="">— Sélectionner —</option>
+                                    {% for broker in brokers %}
+                                        <option value="{{ broker.pk }}">{{ broker.name }}
+                                            ({{ broker.broker }}/{{ broker.mode }})
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-400">Portefeuille</label>
+                                <select name="portfolio"
+                                        x-model="form.portfolio"
+                                        required
+                                        class="w-full rounded-2xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-500">
+                                    <option value="">— Sélectionner —</option>
+                                    {% for p in portfolios %}
+                                        <option value="{{ p.pk }}">{{ p.name }}
+                                            ({{ p.available_cash|floatformat:2 }} {{ p.base_currency }})
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-400">Direction</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button type="button"
+                                            @click="form.side = 'BUY'"
+                                            :class="form.side === 'BUY'
+                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300 font-bold'
+                          : 'border-slate-700 bg-slate-950/70 text-slate-400 hover:border-emerald-500/40'"
+                                            class="rounded-2xl border py-3 text-sm transition">
+                                        ▲ BUY / CALL
+                                    </button>
+
+                                    <button type="button"
+                                            @click="form.side = 'SELL'"
+                                            :class="form.side === 'SELL'
+                          ? 'border-rose-500 bg-rose-500/20 text-rose-300 font-bold'
+                          : 'border-slate-700 bg-slate-950/70 text-slate-400 hover:border-rose-500/40'"
+                                            class="rounded-2xl border py-3 text-sm transition">
+                                        ▼ SELL / PUT
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-400">Mise
+                                    (USD)</label>
+                                <div class="relative">
+                                    <input type="number"
+                                           step="0.01"
+                                           min="0.35"
+                                           x-model="form.amount"
+                                           required
+                                           placeholder="Ex: 5.00"
+                                           class="w-full rounded-2xl border border-slate-700 bg-slate-950/80 px-4 py-3 pr-14 text-sm text-white placeholder-slate-500 outline-none transition focus:border-cyan-500">
+                                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">USD</span>
+                                </div>
+
+                                <div class="mt-2 flex gap-2">
+                                    <button type="button" @click="form.amount = '1'"
+                                            class="flex-1 rounded-xl border border-slate-700 bg-slate-950/70 py-1.5 text-xs font-semibold text-slate-400 transition hover:border-cyan-500/40 hover:text-cyan-300">
+                                        $1
+                                    </button>
+                                    <button type="button" @click="form.amount = '5'"
+                                            class="flex-1 rounded-xl border border-slate-700 bg-slate-950/70 py-1.5 text-xs font-semibold text-slate-400 transition hover:border-cyan-500/40 hover:text-cyan-300">
+                                        $5
+                                    </button>
+                                    <button type="button" @click="form.amount = '10'"
+                                            class="flex-1 rounded-xl border border-slate-700 bg-slate-950/70 py-1.5 text-xs font-semibold text-slate-400 transition hover:border-cyan-500/40 hover:text-cyan-300">
+                                        $10
+                                    </button>
+                                    <button type="button" @click="form.amount = '25'"
+                                            class="flex-1 rounded-xl border border-slate-700 bg-slate-950/70 py-1.5 text-xs font-semibold text-slate-400 transition hover:border-cyan-500/40 hover:text-cyan-300">
+                                        $25
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-400">
+                                    Durée <span class="text-slate-500 normal-case font-normal">(contrats Deriv)</span>
+                                </label>
+
+                                <div class="flex gap-2">
+                                    <input type="number"
+                                           min="1"
+                                           max="365"
+                                           x-model="form.duration"
+                                           class="w-24 rounded-2xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-500">
+
+                                    <select x-model="form.duration_unit"
+                                            class="flex-1 rounded-2xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-500">
+                                        <option value="t">Ticks</option>
+                                        <option value="m">Minutes</option>
+                                        <option value="s">Secondes</option>
+                                        <option value="h">Heures</option>
+                                        <option value="d">Jours</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button type="submit"
+                                    :disabled="loading || !form.broker_account || !form.portfolio || !form.amount"
+                                    :class="form.side === 'SELL'
+                      ? 'bg-rose-500 hover:bg-rose-400 shadow-rose-500/20'
+                      : 'bg-emerald-500 hover:bg-emerald-400 shadow-emerald-500/20'"
+                                    class="w-full rounded-2xl py-3.5 text-sm font-bold text-white shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
+              <span x-show="!loading" x-cloak>
+                <span x-text="form.side === 'SELL' ? '▼ Passer ordre SELL' : '▲ Passer ordre BUY'"></span>
+              </span>
+
+                                <span x-show="loading" x-cloak class="flex items-center justify-center gap-2">
+                <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                Exécution…
+              </span>
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if recent_candles %}
+                <div class="rounded-3xl border border-slate-800 bg-slate-900/70 shadow-2xl shadow-black/20 backdrop-blur overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                        <div>
+                            <h3 class="font-bold text-white">Bougies récentes</h3>
+                            <p class="mt-0.5 text-xs text-slate-500">
+                                {{ selected_timeframe.code|default:"—" }} · {{ recent_candles|length }} dernières
+                                bougies
+                            </p>
+                        </div>
+
+                        <a href="{% url 'asset-chart' asset.pk %}"
+                           class="text-xs text-cyan-400 hover:text-cyan-300 transition font-semibold">
+                            Voir le chart complet →
+                        </a>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-slate-950/60">
+                            <tr class="border-b border-slate-800 text-left text-xs uppercase tracking-widest text-slate-500">
+                                <th class="px-6 py-3">Date</th>
+                                <th class="px-6 py-3 text-right">Open</th>
+                                <th class="px-6 py-3 text-right">High</th>
+                                <th class="px-6 py-3 text-right">Low</th>
+                                <th class="px-6 py-3 text-right">Close</th>
+                                <th class="px-6 py-3 text-right">Volume</th>
+                                <th class="px-6 py-3 text-right">Dir.</th>
+                            </tr>
+                            </thead>
+
+                            <tbody>
+                            {% for candle in recent_candles reversed %}
+                                <tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition {% if forloop.first %}bg-slate-800/20{% endif %}">
+                                    <td class="px-6 py-3 text-slate-400 font-mono text-xs">
+                                        {{ candle.open_time|date:"d/m/Y H:i" }}
+                                    </td>
+
+                                    <td class="px-6 py-3 text-right text-slate-300 mono">{{ candle.open|floatformat:4 }}</td>
+                                    <td class="px-6 py-3 text-right text-emerald-400 mono">{{ candle.high|floatformat:4 }}</td>
+                                    <td class="px-6 py-3 text-right text-rose-400 mono">{{ candle.low|floatformat:4 }}</td>
+                                    <td class="px-6 py-3 text-right font-bold text-white mono">{{ candle.close|floatformat:4 }}</td>
+                                    <td class="px-6 py-3 text-right text-slate-400 mono">{{ candle.volume|floatformat:2 }}</td>
+
+                                    <td class="px-6 py-3 text-right">
+                                        {% if candle.close >= candle.open %}
+                                            <span class="inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-300">UP</span>
+                                        {% else %}
+                                            <span class="inline-flex rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-xs font-bold text-rose-300">DOWN</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% else %}
+                <div class="rounded-3xl border border-slate-800 bg-slate-900/70 p-12 text-center shadow-2xl shadow-black/20">
+                    <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl border border-slate-800 bg-slate-950/70 text-2xl">
+                        📊
+                    </div>
+                    <h3 class="text-lg font-bold text-white">Aucune donnée historique</h3>
+                    <p class="mt-2 text-sm text-slate-400">Aucune bougie disponible pour cet actif.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+    <script>
+        function assetDetailApp() {
+            return {
+                lastPrice: {% if latest_candle %}{{ latest_candle.close|unlocalize }}{% else %}null{% endif %},
+                changePercent: {% if price_change_pct %}{{ price_change_pct|unlocalize }}{% else %}null{% endif %},
+                tradeUrl: "{% url 'asset-quick-trade' asset.pk %}",
+                csrfToken: "{{ csrf_token|escapejs }}",
+
+                loading: false,
+                tradeResult: null,
+
+                assetSymbol: "{{ asset.symbol|escapejs }}",
+
+                form: {
+                    broker_account: "",
+                    portfolio: "",
+                    side: "BUY",
+                    amount: "1",
+                    duration: "5",
+                    duration_unit: "m"
+                },
+                applyAutoDurationUnit() {
+                    const symbol = (this.assetSymbol || "").toUpperCase();
+
+                    if (
+                        symbol.startsWith("CRASH") ||
+                        symbol.startsWith("BOOM") ||
+                        symbol.startsWith("JD") ||
+                        symbol.startsWith("JUMP") ||
+                        symbol.startsWith("STEP")
+                    ) {
+                        this.form.duration_unit = "t";
+                        this.form.duration = "5";
+                        return;
+                    }
+
+                    if (
+                        symbol.startsWith("R_") ||
+                        symbol.startsWith("VOL") ||
+                        symbol.startsWith("1HZ") ||
+                        symbol.startsWith("HZ")
+                    ) {
+                        this.form.duration_unit = "m";
+                        this.form.duration = "5";
+                        return;
+                    }
+
+                    if (
+                        symbol.startsWith("FRX") ||
+                        symbol.includes("XAU") ||
+                        symbol.includes("XAG")
+                    ) {
+                        this.form.duration_unit = "m";
+                        this.form.duration = "5";
+                        return;
+                    }
+
+                    this.form.duration_unit = "m";
+                    this.form.duration = "5";
+                },
+                init() {
+                    const brokerSel = this.$el.querySelector('select[name="broker_account"]');
+                    const portfolioSel = this.$el.querySelector('select[name="portfolio"]');
+
+                    if (brokerSel && brokerSel.options.length > 1) {
+                        this.form.broker_account = brokerSel.options[1].value;
+                    }
+
+                    if (portfolioSel && portfolioSel.options.length > 1) {
+                        this.form.portfolio = portfolioSel.options[1].value;
+                    }
+                    this.applyAutoDurationUnit();
+                },
+
+                async submitTrade() {
+                    if (this.loading) return;
+
+                    this.tradeResult = null;
+
+                    if (!this.form.broker_account) {
+                        this.tradeResult = {ok: false, error: "Veuillez sélectionner un broker."};
+                        return;
+                    }
+
+                    if (!this.form.portfolio) {
+                        this.tradeResult = {ok: false, error: "Veuillez sélectionner un portefeuille."};
+                        return;
+                    }
+
+                    if (!this.form.amount || Number(this.form.amount) <= 0) {
+                        this.tradeResult = {ok: false, error: "Veuillez saisir une mise valide."};
+                        return;
+                    }
+
+                    this.loading = true;
+
+                    try {
+                        const body = new FormData();
+                        body.append("csrfmiddlewaretoken", this.csrfToken);
+                        body.append("broker_account", this.form.broker_account);
+                        body.append("portfolio", this.form.portfolio);
+                        body.append("side", this.form.side);
+                        body.append("amount", this.form.amount);
+                        body.append("duration", this.form.duration || "5");
+                        body.append("duration_unit", this.form.duration_unit || "m");
+
+                        const resp = await fetch(this.tradeUrl, {
+                            method: "POST",
+                            headers: {
+                                "X-Requested-With": "XMLHttpRequest",
+                                "X-CSRFToken": this.csrfToken
+                            },
+                            body
+                        });
+
+                        let data;
+                        const contentType = resp.headers.get("content-type") || "";
+
+                        if (contentType.includes("application/json")) {
+                            data = await resp.json();
+                        } else {
+                            data = {
+                                ok: false,
+                                error: await resp.text()
+                            };
+                        }
+
+                        this.tradeResult = data;
+
+                                        } catch (err) {
+                        this.tradeResult = {
+                            ok: false,
+                            error: "Erreur réseau — " + err.message
+                        };
+                    } finally {
+                        this.loading = false;
+                    }
+                }
+            };
+        }
+    </script>
+{% endblock %}
