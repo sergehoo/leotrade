@@ -160,10 +160,13 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
             raw_actions=raw_actions,
         )
 
-        # 8. Envoie le signal de fin + actions
+        # 8. Envoie le signal de fin + texte nettoyé + actions
+        # clean_content permet au client de remplacer le texte brut (qui
+        # contenait les marqueurs <<<ACTION>>>) par le texte final épuré.
         await self.send_json({
             "type": "done",
             "id": assistant_msg_id,
+            "clean_content": clean_response,
             "actions": saved_actions,
             "meta": {
                 "latency_ms": latency_ms,

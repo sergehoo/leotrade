@@ -185,6 +185,16 @@
         setSendDisabled(false);
         state.currentMsgId = null;
 
+        // Remplace le texte brut (avec marqueurs <<<ACTION>>>) par le texte
+        // épuré fourni par le serveur après extraction des blocs d'action.
+        if (data.clean_content !== undefined) {
+          const bubble = document.querySelector(`[data-msg-id="${data.id}"]`);
+          if (bubble) {
+            bubble.dataset.raw = data.clean_content;
+            bubble.innerHTML = renderMarkdown(data.clean_content);
+          }
+        }
+
         if (data.actions && data.actions.length) {
           renderActionCards(data.id, data.actions);
           updateBadge(data.actions.length);
