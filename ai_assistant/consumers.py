@@ -48,6 +48,17 @@ MAX_HISTORY_TURNS = 10  # N derniers échanges user+assistant
 
 class AssistantConsumer(AsyncJsonWebsocketConsumer):
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = None
+        self.session = None
+        self.client_context = {}
+        # Suivi du stream en cours — permet de sauvegarder en cas de déconnexion
+        self._stream_msg = None        # AssistantMessage placeholder actif
+        self._stream_text = ""         # texte accumulé pendant le stream
+        self._stream_ctx  = {}         # context_snapshot du message en cours
+        self._stream_t0   = 0.0        # timestamp début stream
+
     async def connect(self):
         user = self.scope.get("user")
         if not user or user.is_anonymous:
@@ -55,8 +66,6 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
             return
 
         self.user = user
-        self.session = None
-        self.client_context = {}  # contexte envoyé par le client (page, ids…)
 
         await self.accept()
 
@@ -76,7 +85,28 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         })
 
     async def disconnect(self, close_code):
-        pass
+        """
+        À la déconnexion, si un stream était en cours, on sauvegarde
+        la réponse partielle pour qu'elle apparaisse dans l'historique.
+        """
+        if self._stream_msg and self._stream_text:
+            import asyncio
+            try:
+                latency_ms = int((time.monotonic() - self._stream_t0) * 1000)
+                clean, actions = extract_actions(self._stream_text)
+                await asyncio.shield(
+                    self._finalize_assistant_message(
+                        msg=self._stream_msg,
+                        content=clean + "\n\n*[réponse partielle — connexion interrompue]*",
+                        context_snapshot=self._stream_ctx,
+                        latency_ms=latency_ms,
+                        raw_actions=actions,
+                    )
+                )
+            except Exception:
+                pass
+        self._stream_msg  = None
+        self._stream_text = ""
 
     async def receive_json(self, content):
         msg_type = content.get("type", "chat")
@@ -88,7 +118,11 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         elif msg_type == "action_reject":
             await self._handle_action_reject(content)
         elif msg_type == "context_update":
-            self.client_context = content.get("context") or {}
+            ctx = content.get("context") or {}
+            self.client_context = ctx
+            # Si le client demande une nouvelle session, clore l'ancienne
+            if ctx.get("_new_session"):
+                await self._close_and_create_session()
         elif msg_type == "history":
             session = await self._get_or_create_session()
             history = await self._load_history(session)
@@ -148,43 +182,63 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         # 5. Stream la réponse
         t0 = time.monotonic()
         full_response = ""
-        assistant_msg_id = None  # sera fixé après persistence
 
-        # On crée d'abord un placeholder pour avoir l'ID
+        # Crée d'abord un placeholder pour avoir l'ID immédiat
         placeholder_msg = await self._save_message(session, "ASSISTANT", "", live_ctx)
         assistant_msg_id = placeholder_msg.id
+
+        # Enregistre l'état du stream pour la sauvegarde sur déconnexion
+        self._stream_msg  = placeholder_msg
+        self._stream_text = ""
+        self._stream_ctx  = live_ctx
+        self._stream_t0   = t0
+
         await self.send_json({"type": "start", "id": assistant_msg_id})
 
+        stream_ok = False
         try:
             async for chunk in AssistantStreamService.stream(
                 messages=lm_messages,
                 system_prompt=ASSISTANT_SYSTEM_PROMPT,
             ):
                 full_response += chunk
+                self._stream_text = full_response  # mise à jour continue
                 await self.send_json({"type": "chunk", "text": chunk, "id": assistant_msg_id})
+            stream_ok = True
         except Exception as exc:
             log.exception("assistant.stream.error session=%s err=%s", session.id, exc)
             error_text = "\n\n⚠️ Erreur de communication avec le moteur IA. Veuillez réessayer."
             full_response += error_text
-            await self.send_json({"type": "chunk", "text": error_text, "id": assistant_msg_id})
+            self._stream_text = full_response
+            try:
+                await self.send_json({"type": "chunk", "text": error_text, "id": assistant_msg_id})
+            except Exception:
+                pass
 
         latency_ms = int((time.monotonic() - t0) * 1000)
 
         # 6. Extraction des actions proposées
         clean_response, raw_actions = extract_actions(full_response)
 
-        # 7. Persiste le message complet + actions
+        # 7. Persiste TOUJOURS le message (même si stream partiel)
         saved_actions = await self._finalize_assistant_message(
             msg=placeholder_msg,
-            content=clean_response,
+            content=clean_response or full_response,
             context_snapshot=live_ctx,
             latency_ms=latency_ms,
             raw_actions=raw_actions,
         )
 
-        # 8. Consommer 1 message du quota (après succès du stream)
-        updated_quota = await sync_to_async(QuotaService.get_or_create)(self.user)
-        await sync_to_async(updated_quota.consume)()
+        # Réinitialise le tracking du stream — déconnexion ne re-sauvera pas
+        self._stream_msg  = None
+        self._stream_text = ""
+
+        # 8. Consommer 1 message du quota (seulement si stream OK)
+        if stream_ok:
+            updated_quota = await sync_to_async(QuotaService.get_or_create)(self.user)
+            await sync_to_async(updated_quota.consume)()
+        else:
+            updated_quota = await sync_to_async(QuotaService.get_or_create)(self.user)
 
         # 9. Envoie le signal de fin + texte nettoyé + actions + quota mis à jour
         # clean_content permet au client de remplacer le texte brut (qui
@@ -245,21 +299,27 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
             })
 
     async def _handle_quota_pay_stripe(self, content: dict):
-        """Créer une session Stripe Checkout pour l'achat d'un plan."""
+        """
+        Paiement externe — Paystack par défaut, Stripe en fallback.
+        Le client envoie {'type': 'quota_pay_stripe', 'plan': 'BASIC'}.
+        """
         plan = content.get("plan", "BASIC")
         from django.conf import settings as djsettings
         base_url = getattr(djsettings, "SITE_URL", "http://127.0.0.1:8000")
-        result = await sync_to_async(QuotaService.create_stripe_session)(
+        callback = f"{base_url}/assistant/quota/success/"
+
+        # Paystack en priorité (Afrique), Stripe en fallback
+        result = await sync_to_async(QuotaService.create_paystack_session)(
             user=self.user,
             plan=plan,
-            success_url=f"{base_url}/assistant/quota/success/",
-            cancel_url=f"{base_url}/assistant/quota/cancel/",
+            callback_url=callback,
         )
         if result["ok"]:
             await self.send_json({
-                "type": "quota_stripe_url",
+                "type": "quota_stripe_url",   # même type WS → même handler JS
                 "url": result["url"],
                 "plan": plan,
+                "gateway": result.get("gateway", "paystack"),
             })
         else:
             await self.send_json({
@@ -270,6 +330,13 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
     # ──────────────────────────────────────────────────────────────────────────
     # DB helpers (sync_to_async)
     # ──────────────────────────────────────────────────────────────────────────
+
+    @sync_to_async
+    def _close_and_create_session(self):
+        """Ferme toutes les sessions actives de l'utilisateur et en crée une nouvelle."""
+        from .models import AssistantSession
+        AssistantSession.objects.filter(user=self.user, is_active=True).update(is_active=False)
+        self.session = None  # forcera get_or_create à créer une nouvelle session
 
     @sync_to_async
     def _get_or_create_session(self, page: str | None = None, meta: dict | None = None):
@@ -303,9 +370,9 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
 
     @sync_to_async
     def _load_history(self, session) -> list[dict]:
-        # On exclut les messages vides (placeholders créés pendant le streaming
-        # et jamais finalisés, ex : déconnexion en cours de génération).
-        msgs = session.messages.exclude(content="").order_by("-created_at")[:MAX_HISTORY_TURNS * 2]
+        # On charge tous les messages : les messages vides (placeholders non finalisés)
+        # seront affichés côté client avec un texte de substitution "[réponse incomplète]".
+        msgs = session.messages.order_by("-created_at")[:MAX_HISTORY_TURNS * 2]
         result = []
         for m in reversed(list(msgs)):
             entry = {

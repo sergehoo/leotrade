@@ -278,7 +278,10 @@
       if (m.role === "USER") {
         appendUserBubble(m.content, m.created_at);
       } else if (m.role === "ASSISTANT") {
-        appendAssistantBubble(m.id, m.content, m.created_at);
+        // Les messages sans contenu (stream interrompu non finalisé) affichent
+        // un placeholder italique pour ne pas laisser de trou dans l'historique.
+        const displayContent = m.content || "*[réponse interrompue — non sauvegardée]*";
+        appendAssistantBubble(m.id, displayContent, m.created_at);
         if (m.actions && m.actions.length) {
           renderActionCards(m.id, m.actions, true);
         }
@@ -646,11 +649,11 @@ Analyse les indicateurs, le R/R, les risques, et donne-moi un conseil.`;
           <div class="leo-ai-quota-plan-btns">
             <button class="leo-ai-quota-btn-wallet" data-plan="${escapeHtml(plan.plan)}"
                     onclick="LeoAssistant.payWallet('${escapeHtml(plan.plan)}')">
-              💳 Mon wallet
+              💳 Wallet LeoTrade
             </button>
             <button class="leo-ai-quota-btn-stripe" data-plan="${escapeHtml(plan.plan)}"
                     onclick="LeoAssistant.payStripe('${escapeHtml(plan.plan)}')">
-              🔗 Stripe
+              📱 Paystack / Mobile Money
             </button>
           </div>
         `;
@@ -677,7 +680,7 @@ Analyse les indicateurs, le R/R, les risques, et donne-moi un conseil.`;
   function payStripe(plan) {
     const plansEl = $("leo-ai-quota-plans");
     if (plansEl) {
-      plansEl.innerHTML = `<div class="leo-ai-quota-paying">🔗 Redirection vers Stripe…</div>`;
+      plansEl.innerHTML = `<div class="leo-ai-quota-paying">📱 Redirection vers Paystack / Mobile Money…</div>`;
     }
     send({ type: "quota_pay_stripe", plan });
   }

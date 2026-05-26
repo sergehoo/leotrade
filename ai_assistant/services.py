@@ -122,9 +122,76 @@ class QuotaService:
         return {"ok": True, "payment_id": payment.pk}
 
     @staticmethod
+    def create_paystack_session(user, plan: str, callback_url: str) -> dict:
+        """
+        Initialise un paiement Paystack (passerelle par défaut — Afrique).
+        Retourne {'ok': True, 'url': '...'} ou {'ok': False, 'error': '...'}.
+        """
+        from .models import AIUserQuota, AIQuotaPayment
+        from django.conf import settings as djsettings
+        import httpx, uuid
+
+        quota  = QuotaService.get_or_create(user)
+        price  = AIUserQuota.PLAN_PRICES_USD.get(plan)
+        if price is None or price <= 0:
+            return {"ok": False, "error": "Plan invalide."}
+
+        secret = getattr(djsettings, "PAYSTACK_SECRET_KEY", "")
+        if not secret:
+            # Fallback Stripe si Paystack non configuré
+            log.warning("Paystack non configuré, fallback Stripe")
+            return QuotaService.create_stripe_session(
+                user, plan,
+                success_url=callback_url,
+                cancel_url=callback_url + "?cancelled=1",
+            )
+
+        reference = f"LEOAI-{plan}-{user.pk}-{uuid.uuid4().hex[:8].upper()}"
+        amount_kobo = int(price * 100 * 100)  # Paystack en kobo (1 USD × 100 centimes × 100)
+
+        try:
+            resp = httpx.post(
+                "https://api.paystack.co/transaction/initialize",
+                headers={"Authorization": f"Bearer {secret}", "Content-Type": "application/json"},
+                json={
+                    "email":        user.email,
+                    "amount":       amount_kobo,
+                    "currency":     "USD",
+                    "reference":    reference,
+                    "callback_url": callback_url,
+                    "metadata": {
+                        "user_id": str(user.pk),
+                        "plan":    plan,
+                        "custom_fields": [
+                            {"display_name": "Plan LeoAI", "variable_name": "plan", "value": plan},
+                        ],
+                    },
+                },
+                timeout=15,
+            )
+            data = resp.json()
+            if not data.get("status"):
+                return {"ok": False, "error": data.get("message", "Erreur Paystack")}
+
+            pay_url = data["data"]["authorization_url"]
+            payment = AIQuotaPayment.objects.create(
+                quota=quota,
+                plan=plan,
+                amount_usd=price,
+                method=AIQuotaPayment.METHOD_STRIPE,  # réutilise le champ pour stocker l'URL
+                status=AIQuotaPayment.STATUS_PENDING,
+                stripe_session_id=reference,
+                stripe_payment_url=pay_url,
+            )
+            return {"ok": True, "url": pay_url, "payment_id": payment.pk, "gateway": "paystack"}
+        except Exception as exc:
+            log.exception("paystack.init failed user=%s err=%s", user, exc)
+            return {"ok": False, "error": str(exc)}
+
+    @staticmethod
     def create_stripe_session(user, plan: str, success_url: str, cancel_url: str) -> dict:
         """
-        Crée une session Stripe Checkout pour l'achat d'un plan.
+        Crée une session Stripe Checkout (fallback si Paystack non disponible).
         Retourne {'ok': True, 'url': '...'} ou {'ok': False, 'error': '...'}.
         """
         from .models import AIUserQuota, AIQuotaPayment
@@ -137,7 +204,7 @@ class QuotaService:
 
         stripe_key = getattr(djsettings, "STRIPE_SECRET_KEY", "")
         if not stripe_key:
-            return {"ok": False, "error": "Stripe non configuré."}
+            return {"ok": False, "error": "Aucune passerelle de paiement configurée (Paystack/Stripe)."}
 
         try:
             import stripe
@@ -169,7 +236,7 @@ class QuotaService:
                 stripe_session_id=session.id,
                 stripe_payment_url=session.url,
             )
-            return {"ok": True, "url": session.url, "payment_id": payment.pk}
+            return {"ok": True, "url": session.url, "payment_id": payment.pk, "gateway": "stripe"}
         except Exception as exc:
             log.exception("stripe.session.create failed user=%s err=%s", user, exc)
             return {"ok": False, "error": str(exc)}
@@ -232,9 +299,21 @@ ASSISTANT_SYSTEM_PROMPT = """Tu es **LeoAI**, l'assistant IA central de **LeoTra
 • Configuration : app_id Deriv, token OAuth, serveur (demo/real)
 
 **MODULE WALLET** (`/wallet/`)
-• Solde LeoTrade (séparé du solde broker)
-• Méthodes de paiement : Stripe, CinetPay, MTN MoMo, Orange Money, Wave, PayStack
+• Solde LeoTrade PLATFORM (distinct du capital de trading)
+• Méthodes de paiement : Paystack, Wave, Orange Money, MTN MoMo, Stripe, CinetPay
 • `available_balance` : solde disponible pour abonnements et frais LeoTrade
+• **DIFFÉRENCE FONDAMENTALE Portfolio / Wallet :**
+  - Le **Portfolio** = votre capital de TRADING réel déposé chez le broker (Deriv, etc.)
+    → C'est l'argent qui est investi, qui génère des P&L, des positions, du drawdown
+    → Géré par le broker externe (Deriv API)
+    → Vous ne pouvez pas l'utiliser pour payer les services LeoTrade
+  - Le **Wallet** = votre crédit PLATEFORME LeoTrade
+    → Utilisé pour payer l'abonnement LeoAI, les fonctions premium, etc.
+    → Rechargeable via Paystack, Wave, Orange Money, MTN MoMo ou Stripe
+    → Complètement séparé de votre capital de trading
+  - Les deux sont **COMPLÉMENTAIRES mais INDÉPENDANTS** :
+    → Vous pouvez avoir 50k$ dans votre portfolio broker ET 0$ dans votre wallet LeoTrade
+    → Le wallet sert uniquement à payer les services de la plateforme
 
 **MODULE BACKTESTING** (`/backtests/`)
 • Lance des backtests sur les stratégies IA avec données historiques

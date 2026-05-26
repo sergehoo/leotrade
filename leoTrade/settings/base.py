@@ -241,6 +241,13 @@ STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", "")
 STRIPE_PUBLISHABLE_KEY = env("STRIPE_PUBLISHABLE_KEY", "")
 STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", "")
 
+# Paystack — passerelle de paiement par défaut (Afrique)
+PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", "")
+PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY", "")
+
+# URL de base du site (pour les redirects de paiement)
+SITE_URL = env("SITE_URL", "http://127.0.0.1:8000")
+
 ADYEN_API_KEY = env("ADYEN_API_KEY", "")
 ADYEN_MERCHANT_ACCOUNT = env("ADYEN_MERCHANT_ACCOUNT", "")
 ADYEN_HMAC_KEY = env("ADYEN_HMAC_KEY", "")
