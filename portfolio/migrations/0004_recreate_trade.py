@@ -92,9 +92,17 @@ CREATE INDEX IF NOT EXISTS "portfolio_trade_closed_at_idx"
     ON "portfolio_trade" ("closed_at");
 """
 
-SQL_REVERSE = """
--- Reverse : on conserve la table (la suppression était la régression à corriger).
-"""
+def _forward(apps, schema_editor):
+    # SQL spécifique PostgreSQL (DO $$, jsonb, timestamptz) : no-op ailleurs
+    # (sous SQLite/test la table est déjà créée par 0002_add_trade).
+    if schema_editor.connection.vendor != "postgresql":
+        return
+    schema_editor.execute(SQL_FORWARD)
+
+
+def _reverse(apps, schema_editor):
+    # Reverse : on conserve la table (la suppression était la régression à corriger).
+    pass
 
 
 class Migration(migrations.Migration):
@@ -109,11 +117,7 @@ class Migration(migrations.Migration):
         migrations.SeparateDatabaseAndState(
             state_operations=[],
             database_operations=[
-                migrations.RunSQL(
-                    sql=SQL_FORWARD,
-                    reverse_sql=SQL_REVERSE,
-                    elidable=False,
-                ),
+                migrations.RunPython(_forward, _reverse, elidable=False),
             ],
         ),
     ]

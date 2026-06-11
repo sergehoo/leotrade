@@ -82,10 +82,18 @@ CREATE INDEX IF NOT EXISTS "brokers_brokerexternalref_internal_id_idx"
 """
 
 
-SQL_REVERSE = """
--- Reverse : on garde la table en place (la suppression était précisément la
--- régression qu'on essaie de corriger). On retombe sur 0003 qui est noop.
-"""
+def _forward(apps, schema_editor):
+    # SQL spécifique PostgreSQL (DO $$, jsonb, timestamptz) : no-op ailleurs
+    # (sous SQLite/test la table est déjà créée par 0002).
+    if schema_editor.connection.vendor != "postgresql":
+        return
+    schema_editor.execute(SQL_FORWARD)
+
+
+def _reverse(apps, schema_editor):
+    # Reverse : on garde la table en place (la suppression était précisément la
+    # régression qu'on essaie de corriger). On retombe sur 0003 qui est noop.
+    pass
 
 
 class Migration(migrations.Migration):
@@ -101,11 +109,7 @@ class Migration(migrations.Migration):
         migrations.SeparateDatabaseAndState(
             state_operations=[],
             database_operations=[
-                migrations.RunSQL(
-                    sql=SQL_FORWARD,
-                    reverse_sql=SQL_REVERSE,
-                    elidable=False,
-                ),
+                migrations.RunPython(_forward, _reverse, elidable=False),
             ],
         ),
     ]
