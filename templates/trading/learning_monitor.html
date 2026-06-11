@@ -3,57 +3,124 @@
 {% block page_title %}Learning Monitor{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="space-y-6" x-data="learningLive({{ chart_data|safe }})" x-init="init()">
+
+  <!-- Header -->
   <section class="card card-glow p-6">
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between flex-wrap gap-4">
       <div>
-        <div class="text-xs mono uppercase tracking-wider text-gray-600">Learning Agent</div>
+        <div class="flex items-center gap-2">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Learning Agent</div>
+          <span class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] mono font-semibold"
+                style="background: rgba(0,255,157,0.1); color: var(--green); border: 1px solid rgba(0,255,157,0.25);">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            LIVE
+          </span>
+        </div>
         <h2 class="text-white text-2xl font-semibold mt-1">Apprentissage et reinforcement</h2>
-        <p class="text-sm text-gray-500 mt-2">
+        <p class="text-sm text-gray-500 mt-2 flex items-center gap-2">
           Win rate · expectancy · payoff ratio · multipliers · événements de renforcement
+          <span class="text-gray-600 mono text-xs" x-text="lastUpdated ? '· ' + lastUpdated : ''"></span>
+          <span x-show="loading" class="animate-spin inline-block w-3 h-3 border-2 border-white/20 border-t-white/60 rounded-full"></span>
         </p>
       </div>
-      <a href="{% url 'trading:hedge-fund-dashboard' %}" class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300">
+
+      <!-- Stats bar -->
+      <div class="grid grid-cols-3 gap-3 mono text-xs">
+        <div class="px-3 py-2 rounded-lg text-center" style="background: rgba(0,255,157,0.06); border: 1px solid rgba(0,255,157,0.2);">
+          <div class="text-gray-400">Moy. Win Rate</div>
+          <div style="color: var(--green);" class="text-base" x-text="avgWinRate + '%'">—</div>
+        </div>
+        <div class="px-3 py-2 rounded-lg text-center border border-white/10 bg-white/5">
+          <div class="text-gray-500">Moy. Expectancy</div>
+          <div class="text-white text-base" x-text="avgExpectancy">—</div>
+        </div>
+        <div class="px-3 py-2 rounded-lg text-center" style="background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.2);">
+          <div class="text-gray-400">Total events</div>
+          <div style="color: var(--blue);" class="text-base" x-text="events.length">—</div>
+        </div>
+      </div>
+
+      <a href="{% url 'trading:hedge-fund-dashboard' %}" class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-sm">
         Retour dashboard
       </a>
     </div>
   </section>
 
   <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <!-- Chart -->
     <div class="card p-6">
       <h3 class="text-white font-semibold mb-4">Performance des snapshots</h3>
       <canvas id="learningChart" height="120"></canvas>
     </div>
 
+    <!-- Live reinforcement events feed -->
     <div class="card p-6">
-      <h3 class="text-white font-semibold mb-4">Derniers reinforcement events</h3>
-      {% if reinforcement_events %}
-      <div class="space-y-3 max-h-[320px] overflow-auto">
-        {% for event in reinforcement_events %}
-        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
-          <div class="flex items-center justify-between">
-            <div>
-              <div class="text-white font-medium">{{ event.event_type }}</div>
-              <div class="text-xs text-gray-500">
-                {% if event.strategy %}{{ event.strategy.name|truncatechars:26 }}{% else %}—{% endif %}
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-white font-semibold">Derniers reinforcement events</h3>
+        <span class="text-xs mono text-gray-500" x-text="events.length + ' événements'"></span>
+      </div>
+
+      <div x-show="events.length > 0" class="space-y-3 max-h-[320px] overflow-auto">
+        <template x-for="event in events" :key="event.id">
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] mono px-1.5 py-0.5 rounded"
+                    :style="event.event_type === 'WIN'
+                      ? 'background: rgba(0,255,157,0.1); color: var(--green);'
+                      : event.event_type === 'LOSS'
+                        ? 'background: rgba(255,77,109,0.1); color: var(--red);'
+                        : 'background: rgba(255,183,3,0.1); color: var(--amber);'"
+                    x-text="event.event_type">
+                  </span>
+                  <div class="text-white text-sm font-medium" x-text="event.strategy"></div>
+                </div>
+                <div class="text-xs text-gray-500 mt-0.5" x-text="event.created_at"></div>
               </div>
-            </div>
-            <div class="text-right">
-              <div class="mono {% if event.net_value >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">
-                {{ event.net_value|floatformat:2 }}
+              <div class="text-right">
+                <div class="mono font-semibold"
+                  :style="event.net_value >= 0 ? 'color: var(--green)' : 'color: var(--red)'"
+                  x-text="(event.net_value >= 0 ? '+' : '') + event.net_value.toFixed(2)">
+                </div>
               </div>
-              <div class="text-xs text-gray-500">{{ event.created_at|date:"d/m H:i" }}</div>
             </div>
           </div>
-        </div>
-        {% endfor %}
+        </template>
       </div>
-      {% else %}
-      <p class="text-gray-500 text-sm">Aucun événement de reinforcement.</p>
-      {% endif %}
+
+      <!-- Fallback static events (before first poll) -->
+      <div x-show="events.length === 0 && !loading">
+        {% if reinforcement_events %}
+        <div class="space-y-3 max-h-[320px] overflow-auto">
+          {% for event in reinforcement_events %}
+          <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-white font-medium">{{ event.event_type }}</div>
+                <div class="text-xs text-gray-500">
+                  {% if event.strategy %}{{ event.strategy.name|truncatechars:26 }}{% else %}—{% endif %}
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="mono {% if event.net_value >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">
+                  {{ event.net_value|floatformat:2 }}
+                </div>
+                <div class="text-xs text-gray-500">{{ event.created_at|date:"d/m H:i" }}</div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-sm">Aucun événement de reinforcement.</p>
+        {% endif %}
+      </div>
     </div>
   </section>
 
+  <!-- Snapshots table -->
   <section class="card overflow-hidden">
     <div class="px-6 py-4 border-b border-white/10">
       <h3 class="text-white font-semibold">Learning snapshots</h3>
@@ -105,7 +172,7 @@
       </table>
     </div>
     {% else %}
-    <div class="py-16 text-center text-gray-500 text-sm">Aucun snapshot d’apprentissage disponible.</div>
+    <div class="py-16 text-center text-gray-500 text-sm">Aucun snapshot d'apprentissage disponible.</div>
     {% endif %}
   </section>
 </div>
@@ -113,31 +180,113 @@
 
 {% block extra_js %}
 <script>
-(function() {
-  const chartData = {{ chart_data|safe }};
-  const ctx = document.getElementById('learningChart');
+function learningLive(initialChartData) {
+  return {
+    chartData: initialChartData || [],
+    events: [],
+    loading: true,
+    lastUpdated: null,
+    chart: null,
 
-  if (ctx && chartData.length) {
-    new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: chartData.map(i => i.label),
-        datasets: [
-          { label: 'Win rate', data: chartData.map(i => i.win_rate) },
-          { label: 'Expectancy', data: chartData.map(i => i.expectancy) },
-          { label: 'Size multiplier', data: chartData.map(i => i.size_multiplier) }
-        ]
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { labels: { color: '#cbd5e1' } } },
-        scales: {
-          x: { ticks: { color: '#94a3b8' } },
-          y: { ticks: { color: '#94a3b8' } }
+    get avgWinRate() {
+      if (!this.chartData.length) return '—';
+      const avg = this.chartData.reduce((s, d) => s + d.win_rate, 0) / this.chartData.length;
+      return (avg * 100).toFixed(1);
+    },
+
+    get avgExpectancy() {
+      if (!this.chartData.length) return '—';
+      const avg = this.chartData.reduce((s, d) => s + d.expectancy, 0) / this.chartData.length;
+      return avg.toFixed(3);
+    },
+
+    initChart() {
+      const ctx = document.getElementById('learningChart');
+      if (!ctx || !window.Chart) return;
+
+      const data = this.chartData;
+      if (!data.length) return;
+
+      this.chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: data.map(i => i.label),
+          datasets: [
+            {
+              label: 'Win rate',
+              data: data.map(i => (i.win_rate * 100).toFixed(1)),
+              backgroundColor: 'rgba(0,255,157,0.5)',
+              borderColor: 'rgba(0,255,157,0.8)',
+              borderWidth: 1,
+            },
+            {
+              label: 'Expectancy',
+              data: data.map(i => i.expectancy),
+              backgroundColor: 'rgba(59,130,246,0.5)',
+              borderColor: 'rgba(59,130,246,0.8)',
+              borderWidth: 1,
+            },
+            {
+              label: 'Size multiplier',
+              data: data.map(i => i.size_multiplier),
+              backgroundColor: 'rgba(255,183,3,0.45)',
+              borderColor: 'rgba(255,183,3,0.8)',
+              borderWidth: 1,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: '#9ca3af', font: { family: 'monospace', size: 11 } } }
+          },
+          scales: {
+            x: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            y: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } }
+          }
         }
+      });
+    },
+
+    updateChart(newData) {
+      if (!this.chart) return;
+      this.chart.data.labels = newData.map(i => i.label);
+      this.chart.data.datasets[0].data = newData.map(i => (i.win_rate * 100).toFixed(1));
+      this.chart.data.datasets[1].data = newData.map(i => i.expectancy);
+      this.chart.data.datasets[2].data = newData.map(i => i.size_multiplier);
+      this.chart.update('active');
+    },
+
+    async refresh() {
+      try {
+        const resp = await fetch('{% url "trading:learning-monitor-api" %}');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+
+        const snapshots = data.snapshots || [];
+        if (snapshots.length) {
+          this.chartData = snapshots;
+          this.updateChart(snapshots);
+        }
+
+        this.events = data.events || [];
+        this.lastUpdated = new Date().toLocaleTimeString('fr-FR');
+      } catch(e) {
+        console.warn('learning poll error:', e);
+      } finally {
+        this.loading = false;
       }
-    });
-  }
-})();
+    },
+
+    init() {
+      // Wait for DOM then init chart
+      this.$nextTick(() => {
+        this.initChart();
+      });
+      this.refresh();
+      setInterval(() => this.refresh(), 15000);
+    }
+  };
+}
 </script>
 {% endblock %}

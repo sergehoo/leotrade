@@ -1,27 +1,251 @@
-{% extends 'layout/base.html' %}
+{% extends "layout/base.html" %}
+{% block title %}Flux de signaux — LeoTrade{% endblock %}
+{% block page_title %}Flux de signaux{% endblock %}
+
 {% block content %}
-<div class="rounded-2xl bg-slate-900 border border-slate-800 p-5">
-    <h1 class="text-xl font-semibold mb-4">Signaux</h1>
-    <table class="w-full text-sm">
-        <thead><tr class="text-slate-400 border-b border-slate-800"><th class="py-3 text-left">Actif</th><th>Signal</th><th>Confiance</th><th>Prix</th><th>Statut</th><th></th></tr></thead>
+<div class="space-y-6" x-data="signalsLive()" x-init="init()">
+
+  <!-- Header -->
+  <section class="card card-glow p-6">
+    <div class="flex items-start justify-between flex-wrap gap-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <div class="text-xs mono uppercase tracking-wider text-gray-500">Signal Engine</div>
+          <span class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] mono font-semibold"
+                style="background: rgba(0,255,157,0.1); color: var(--green); border: 1px solid rgba(0,255,157,0.25);">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            LIVE
+          </span>
+        </div>
+        <h2 class="text-white text-2xl font-semibold mt-1">Flux de signaux</h2>
+        <p class="text-sm text-gray-400 mt-2">
+          Signaux générés par les stratégies — polling toutes les 5 secondes.
+        </p>
+      </div>
+
+      <!-- Stats bar -->
+      <div class="grid grid-cols-3 sm:grid-cols-5 gap-3 mono text-xs">
+        <div class="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-center">
+          <div class="text-gray-500">Total</div>
+          <div class="text-white text-base" x-text="stats.total">—</div>
+        </div>
+        <div class="px-3 py-2 rounded-lg text-center" style="background: rgba(0,255,157,0.06); border: 1px solid rgba(0,255,157,0.2);">
+          <div class="text-gray-400">LONG</div>
+          <div style="color: var(--green);" class="text-base" x-text="stats.long">—</div>
+        </div>
+        <div class="px-3 py-2 rounded-lg text-center" style="background: rgba(255,77,109,0.06); border: 1px solid rgba(255,77,109,0.2);">
+          <div class="text-gray-400">SHORT</div>
+          <div style="color: var(--red);" class="text-base" x-text="stats.short">—</div>
+        </div>
+        <div class="px-3 py-2 rounded-lg text-center" style="background: rgba(255,183,3,0.06); border: 1px solid rgba(255,183,3,0.2);">
+          <div class="text-gray-400">En attente</div>
+          <div style="color: var(--amber);" class="text-base" x-text="stats.pending">—</div>
+        </div>
+        <div class="px-3 py-2 rounded-lg text-center" style="background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.2);">
+          <div class="text-gray-400">Exécutés</div>
+          <div style="color: var(--blue);" class="text-base" x-text="stats.executed">—</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Filters -->
+  <section class="card p-4">
+    <div class="flex flex-wrap items-center gap-3">
+      <span class="text-xs mono text-gray-500 uppercase tracking-wider mr-1">Statut :</span>
+      <template x-for="opt in statusOptions" :key="opt.value">
+        <button
+          @click="filterStatus = opt.value; refresh()"
+          :class="filterStatus === opt.value
+            ? 'bg-white/15 text-white border-white/30'
+            : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10'"
+          class="px-3 py-1 rounded-lg text-xs mono border transition"
+          x-text="opt.label">
+        </button>
+      </template>
+
+      <span class="text-xs mono text-gray-500 uppercase tracking-wider ml-4 mr-1">Direction :</span>
+      <template x-for="opt in sideOptions" :key="opt.value">
+        <button
+          @click="filterSide = opt.value; refresh()"
+          :class="filterSide === opt.value
+            ? 'bg-white/15 text-white border-white/30'
+            : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10'"
+          class="px-3 py-1 rounded-lg text-xs mono border transition"
+          x-text="opt.label">
+        </button>
+      </template>
+
+      <div class="ml-auto flex items-center gap-2 text-xs mono text-gray-500">
+        <span x-show="loading" class="animate-spin inline-block w-3 h-3 border-2 border-white/20 border-t-white/60 rounded-full"></span>
+        <span x-text="lastUpdated ? 'Mis à jour : ' + lastUpdated : ''"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Table -->
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+      <h3 class="text-white font-semibold">Signaux actifs</h3>
+      <span class="text-xs text-gray-500 mono" x-text="signals.length + ' résultats'"></span>
+    </div>
+
+    <!-- Empty state -->
+    <div x-show="!loading && signals.length === 0" class="px-6 py-2">
+      {% include "_partials/_empty_state.html" with icon="signal" title="Aucun signal" subtitle="Aucun signal ne correspond aux filtres actifs. Dès qu'une stratégie génère un signal, il apparaît ici automatiquement." %}
+    </div>
+
+    <!-- Loading skeleton -->
+    <div x-show="loading && signals.length === 0" class="px-6 py-8 text-center text-gray-500 text-sm mono">
+      Chargement des signaux…
+    </div>
+
+    <div x-show="signals.length > 0" class="overflow-x-auto">
+      <table class="w-full min-w-[900px] text-sm">
+        <thead>
+          <tr class="border-b border-white/10 text-left">
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Actif</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Stratégie</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Direction</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Confiance</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase text-right">Prix</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Statut</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Date</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase text-right">Action</th>
+          </tr>
+        </thead>
         <tbody>
-            {% for signal in signals %}
-            <tr class="border-b border-slate-800/60">
-                <td class="py-3">{{ signal.strategy.asset.symbol }}</td>
-                <td>{{ signal.side }}</td>
-                <td>{{ signal.confidence|floatformat:2 }}</td>
-                <td>{{ signal.price }}</td>
-                <td>{{ signal.status }}</td>
-                <td>
-                    {% if signal.status == 'NEW' %}
-                    <form method="post" action="{% url 'execute-signal' signal.pk %}">{% csrf_token %}
-                        <button class="rounded-lg bg-emerald-500/90 px-3 py-1 text-slate-950 font-semibold">Exécuter</button>
-                    </form>
-                    {% endif %}
-                </td>
+          <template x-for="signal in signals" :key="signal.id">
+            <tr class="table-row border-b border-white/5 hover:bg-white/3 transition">
+              <td class="px-4 py-3 text-white mono font-semibold" x-text="signal.symbol"></td>
+              <td class="px-4 py-3 text-gray-300 text-xs" x-text="signal.strategy_name"></td>
+
+              <!-- Direction -->
+              <td class="px-4 py-3">
+                <span
+                  class="px-2 py-0.5 rounded text-[11px] mono font-semibold"
+                  :style="signal.side === 'LONG'
+                    ? 'background: rgba(0,255,157,0.1); color: var(--green); border: 1px solid rgba(0,255,157,0.3);'
+                    : 'background: rgba(255,77,109,0.1); color: var(--red); border: 1px solid rgba(255,77,109,0.3);'"
+                  x-text="signal.side">
+                </span>
+              </td>
+
+              <!-- Confiance bar -->
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2">
+                  <div class="w-20 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <div class="h-full rounded-full transition-all"
+                      :style="'width:' + signal.confidence + '%; background:' + (signal.confidence >= 75 ? 'var(--green)' : signal.confidence >= 50 ? 'var(--amber)' : 'var(--red)')">
+                    </div>
+                  </div>
+                  <span class="text-xs mono text-gray-300" x-text="signal.confidence.toFixed(0) + '%'"></span>
+                </div>
+              </td>
+
+              <td class="px-4 py-3 text-white mono text-right" x-text="signal.price || '—'"></td>
+
+              <!-- Statut pill -->
+              <td class="px-4 py-3">
+                <span class="px-2 py-0.5 rounded text-[11px] mono"
+                  :class="{
+                    'pill-open': signal.status === 'NEW' || signal.status === 'APPROVED',
+                    'pill-filled': signal.status === 'EXECUTED',
+                    'pill-sell': signal.status === 'REJECTED',
+                    'pill-placed': signal.status === 'PENDING'
+                  }"
+                  x-text="signal.status">
+                </span>
+              </td>
+
+              <td class="px-4 py-3 text-gray-400 mono text-xs" x-text="signal.created_at"></td>
+
+              <!-- Action -->
+              <td class="px-4 py-3 text-right">
+                <template x-if="signal.status === 'NEW'">
+                  <form :action="'/trading/signals/' + signal.id + '/execute/'" method="post" @submit="handleExecute($event)">
+                    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                    <button type="submit"
+                      class="px-3 py-1.5 rounded-lg text-xs mono font-semibold transition"
+                      style="background: var(--green); color: #080c14;">
+                      Exécuter
+                    </button>
+                  </form>
+                </template>
+                <template x-if="signal.status !== 'NEW'">
+                  <span class="text-gray-600 text-xs mono">—</span>
+                </template>
+              </td>
             </tr>
-            {% endfor %}
+          </template>
         </tbody>
-    </table>
+      </table>
+    </div>
+  </section>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function signalsLive() {
+  return {
+    signals: [],
+    loading: true,
+    lastUpdated: null,
+    filterStatus: '',
+    filterSide: '',
+
+    statusOptions: [
+      { value: '', label: 'Tous' },
+      { value: 'NEW', label: 'NEW' },
+      { value: 'APPROVED', label: 'APPROVED' },
+      { value: 'EXECUTED', label: 'EXECUTED' },
+      { value: 'REJECTED', label: 'REJECTED' },
+    ],
+    sideOptions: [
+      { value: '', label: 'Tous' },
+      { value: 'LONG', label: 'LONG' },
+      { value: 'SHORT', label: 'SHORT' },
+    ],
+
+    get stats() {
+      return {
+        total: this.signals.length,
+        long: this.signals.filter(s => s.side === 'LONG').length,
+        short: this.signals.filter(s => s.side === 'SHORT').length,
+        pending: this.signals.filter(s => s.status === 'NEW' || s.status === 'APPROVED').length,
+        executed: this.signals.filter(s => s.status === 'EXECUTED').length,
+      };
+    },
+
+    async refresh() {
+      this.loading = true;
+      try {
+        const params = new URLSearchParams();
+        if (this.filterStatus) params.set('status', this.filterStatus);
+        if (this.filterSide) params.set('side', this.filterSide);
+        const resp = await fetch('/trading/signals/api/?' + params.toString());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        this.signals = data.signals || [];
+        this.lastUpdated = new Date().toLocaleTimeString('fr-FR');
+      } catch(e) {
+        console.warn('signals poll error:', e);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    init() {
+      this.refresh();
+      setInterval(() => this.refresh(), 5000);
+    },
+
+    handleExecute(evt) {
+      // After submit, refresh after a short delay
+      setTimeout(() => this.refresh(), 800);
+    }
+  };
+}
+</script>
 {% endblock %}

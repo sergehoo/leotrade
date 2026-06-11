@@ -4,13 +4,21 @@
 {% block page_title %}Backtests{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="space-y-6" x-data="backtestLive({{ running_backtest_ids|default:'[]' }})" x-init="init()">
 
   <!-- Header + stats correctes (count_total / done / running / failed) -->
   <section class="card card-glow p-6">
     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
       <div>
-        <div class="text-xs mono uppercase tracking-wider text-gray-500">Research Engine</div>
+        <div class="flex items-center gap-2">
+          <div class="text-xs mono uppercase tracking-wider text-gray-500">Research Engine</div>
+          <span x-show="runningIds.length > 0"
+            class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] mono font-semibold"
+            style="background: rgba(255,183,3,0.1); color: var(--amber); border: 1px solid rgba(255,183,3,0.25);">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+            <span x-text="runningIds.length + ' en cours'"></span>
+          </span>
+        </div>
         <h2 class="text-white text-xl font-semibold mt-1">Historique des backtests</h2>
         <p class="text-sm text-gray-400 mt-2">
           Simule tes stratégies sur l'historique de marché. Lance un nouveau backtest depuis
@@ -107,7 +115,7 @@
         </thead>
         <tbody>
           {% for bt in backtests %}
-          <tr class="table-row">
+          <tr class="table-row" id="backtest-row-{{ bt.id }}">
             <td class="px-6 py-4 align-top">
               <div class="text-white font-medium">{{ bt.name }}</div>
               <div class="text-xs text-gray-600 mono mt-1">
@@ -139,11 +147,14 @@
               <div class="text-gray-300 mono">{{ bt.commission }}</div>
             </td>
 
-            <td class="px-6 py-4 align-top">
+            <td class="px-6 py-4 align-top" id="backtest-status-{{ bt.id }}">
               {% if bt.status == "DONE" %}
                 <span class="px-2 py-1 rounded text-xs mono pill-open">DONE</span>
-              {% elif bt.status == "RUNNING" %}
-                <span class="px-2 py-1 rounded text-xs mono pill-placed">RUNNING</span>
+              {% elif bt.status == "RUNNING" or bt.status == "PENDING" %}
+                <span class="px-2 py-1 rounded text-xs mono pill-placed flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse inline-block"></span>
+                  {{ bt.status }}
+                </span>
               {% elif bt.status == "FAILED" %}
                 <span class="px-2 py-1 rounded text-xs mono pill-sell">FAILED</span>
               {% else %}
@@ -211,4 +222,75 @@
   {% endif %}
 
 </div>
+
+{% block extra_js %}
+<script>
+function backtestLive(runningIds) {
+  return {
+    runningIds: runningIds || [],
+    statuses: {},
+
+    init() {
+      if (this.runningIds.length > 0) {
+        this.pollRunning();
+      }
+    },
+
+    async pollRunning() {
+      if (this.runningIds.length === 0) return;
+
+      const toCheck = [...this.runningIds];
+      for (const id of toCheck) {
+        try {
+          const resp = await fetch(`/backtests/${id}/status/`);
+          if (!resp.ok) continue;
+          const data = await resp.json();
+          this.statuses[id] = data;
+
+          const statusCell = document.getElementById(`backtest-status-${id}`);
+          if (statusCell && data.status) {
+            this.updateStatusCell(statusCell, data.status);
+          }
+
+          if (data.status === 'DONE' || data.status === 'FAILED') {
+            this.runningIds = this.runningIds.filter(x => x !== id);
+
+            // Toast notification
+            const msg = data.status === 'DONE'
+              ? `Backtest #${id} terminé ✓`
+              : `Backtest #${id} échoué`;
+            if (window.LeoAnim) LeoAnim.toast(msg, data.status === 'DONE' ? 'success' : 'error');
+          }
+        } catch(e) {}
+      }
+
+      if (this.runningIds.length > 0) {
+        setTimeout(() => this.pollRunning(), 3000);
+      } else if (toCheck.length > 0) {
+        // All done — reload to show fresh results
+        setTimeout(() => location.reload(), 1200);
+      }
+    },
+
+    updateStatusCell(cell, status) {
+      const map = {
+        'DONE':    '<span class="px-2 py-1 rounded text-xs mono pill-open">DONE</span>',
+        'FAILED':  '<span class="px-2 py-1 rounded text-xs mono pill-sell">FAILED</span>',
+        'RUNNING': '<span class="px-2 py-1 rounded text-xs mono pill-placed flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse inline-block"></span>RUNNING</span>',
+        'PENDING': '<span class="px-2 py-1 rounded text-xs mono pill-placed flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse inline-block"></span>PENDING</span>',
+      };
+      if (map[status]) cell.innerHTML = map[status];
+    },
+
+    getStatus(id) {
+      return this.statuses[id]?.status || null;
+    },
+
+    isRunning(id) {
+      return this.runningIds.includes(id);
+    }
+  };
+}
+</script>
+{% endblock %}
 {% endblock %}

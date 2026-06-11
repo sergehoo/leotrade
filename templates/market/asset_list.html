@@ -1,336 +1,318 @@
 {% extends "layout/base.html" %}
+{% block title %}Actifs de marché — LeoTrade{% endblock %}
+{% block page_title %}Actifs de marché{% endblock %}
+
 {% block content %}
+<div class="space-y-6" x-data="assetsLive()" x-init="init()">
 
-<div class="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.10),_transparent_35%),linear-gradient(180deg,#020617_0%,#020617_35%,#07111f_100%)] text-slate-100">
-    <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-
-        <!-- Header -->
-        <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-                <div class="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-cyan-300">
-                    Market Universe
-                </div>
-                <h1 class="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">
-                    Actifs de marché
-                </h1>
-                <p class="mt-2 max-w-3xl text-sm text-slate-400">
-                    Vue consolidée des instruments disponibles avec filtrage, statistiques et accès rapide aux graphiques.
-                </p>
-            </div>
-
-            <div class="flex items-center gap-3">
-                <a href="#" class="inline-flex items-center rounded-2xl border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-200 shadow-lg shadow-black/20 transition hover:border-cyan-500/40 hover:text-cyan-300">
-                    Exporter
-                </a>
-                <a href="#" class="inline-flex items-center rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:bg-cyan-400">
-                    Ajouter un actif
-                </a>
-            </div>
+  <!-- Header -->
+  <section class="card card-glow p-6">
+    <div class="flex items-start justify-between flex-wrap gap-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <div class="text-xs mono uppercase tracking-wider text-gray-500">Market Universe</div>
+          <span class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] mono font-semibold"
+                style="background: rgba(0,255,157,0.1); color: var(--green); border: 1px solid rgba(0,255,157,0.25);">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            LIVE
+          </span>
         </div>
+        <h2 class="text-white text-2xl font-semibold mt-1">Actifs de marché</h2>
+        <p class="text-sm text-gray-400 mt-2">
+          Vue consolidée — prix actualisé toutes les 10 secondes.
+          <span class="ml-2 text-gray-600 mono text-xs" x-text="lastUpdated ? '· ' + lastUpdated : ''"></span>
+        </p>
+      </div>
 
-        <!-- KPI cards -->
-        <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <div class="rounded-3xl border border-slate-800 bg-slate-900/70 p-5 shadow-2xl shadow-black/20 backdrop-blur">
-                <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Total actifs</p>
-                <p class="mt-3 text-3xl font-black text-white">{{ stats.total_assets }}</p>
-                <p class="mt-2 text-xs text-slate-500">Univers filtré courant</p>
-            </div>
-
-            <div class="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-5 shadow-2xl shadow-black/20 backdrop-blur">
-                <p class="text-xs uppercase tracking-[0.2em] text-emerald-300">Actifs actifs</p>
-                <p class="mt-3 text-3xl font-black text-white">{{ stats.active_assets }}</p>
-                <p class="mt-2 text-xs text-emerald-200/70">Disponibles au trading</p>
-            </div>
-
-            <div class="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-5 shadow-2xl shadow-black/20 backdrop-blur">
-                <p class="text-xs uppercase tracking-[0.2em] text-rose-300">Inactifs</p>
-                <p class="mt-3 text-3xl font-black text-white">{{ stats.inactive_assets }}</p>
-                <p class="mt-2 text-xs text-rose-200/70">Retirés ou suspendus</p>
-            </div>
-
-            <div class="rounded-3xl border border-violet-500/20 bg-violet-500/10 p-5 shadow-2xl shadow-black/20 backdrop-blur">
-                <p class="text-xs uppercase tracking-[0.2em] text-violet-300">Deriv</p>
-                <p class="mt-3 text-3xl font-black text-white">{{ stats.deriv_assets }}</p>
-                <p class="mt-2 text-xs text-violet-200/70">Marché synthétique / indices</p>
-            </div>
-
-            <div class="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-5 shadow-2xl shadow-black/20 backdrop-blur">
-                <p class="text-xs uppercase tracking-[0.2em] text-amber-300">Binance</p>
-                <p class="mt-3 text-3xl font-black text-white">{{ stats.binance_assets }}</p>
-                <p class="mt-2 text-xs text-amber-200/70">Crypto spot / dérivés</p>
-            </div>
+      <!-- Stats bar -->
+      <div class="grid grid-cols-3 sm:grid-cols-5 gap-3 mono text-xs">
+        <div class="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-center">
+          <div class="text-gray-500">Total</div>
+          <div class="text-white text-base">{{ stats.total_assets }}</div>
         </div>
-
-        <!-- Filters -->
-        <div class="mb-6 rounded-3xl border border-slate-800 bg-slate-900/70 p-4 shadow-2xl shadow-black/20 backdrop-blur">
-            <form method="get" class="grid grid-cols-1 gap-4 lg:grid-cols-12">
-                <div class="lg:col-span-4">
-                    <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                        Recherche
-                    </label>
-                    <input
-                        type="text"
-                        name="q"
-                        value="{{ filters.q }}"
-                        placeholder="BTCUSDT, JD10, EURUSD..."
-                        class="w-full rounded-2xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-sm text-white placeholder-slate-500 outline-none ring-0 transition focus:border-cyan-500"
-                    >
-                </div>
-
-                <div class="lg:col-span-2">
-                    <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                        Classe
-                    </label>
-                    <select
-                        name="asset_class"
-                        class="w-full rounded-2xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-500"
-                    >
-                        <option value="">Toutes</option>
-                        {% for value, label in asset_class_choices %}
-                            <option value="{{ value }}" {% if filters.asset_class == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="lg:col-span-2">
-                    <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                        Exchange
-                    </label>
-                    <select
-                        name="exchange"
-                        class="w-full rounded-2xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-500"
-                    >
-                        <option value="">Tous</option>
-                        {% for ex in exchanges %}
-                            <option value="{{ ex }}" {% if filters.exchange == ex %}selected{% endif %}>{{ ex }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="lg:col-span-2">
-                    <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                        Statut
-                    </label>
-                    <select
-                        name="status"
-                        class="w-full rounded-2xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-500"
-                    >
-                        <option value="">Tous</option>
-                        <option value="active" {% if filters.status == "active" %}selected{% endif %}>Actifs</option>
-                        <option value="inactive" {% if filters.status == "inactive" %}selected{% endif %}>Inactifs</option>
-                    </select>
-                </div>
-
-                <div class="lg:col-span-2">
-                    <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                        Tri
-                    </label>
-                    <select
-                        name="sort"
-                        class="w-full rounded-2xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-500"
-                    >
-                        <option value="symbol" {% if filters.sort == "symbol" %}selected{% endif %}>Symbole A-Z</option>
-                        <option value="-symbol" {% if filters.sort == "-symbol" %}selected{% endif %}>Symbole Z-A</option>
-                        <option value="class" {% if filters.sort == "class" %}selected{% endif %}>Classe</option>
-                        <option value="exchange" {% if filters.sort == "exchange" %}selected{% endif %}>Exchange</option>
-                        <option value="-candles" {% if filters.sort == "-candles" %}selected{% endif %}>Plus de candles</option>
-                        <option value="recent" {% if filters.sort == "recent" %}selected{% endif %}>Plus récent</option>
-                        <option value="oldest" {% if filters.sort == "oldest" %}selected{% endif %}>Plus ancien</option>
-                    </select>
-                </div>
-
-                <div class="lg:col-span-12 flex flex-wrap items-center gap-3 pt-1">
-                    <button
-                        type="submit"
-                        class="inline-flex items-center rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
-                    >
-                        Appliquer les filtres
-                    </button>
-                    <a
-                        href="{% url 'asset-list' %}"
-                        class="inline-flex items-center rounded-2xl border border-slate-700 bg-slate-950/70 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:border-slate-600 hover:text-white"
-                    >
-                        Réinitialiser
-                    </a>
-                </div>
-            </form>
+        <div class="px-3 py-2 rounded-lg text-center" style="background: rgba(0,255,157,0.06); border: 1px solid rgba(0,255,157,0.2);">
+          <div class="text-gray-400">Actifs</div>
+          <div style="color: var(--green);" class="text-base">{{ stats.active_assets }}</div>
         </div>
-
-        <!-- Table -->
-        <div class="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/70 shadow-2xl shadow-black/20 backdrop-blur">
-            <div class="overflow-x-auto">
-                <table class="min-w-full text-sm">
-                    <thead class="bg-slate-950/70">
-                        <tr class="border-b border-slate-800 text-left text-xs uppercase tracking-[0.18em] text-slate-400">
-                            <th class="px-6 py-4">Instrument</th>
-                            <th class="px-6 py-4">Classe</th>
-                            <th class="px-6 py-4">Exchange</th>
-                            <th class="px-6 py-4">Base / Quote</th>
-                            <th class="px-6 py-4">Données</th>
-                            <th class="px-6 py-4">Dernière bougie</th>
-                            <th class="px-6 py-4">Statut</th>
-                            <th class="px-6 py-4 text-right">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for asset in assets %}
-                        <tr class="border-b border-slate-800/70 transition hover:bg-slate-800/30">
-                            <td class="px-6 py-4">
-                                <div class="flex items-center gap-3">
-                                    <div class="flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-500/20 bg-cyan-500/10 text-sm font-black text-cyan-300">
-                                        {{ asset.symbol|slice:":3" }}
-                                    </div>
-                                    <div>
-                                        <div class="font-bold tracking-wide text-white">{{ asset.symbol }}</div>
-                                        <div class="text-xs text-slate-400">
-                                            {{ asset.name|default:"Instrument de marché" }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-
-                            <td class="px-6 py-4">
-                                <span class="inline-flex rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-xs font-medium text-slate-300">
-                                    {{ asset.get_asset_class_display }}
-                                </span>
-                            </td>
-
-                            <td class="px-6 py-4">
-                                <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold
-                                    {% if asset.exchange == 'DERIV' %}
-                                        border border-violet-500/20 bg-violet-500/10 text-violet-300
-                                    {% elif asset.exchange == 'BINANCE' %}
-                                        border border-amber-500/20 bg-amber-500/10 text-amber-300
-                                    {% else %}
-                                        border border-slate-700 bg-slate-950/70 text-slate-300
-                                    {% endif %}
-                                ">
-                                    {{ asset.exchange }}
-                                </span>
-                            </td>
-
-                            <td class="px-6 py-4 text-slate-300">
-                                <div class="font-medium">
-                                    {{ asset.base_asset|default:"—" }}
-                                    <span class="mx-1 text-slate-600">/</span>
-                                    {{ asset.quote_asset|default:"—" }}
-                                </div>
-                            </td>
-
-                            <td class="px-6 py-4">
-                                <div class="font-semibold text-white">
-                                    {{ asset.candles_count|default:0 }}
-                                </div>
-                                <div class="text-xs text-slate-500">
-                                    candles stockées
-                                </div>
-                            </td>
-
-                            <td class="px-6 py-4">
-                                {% if asset.last_candle_time %}
-                                    <div class="font-medium text-slate-200">{{ asset.last_candle_time|date:"d/m/Y H:i" }}</div>
-                                    <div class="text-xs text-slate-500">UTC</div>
-                                {% else %}
-                                    <span class="text-slate-500">Aucune donnée</span>
-                                {% endif %}
-                            </td>
-
-                            <td class="px-6 py-4">
-                                {% if asset.is_active %}
-                                    <span class="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-                                        <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-                                        Actif
-                                    </span>
-                                {% else %}
-                                    <span class="inline-flex items-center gap-2 rounded-full border border-rose-500/20 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-300">
-                                        <span class="h-2 w-2 rounded-full bg-rose-400"></span>
-                                        Inactif
-                                    </span>
-                                {% endif %}
-                            </td>
-
-                            <td class="px-6 py-4 text-right">
-                                <div class="flex justify-end gap-2">
-                                    {% if asset.is_active %}
-                                    <a
-                                        href="{% url 'asset-detail' asset.pk %}"
-                                        class="inline-flex items-center gap-1 rounded-2xl bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow shadow-emerald-500/20 transition hover:bg-emerald-400"
-                                        title="Passer un ordre sur {{ asset.symbol }}"
-                                    >
-                                        ⚡ Trader
-                                    </a>
-                                    {% endif %}
-                                    <a
-                                        href="{% url 'asset-chart' asset.pk %}"
-                                        class="inline-flex items-center rounded-2xl bg-cyan-500 px-4 py-2 text-xs font-bold text-slate-950 transition hover:bg-cyan-400"
-                                    >
-                                        Chart
-                                    </a>
-                                    <a
-                                        href="{% url 'asset-detail' asset.pk %}"
-                                        class="inline-flex items-center rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:border-slate-600 hover:text-white"
-                                    >
-                                        Détails
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="8" class="px-6 py-16 text-center">
-                                <div class="mx-auto max-w-md">
-                                    <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl border border-slate-800 bg-slate-950/70 text-2xl">
-                                        📈
-                                    </div>
-                                    <h3 class="text-lg font-bold text-white">Aucun actif trouvé</h3>
-                                    <p class="mt-2 text-sm text-slate-400">
-                                        Aucun instrument ne correspond aux critères actuels.
-                                    </p>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Footer / pagination -->
-            <div class="flex flex-col gap-4 border-t border-slate-800 bg-slate-950/40 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div class="text-sm text-slate-400">
-                    Page <span class="font-semibold text-white">{{ page_obj.number }}</span>
-                    sur <span class="font-semibold text-white">{{ page_obj.paginator.num_pages }}</span>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-2">
-                    {% if page_obj.has_previous %}
-                        <a href="?q={{ filters.q }}&asset_class={{ filters.asset_class }}&exchange={{ filters.exchange }}&status={{ filters.status }}&sort={{ filters.sort }}&page=1"
-                           class="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 hover:text-white">
-                            « Première
-                        </a>
-                        <a href="?q={{ filters.q }}&asset_class={{ filters.asset_class }}&exchange={{ filters.exchange }}&status={{ filters.status }}&sort={{ filters.sort }}&page={{ page_obj.previous_page_number }}"
-                           class="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 hover:text-white">
-                            Précédente
-                        </a>
-                    {% endif %}
-
-                    <span class="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300">
-                        {{ page_obj.number }}
-                    </span>
-
-                    {% if page_obj.has_next %}
-                        <a href="?q={{ filters.q }}&asset_class={{ filters.asset_class }}&exchange={{ filters.exchange }}&status={{ filters.status }}&sort={{ filters.sort }}&page={{ page_obj.next_page_number }}"
-                           class="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 hover:text-white">
-                            Suivante
-                        </a>
-                        <a href="?q={{ filters.q }}&asset_class={{ filters.asset_class }}&exchange={{ filters.exchange }}&status={{ filters.status }}&sort={{ filters.sort }}&page={{ page_obj.paginator.num_pages }}"
-                           class="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 hover:text-white">
-                            Dernière »
-                        </a>
-                    {% endif %}
-                </div>
-            </div>
+        <div class="px-3 py-2 rounded-lg text-center" style="background: rgba(255,77,109,0.06); border: 1px solid rgba(255,77,109,0.2);">
+          <div class="text-gray-400">Inactifs</div>
+          <div style="color: var(--red);" class="text-base">{{ stats.inactive_assets }}</div>
         </div>
+        <div class="px-3 py-2 rounded-lg text-center" style="background: rgba(139,92,246,0.06); border: 1px solid rgba(139,92,246,0.2);">
+          <div class="text-gray-400">Deriv</div>
+          <div class="text-base" style="color: #a78bfa;">{{ stats.deriv_assets }}</div>
+        </div>
+        <div class="px-3 py-2 rounded-lg text-center" style="background: rgba(255,183,3,0.06); border: 1px solid rgba(255,183,3,0.2);">
+          <div class="text-gray-400">Binance</div>
+          <div style="color: var(--amber);" class="text-base">{{ stats.binance_assets }}</div>
+        </div>
+      </div>
     </div>
-</div>
+  </section>
 
+  <!-- Filters -->
+  <section class="card p-4">
+    <form method="get" class="flex flex-wrap items-end gap-3" data-no-disable="true">
+      <div class="flex-1 min-w-[160px]">
+        <label class="block text-[10px] mono uppercase tracking-wider text-gray-500 mb-1">Recherche</label>
+        <input type="text" name="q" value="{{ filters.q }}" placeholder="BTCUSDT, EURUSD…"
+          class="w-full rounded-lg px-3 py-1.5 text-sm bg-white/5 border border-white/10 text-gray-200 placeholder-gray-600">
+      </div>
+      <div>
+        <label class="block text-[10px] mono uppercase tracking-wider text-gray-500 mb-1">Classe</label>
+        <select name="asset_class" class="rounded-lg px-3 py-1.5 text-sm bg-white/5 border border-white/10 text-gray-200">
+          <option value="">Toutes</option>
+          {% for value, label in asset_class_choices %}
+            <option value="{{ value }}" {% if filters.asset_class == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-[10px] mono uppercase tracking-wider text-gray-500 mb-1">Exchange</label>
+        <select name="exchange" class="rounded-lg px-3 py-1.5 text-sm bg-white/5 border border-white/10 text-gray-200">
+          <option value="">Tous</option>
+          {% for ex in exchanges %}
+            <option value="{{ ex }}" {% if filters.exchange == ex %}selected{% endif %}>{{ ex }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-[10px] mono uppercase tracking-wider text-gray-500 mb-1">Statut</label>
+        <select name="status" class="rounded-lg px-3 py-1.5 text-sm bg-white/5 border border-white/10 text-gray-200">
+          <option value="">Tous</option>
+          <option value="active" {% if filters.status == "active" %}selected{% endif %}>Actifs</option>
+          <option value="inactive" {% if filters.status == "inactive" %}selected{% endif %}>Inactifs</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-[10px] mono uppercase tracking-wider text-gray-500 mb-1">Tri</label>
+        <select name="sort" class="rounded-lg px-3 py-1.5 text-sm bg-white/5 border border-white/10 text-gray-200">
+          <option value="symbol" {% if filters.sort == "symbol" %}selected{% endif %}>Symbole A-Z</option>
+          <option value="-symbol" {% if filters.sort == "-symbol" %}selected{% endif %}>Symbole Z-A</option>
+          <option value="class" {% if filters.sort == "class" %}selected{% endif %}>Classe</option>
+          <option value="exchange" {% if filters.sort == "exchange" %}selected{% endif %}>Exchange</option>
+          <option value="-candles" {% if filters.sort == "-candles" %}selected{% endif %}>+ de candles</option>
+          <option value="recent" {% if filters.sort == "recent" %}selected{% endif %}>Plus récent</option>
+        </select>
+      </div>
+      <button type="submit" class="px-4 py-1.5 rounded-lg text-sm font-medium" style="background: var(--green); color: #080c14;">
+        Filtrer
+      </button>
+      {% if filters.q or filters.asset_class or filters.exchange or filters.status %}
+        <a href="{% url 'asset-list' %}" class="px-3 py-1.5 rounded-lg text-sm text-gray-300 border border-white/10 hover:bg-white/5">
+          Réinitialiser
+        </a>
+      {% endif %}
+    </form>
+  </section>
+
+  <!-- Table -->
+  <section class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+      <h3 class="text-white font-semibold">Instruments</h3>
+      <div class="flex items-center gap-3">
+        <span x-show="liveLoading" class="animate-spin inline-block w-3 h-3 border-2 border-white/20 border-t-white/60 rounded-full"></span>
+        <span class="text-xs text-gray-500 mono">{{ page_obj.paginator.count }} résultats</span>
+      </div>
+    </div>
+
+    {% if assets %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[900px] text-sm">
+        <thead>
+          <tr class="border-b border-white/10 text-left">
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Symbole</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Nom</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Exchange</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Type</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase text-right">Prix actuel</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase text-right">Candles</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Dernière bougie</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase">Statut</th>
+            <th class="px-4 py-3 text-[11px] text-gray-400 mono uppercase text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for asset in assets %}
+          <tr class="table-row border-b border-white/5 hover:bg-white/3 transition" id="asset-row-{{ asset.id }}">
+            <!-- Symbole -->
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <div class="w-9 h-9 rounded-lg flex items-center justify-center text-[10px] font-black mono"
+                  style="background: rgba(59,130,246,0.1); color: var(--blue); border: 1px solid rgba(59,130,246,0.2);">
+                  {{ asset.symbol|slice:":3" }}
+                </div>
+                <div class="text-white font-semibold mono">{{ asset.symbol }}</div>
+              </div>
+            </td>
+
+            <!-- Nom -->
+            <td class="px-4 py-3 text-gray-400 text-xs">{{ asset.name|default:"—" }}</td>
+
+            <!-- Exchange -->
+            <td class="px-4 py-3">
+              <span class="px-2 py-0.5 rounded text-[11px] mono"
+                {% if asset.exchange == "DERIV" %}
+                  style="background: rgba(139,92,246,0.1); color: #a78bfa; border: 1px solid rgba(139,92,246,0.25);"
+                {% elif asset.exchange == "BINANCE" %}
+                  style="background: rgba(255,183,3,0.1); color: var(--amber); border: 1px solid rgba(255,183,3,0.25);"
+                {% else %}
+                  style="background: rgba(255,255,255,0.05); color: #9ca3af; border: 1px solid rgba(255,255,255,0.1);"
+                {% endif %}
+              >{{ asset.exchange }}</span>
+            </td>
+
+            <!-- Type -->
+            <td class="px-4 py-3 text-gray-400 text-xs">{{ asset.get_asset_class_display }}</td>
+
+            <!-- Prix actuel (live) -->
+            <td class="px-4 py-3 text-right">
+              <span class="mono text-white" id="price-{{ asset.id }}"
+                :class="priceFlash[{{ asset.id }}] === 'up' ? 'text-emerald-400' : priceFlash[{{ asset.id }}] === 'down' ? 'text-red-400' : 'text-white'"
+                x-text="livePrices[{{ asset.id }}] || '—'">
+                —
+              </span>
+            </td>
+
+            <!-- Candles count -->
+            <td class="px-4 py-3 text-right mono text-gray-300 text-xs">{{ asset.candles_count|default:0 }}</td>
+
+            <!-- Dernière bougie -->
+            <td class="px-4 py-3 text-gray-400 mono text-xs">
+              {% if asset.last_candle_time %}
+                {{ asset.last_candle_time|date:"d/m/Y H:i" }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+
+            <!-- Statut -->
+            <td class="px-4 py-3">
+              {% if asset.is_active %}
+                <span class="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] mono w-fit"
+                  style="background: rgba(0,255,157,0.1); color: var(--green); border: 1px solid rgba(0,255,157,0.25);">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                  Actif
+                </span>
+              {% else %}
+                <span class="px-2 py-0.5 rounded text-[11px] mono"
+                  style="background: rgba(255,77,109,0.1); color: var(--red); border: 1px solid rgba(255,77,109,0.25);">
+                  Inactif
+                </span>
+              {% endif %}
+            </td>
+
+            <!-- Actions -->
+            <td class="px-4 py-3 text-right">
+              <div class="flex items-center justify-end gap-2">
+                {% if asset.is_active %}
+                  <a href="{% url 'asset-quick-trade' asset.pk %}"
+                    class="px-3 py-1 rounded-lg text-xs mono font-semibold"
+                    style="background: var(--green); color: #080c14;">
+                    Trader
+                  </a>
+                {% endif %}
+                <a href="{% url 'asset-chart' asset.pk %}"
+                  class="px-2 py-1 rounded-lg text-xs mono border border-white/10 text-gray-300 hover:bg-white/5">
+                  Chart
+                </a>
+                <a href="{% url 'asset-detail' asset.pk %}"
+                  class="px-2 py-1 rounded-lg text-xs mono border border-white/10 text-gray-300 hover:bg-white/5">
+                  Voir
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="px-6 py-3 border-t border-white/10 flex items-center justify-between text-sm">
+      <span class="text-gray-500 mono text-xs">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      <div class="flex items-center gap-2">
+        {% if page_obj.has_previous %}
+          <a class="px-3 py-1 rounded border border-white/10 hover:bg-white/5 text-gray-200 text-xs"
+            href="?q={{ filters.q }}&asset_class={{ filters.asset_class }}&exchange={{ filters.exchange }}&status={{ filters.status }}&sort={{ filters.sort }}&page={{ page_obj.previous_page_number }}">
+            Précédent
+          </a>
+        {% endif %}
+        {% if page_obj.has_next %}
+          <a class="px-3 py-1 rounded border border-white/10 hover:bg-white/5 text-gray-200 text-xs"
+            href="?q={{ filters.q }}&asset_class={{ filters.asset_class }}&exchange={{ filters.exchange }}&status={{ filters.status }}&sort={{ filters.sort }}&page={{ page_obj.next_page_number }}">
+            Suivant
+          </a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+      <div class="px-6 py-2">
+        {% include "_partials/_empty_state.html" with icon="chart" title="Aucun actif trouvé" subtitle="Aucun instrument ne correspond aux critères de filtre actifs." %}
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function assetsLive() {
+  // Build initial asset IDs from Django-rendered table
+  const assetIds = Array.from(document.querySelectorAll('tr[id^="asset-row-"]'))
+    .map(r => parseInt(r.id.replace('asset-row-', '')));
+
+  return {
+    livePrices: {},
+    priceFlash: {},  // { id: 'up'|'down'|null }
+    lastUpdated: null,
+    liveLoading: false,
+
+    async refresh() {
+      this.liveLoading = true;
+      try {
+        const params = new URLSearchParams(window.location.search);
+        params.set('format', 'json');
+        const resp = await fetch('/market/assets/api/?' + params.toString());
+        if (!resp.ok) return;
+        const data = await resp.json();
+
+        const priceMap = {};
+        data.assets.forEach(a => {
+          priceMap[a.id] = a.last_close;
+        });
+
+        // Update prices with flash indicator
+        assetIds.forEach(id => {
+          const prev = this.livePrices[id];
+          const curr = priceMap[id];
+          if (curr) {
+            if (prev && curr !== prev) {
+              const pn = parseFloat(curr);
+              const pp = parseFloat(prev);
+              this.priceFlash[id] = pn > pp ? 'up' : 'down';
+              setTimeout(() => { this.priceFlash[id] = null; }, 1500);
+            }
+            this.livePrices[id] = curr;
+          }
+        });
+
+        this.lastUpdated = new Date().toLocaleTimeString('fr-FR');
+      } catch(e) {
+        console.warn('assets price poll error:', e);
+      } finally {
+        this.liveLoading = false;
+      }
+    },
+
+    init() {
+      this.refresh();
+      setInterval(() => this.refresh(), 10000);
+    }
+  };
+}
+</script>
 {% endblock %}

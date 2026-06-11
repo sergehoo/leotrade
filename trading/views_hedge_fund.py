@@ -1,5 +1,7 @@
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Avg, Count, Sum
+from django.http import JsonResponse
 from django.views.generic import TemplateView
 
 from portfolio.models import Portfolio, Position
@@ -172,3 +174,68 @@ class LearningMonitorView(LoginRequiredMixin, TemplateView):
             "chart_data": chart_data,
         })
         return ctx
+
+
+@login_required
+def risk_monitor_api(request):
+    """AJAX — risk states JSON."""
+    portfolios = Portfolio.objects.filter(user=request.user, is_active=True)
+    portfolio_ids = list(portfolios.values_list("id", flat=True))
+
+    latest_states_qs = (
+        RiskState.objects.filter(portfolio_id__in=portfolio_ids)
+        .select_related("portfolio")
+        .order_by("portfolio_id", "-created_at")
+    )
+
+    latest_states = {}
+    for state in latest_states_qs:
+        if state.portfolio_id not in latest_states:
+            latest_states[state.portfolio_id] = state
+
+    data = []
+    for pid, state in latest_states.items():
+        data.append({
+            "portfolio_id": state.portfolio_id,
+            "portfolio_name": state.portfolio.name,
+            "status": state.status,
+            "drawdown_pct": float(state.current_drawdown_percent or 0),
+            "exposure_pct": float(state.exposure_percent or 0),
+            "correlation_risk": float(state.correlation_risk_score or 0),
+            "recommended_risk": float(state.recommended_risk_percent or 0),
+            "allow_new_positions": state.allow_new_positions,
+            "reason": state.reason or "",
+        })
+
+    return JsonResponse({"risk_states": data, "count": len(data)})
+
+
+@login_required
+def learning_monitor_api(request):
+    """AJAX — learning snapshots + reinforcement events."""
+    snapshots = LearningSnapshot.objects.select_related("strategy", "asset").order_by("-created_at")[:20]
+    events = ReinforcementEvent.objects.select_related("strategy").order_by("-created_at")[:15]
+
+    snap_data = []
+    for s in snapshots:
+        label = (s.strategy.name if s.strategy else (s.asset.symbol if s.asset else f"#{s.id}"))
+        snap_data.append({
+            "id": s.id,
+            "label": label[:20],
+            "win_rate": float(s.win_rate or 0),
+            "expectancy": float(s.expectancy or 0),
+            "size_multiplier": float(s.size_multiplier or 1),
+            "created_at": s.created_at.strftime("%d/%m %H:%M") if s.created_at else "",
+        })
+
+    event_data = []
+    for e in events:
+        event_data.append({
+            "id": e.id,
+            "event_type": e.event_type,
+            "strategy": e.strategy.name if e.strategy else "—",
+            "net_value": float(e.net_value or 0),
+            "created_at": e.created_at.strftime("%d/%m %H:%M") if e.created_at else "",
+        })
+
+    return JsonResponse({"snapshots": snap_data, "events": event_data})

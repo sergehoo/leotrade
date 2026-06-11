@@ -2,9 +2,9 @@ from django.urls import path
 
 from trading.views import SignalListView, ExecuteSignalView, OrderListView, market_data_api, OrderDetailView, \
     TradingIntentListView, TradingIntentCreateView, TradingIntentDetailView, TradingIntentAnalyzeView, \
-    TradingIntentLaunchView
+    TradingIntentLaunchView, signal_list_api
 from trading.views_deriv import DerivContractListView, DerivContractDetailView
-from trading.views_hedge_fund import HedgeFundDashboardView, RiskMonitorView, LearningMonitorView
+from trading.views_hedge_fund import HedgeFundDashboardView, RiskMonitorView, LearningMonitorView, risk_monitor_api, learning_monitor_api
 from trading.views_trade_ideas import TradeIdeaListView, TradeIdeaDetailView, TradeIdeaApproveView, TradeIdeaRejectView, \
     TradeIdeaAutoTradeView, TradeIdeaLiveFeedView
 
@@ -13,6 +13,7 @@ app_name = "trading"
 urlpatterns = [
     path("api/market-data/", market_data_api, name="market-data"),
     path("signals/", SignalListView.as_view(), name="signal-list"),
+    path("signals/api/", signal_list_api, name="signal-list-api"),
     path("orders/", OrderListView.as_view(), name="order-list"),
     path("signals/<int:pk>/execute/", ExecuteSignalView.as_view(), name="execute-signal"),
 
@@ -36,5 +37,7 @@ urlpatterns = [
 
     path("hedge-fund/", HedgeFundDashboardView.as_view(), name="hedge-fund-dashboard"),
     path("hedge-fund/risk/", RiskMonitorView.as_view(), name="risk-monitor"),
+    path("hedge-fund/risk/api/", risk_monitor_api, name="risk-monitor-api"),
     path("hedge-fund/learning/", LearningMonitorView.as_view(), name="learning-monitor"),
+    path("hedge-fund/learning/api/", learning_monitor_api, name="learning-monitor-api"),
 ]

@@ -3,6 +3,7 @@ import json
 import logging
 from decimal import Decimal, InvalidOperation
 
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
 from django.db.models import Q, Count, Max, Min
@@ -155,6 +156,73 @@ class CandleListView(LoginRequiredMixin, ListView):
         ctx["selected_asset"] = self.request.GET.get("asset", "")
         ctx["selected_timeframe"] = self.request.GET.get("timeframe", "")
         return ctx
+
+
+@login_required
+def market_assets_api(request):
+    """AJAX — returns assets list with last candle close price as JSON."""
+    qs = (
+        Asset.objects
+        .annotate(
+            candles_count=Count("candles", distinct=True),
+            last_candle_time=Max("candles__open_time"),
+        )
+        .order_by("symbol")
+    )
+
+    search = request.GET.get("q", "").strip()
+    asset_class = request.GET.get("asset_class", "").strip()
+    exchange = request.GET.get("exchange", "").strip()
+    status = request.GET.get("status", "").strip()
+
+    if search:
+        qs = qs.filter(
+            Q(symbol__icontains=search)
+            | Q(name__icontains=search)
+        )
+    if asset_class:
+        qs = qs.filter(asset_class=asset_class)
+    if exchange:
+        qs = qs.filter(exchange=exchange)
+    if status == "active":
+        qs = qs.filter(is_active=True)
+    elif status == "inactive":
+        qs = qs.filter(is_active=False)
+
+    qs = qs[:100]
+
+    data = []
+    for a in qs:
+        # Fetch last candle close price
+        last_close = None
+        try:
+            last_candle = (
+                Candle.objects.filter(asset=a)
+                .order_by("-open_time")
+                .values("close")
+                .first()
+            )
+            if last_candle:
+                last_close = str(last_candle["close"])
+        except Exception:
+            pass
+
+        data.append({
+            "id": a.id,
+            "symbol": a.symbol,
+            "name": a.name or "",
+            "exchange": a.exchange,
+            "asset_class": a.get_asset_class_display(),
+            "asset_class_raw": a.asset_class,
+            "base_asset": a.base_asset or "",
+            "quote_asset": a.quote_asset or "",
+            "is_active": a.is_active,
+            "candles_count": a.candles_count,
+            "last_candle_time": a.last_candle_time.strftime("%d/%m/%Y %H:%M") if a.last_candle_time else None,
+            "last_close": last_close,
+        })
+
+    return JsonResponse({"assets": data, "count": len(data)})
 
 
 class CandleDetailView(LoginRequiredMixin, DetailView):

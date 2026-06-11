@@ -131,7 +131,8 @@ def _safe_get_default_portfolio(user):
     try:
         portfolio = (
             _portfolio_safe_queryset()
-            .filter(user=user)
+            .filter(user=user, is_active=True)
+            .order_by("-is_default", "name")
             .first()
         )
         return _hydrate_portfolio_defaults(portfolio)
@@ -149,6 +150,17 @@ class HedgeFundDashboardView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # Liste de tous les portfolios actifs pour le sélecteur
+        try:
+            all_portfolios = list(
+                _portfolio_safe_queryset()
+                .filter(user=self.request.user, is_active=True)
+                .order_by("-is_default", "name")
+            )
+            context["all_portfolios"] = all_portfolios
+        except (ProgrammingError, OperationalError):
+            context["all_portfolios"] = []
 
         portfolio = _safe_get_default_portfolio(self.request.user)
         context["portfolio"] = portfolio
@@ -236,13 +248,43 @@ class HedgeFundDashboardView(LoginRequiredMixin, TemplateView):
                 "losers_count": 0,
             }
 
-        context["recent_signals"] = (
+        # Signaux filtrés sur les stratégies actives ; si un portfolio est
+        # sélectionné, on affine par l'asset du portfolio (sinon plateforme).
+        signals_qs = (
             Signal.objects
             .select_related("strategy", "strategy__asset")
-            .order_by("-created_at")[:10]
+            .filter(strategy__is_active=True)
+            .order_by("-created_at")
         )
+        if portfolio:
+            # Filtre préférentiel : signaux liés aux actifs du portfolio
+            asset_ids = list(
+                Position.objects
+                .filter(portfolio=portfolio)
+                .values_list("asset_id", flat=True)
+                .distinct()
+            )
+            if asset_ids:
+                signals_qs = signals_qs.filter(strategy__asset_id__in=asset_ids)
+        context["recent_signals"] = signals_qs[:10]
 
-        context["backtests"] = BacktestRun.objects.order_by("-created_at")[:5]
+        # Backtests : filtrés sur les stratégies actives (pas de lien user direct)
+        backtests_qs = (
+            BacktestRun.objects
+            .select_related("strategy")
+            .filter(strategy__is_active=True)
+            .order_by("-created_at")
+        )
+        if portfolio:
+            asset_ids = list(
+                Position.objects
+                .filter(portfolio=portfolio)
+                .values_list("asset_id", flat=True)
+                .distinct()
+            )
+            if asset_ids:
+                backtests_qs = backtests_qs.filter(strategy__asset_id__in=asset_ids)
+        context["backtests"] = backtests_qs[:5]
         return context
 
 
@@ -439,7 +481,21 @@ class HedgeFundDashboardLiveDataView(LoginRequiredMixin, View):
         return float(progress)
 
     def get(self, request, *args, **kwargs):
-        portfolio = _safe_get_default_portfolio(request.user)
+        # Sélection de portfolio : paramètre URL ?portfolio_id=<id> ou défaut
+        portfolio_id = request.GET.get("portfolio_id") or request.GET.get("portfolio")
+        portfolio = None
+        if portfolio_id:
+            try:
+                portfolio = _hydrate_portfolio_defaults(
+                    _portfolio_safe_queryset()
+                    .filter(user=request.user, is_active=True, id=int(portfolio_id))
+                    .first()
+                )
+            except (ValueError, TypeError, ProgrammingError, OperationalError):
+                portfolio = None
+
+        if not portfolio:
+            portfolio = _safe_get_default_portfolio(request.user)
 
         if not portfolio:
             return JsonResponse({
@@ -585,11 +641,22 @@ class HedgeFundDashboardLiveDataView(LoginRequiredMixin, View):
         ]
 
         balance = self._to_decimal(getattr(portfolio, "current_balance", 0) or 0)
-        equity = self._to_decimal(getattr(portfolio, "equity", balance) or balance)
-        available_cash = self._to_decimal(getattr(portfolio, "available_cash", 0) or 0)
         locked_cash = self._to_decimal(getattr(portfolio, "locked_cash", 0) or 0)
+        margin_used = self._to_decimal(getattr(portfolio, "margin_used", 0) or 0)
         realized_pnl = self._to_decimal(getattr(portfolio, "realized_pnl", 0) or 0)
         total_pnl = realized_pnl + total_unrealized
+
+        # Equity = solde + PnL latent (si le champ DB est obsolète, on le recalcule)
+        db_equity = self._to_decimal(getattr(portfolio, "equity", 0) or 0)
+        equity = db_equity if db_equity != balance else balance + total_unrealized
+
+        # available_cash : si le champ DB vaut le solde total (non réconcilié),
+        # on l'estime comme solde - cash bloqué - marge utilisée.
+        db_available = self._to_decimal(getattr(portfolio, "available_cash", 0) or 0)
+        if db_available and db_available != balance:
+            available_cash = db_available
+        else:
+            available_cash = max(Decimal("0"), balance - locked_cash - margin_used)
 
         pnl_percent = Decimal("0")
         if balance > 0:
@@ -606,6 +673,12 @@ class HedgeFundDashboardLiveDataView(LoginRequiredMixin, View):
                     getattr(portfolio.broker_account, "name", "")
                     if getattr(portfolio, "broker_account", None)
                     else ""
+                ),
+                "is_default": bool(getattr(portfolio, "is_default", False)),
+                "last_reconciled_at": (
+                    portfolio.last_reconciled_at.isoformat()
+                    if getattr(portfolio, "last_reconciled_at", None)
+                    else None
                 ),
             },
             "stats": {

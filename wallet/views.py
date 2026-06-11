@@ -91,6 +91,21 @@ def wallet_dashboard(request: HttpRequest) -> HttpResponse:
         pending_withdrawal=Sum("amount", filter=Q(tx_type="WITHDRAWAL", status__in=["PENDING", "PROCESSING"])),
     )
 
+    from portfolio.models import Portfolio
+    from accounting.models import Transfer
+
+    portfolios = list(
+        Portfolio.objects
+        .filter(user=request.user, is_active=True)
+        .order_by("-is_default", "name")
+    )
+    recent_transfers = list(
+        Transfer.objects
+        .filter(user=request.user)
+        .select_related("portfolio")
+        .order_by("-created_at")[:5]
+    )
+
     return render(request, "wallet/dashboard.html", {
         "wallet": wallet,
         "transactions": txs,
@@ -99,6 +114,8 @@ def wallet_dashboard(request: HttpRequest) -> HttpResponse:
         "summary": summary,
         "stripe_publishable_key": getattr(settings, "STRIPE_PUBLISHABLE_KEY", ""),
         "kyc_status": _user_kyc_status(request),
+        "portfolios": portfolios,
+        "recent_transfers": recent_transfers,
     })
 
 
@@ -388,6 +405,151 @@ def payout_destination_delete(request: HttpRequest, pk: int) -> HttpResponse:
     destination.delete()
     messages.success(request, "Destination supprimée.")
     return redirect("payout-destination-list")
+
+
+# =========================================================
+# Wallet ↔ Portfolio transfers
+# =========================================================
+
+@login_required
+def wallet_transfer_view(request: HttpRequest) -> HttpResponse:
+    """
+    GET  → affiche le formulaire de transfert
+    POST → exécute le transfert (direction dans POST data)
+    """
+    from portfolio.models import Portfolio
+    from accounting.services import TransferService, TransferError
+    import uuid
+
+    wallet = _get_or_create_wallet(request)
+
+    portfolios = list(
+        Portfolio.objects
+        .filter(user=request.user, is_active=True)
+        .order_by("-is_default", "name")
+    )
+
+    if request.method == "POST":
+        direction = request.POST.get("direction", "")  # to_portfolio | to_wallet
+        portfolio_id = request.POST.get("portfolio_id", "")
+        amount_str = request.POST.get("amount", "").replace(",", ".").strip()
+
+        # --- Validation ---
+        try:
+            amount = Decimal(amount_str)
+            if amount <= 0:
+                raise ValueError
+        except (ValueError, Exception):
+            messages.error(request, "Montant invalide.")
+            return render(request, "wallet/transfer.html", {
+                "wallet": wallet,
+                "portfolios": portfolios,
+                "direction": direction,
+                "portfolio_id": portfolio_id,
+                "amount": amount_str,
+            })
+
+        if not portfolio_id:
+            messages.error(request, "Sélectionnez un portfolio.")
+            return render(request, "wallet/transfer.html", {
+                "wallet": wallet,
+                "portfolios": portfolios,
+                "direction": direction,
+            })
+
+        try:
+            portfolio = Portfolio.objects.get(
+                pk=int(portfolio_id),
+                user=request.user,
+                is_active=True,
+            )
+        except (Portfolio.DoesNotExist, ValueError):
+            messages.error(request, "Portfolio introuvable.")
+            return render(request, "wallet/transfer.html", {
+                "wallet": wallet,
+                "portfolios": portfolios,
+            })
+
+        request_id = f"ui:{request.user.pk}:{direction}:{uuid.uuid4().hex[:16]}"
+
+        try:
+            if direction == "to_portfolio":
+                TransferService.transfer_wallet_to_portfolio(
+                    wallet_id=wallet.pk,
+                    portfolio_id=portfolio.pk,
+                    amount=amount,
+                    request_id=request_id,
+                    description=f"Transfert vers portfolio « {portfolio.name} »",
+                )
+                messages.success(
+                    request,
+                    f"{amount:.2f} {wallet.currency} transférés vers « {portfolio.name} »."
+                )
+            elif direction == "to_wallet":
+                TransferService.transfer_portfolio_to_wallet(
+                    wallet_id=wallet.pk,
+                    portfolio_id=portfolio.pk,
+                    amount=amount,
+                    request_id=request_id,
+                    description=f"Rapatriement depuis portfolio « {portfolio.name} »",
+                )
+                messages.success(
+                    request,
+                    f"{amount:.2f} {wallet.currency} rapatriés depuis « {portfolio.name} »."
+                )
+            else:
+                messages.error(request, "Direction invalide.")
+                return render(request, "wallet/transfer.html", {
+                    "wallet": wallet,
+                    "portfolios": portfolios,
+                })
+
+            return redirect("wallet-dashboard")
+
+        except TransferError as exc:
+            messages.error(request, f"Transfert refusé : {exc}")
+        except Exception as exc:
+            messages.error(request, f"Erreur inattendue : {exc}")
+
+        return render(request, "wallet/transfer.html", {
+            "wallet": wallet,
+            "portfolios": portfolios,
+            "direction": direction,
+            "portfolio_id": portfolio_id,
+            "amount": amount_str,
+        })
+
+    # GET
+    return render(request, "wallet/transfer.html", {
+        "wallet": wallet,
+        "portfolios": portfolios,
+        "direction": request.GET.get("direction", ""),
+        "portfolio_id": request.GET.get("portfolio_id", ""),
+    })
+
+
+@login_required
+def transfer_history(request: HttpRequest) -> HttpResponse:
+    """Historique paginé des transferts Wallet ↔ Portfolio."""
+    from accounting.models import Transfer
+
+    wallet = _get_or_create_wallet(request)
+
+    transfers_qs = (
+        Transfer.objects
+        .filter(user=request.user)
+        .select_related("portfolio")
+        .order_by("-created_at")
+    )
+
+    paginator = Paginator(transfers_qs, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    return render(request, "wallet/transfer_history.html", {
+        "wallet": wallet,
+        "page_obj": page_obj,
+        "transfers": page_obj.object_list,
+    })
 
 
 # =========================================================

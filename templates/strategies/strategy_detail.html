@@ -1,174 +1,459 @@
 {% extends "layout/base.html" %}
 {% load extra_filters %}
 {% block title %}{{ strategy.name }} — LeoTrade{% endblock %}
-{% block page_title %}Détail stratégie{% endblock %}
+{% block page_title %}Stratégie{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="space-y-6" x-data="strategyDetail()" x-init="init()">
 
-  <section class="card card-glow p-6">
-    <div class="flex flex-col xl:flex-row xl:justify-between gap-5">
-      <div>
-        <div class="text-xs mono uppercase tracking-wider text-gray-600">Strategy Intelligence</div>
-        <h2 class="text-white text-2xl font-semibold mt-1">{{ strategy.name }}</h2>
-        <p class="text-sm text-gray-500 mt-2">
-          {{ strategy.asset.symbol }} · {{ strategy.timeframe.code }} · {{ strategy.strategy_type }}
-        </p>
+  {# ══════════════════════════════════════════════════════════════
+     HERO — identité + score de santé + actions
+  ══════════════════════════════════════════════════════════════ #}
+  <section class="card card-glow p-6 overflow-hidden relative">
+    <div class="absolute inset-0 pointer-events-none opacity-20"
+         style="background: radial-gradient(circle at top right, rgba(0,255,157,.15), transparent 40%);"></div>
+
+    <div class="relative flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
+
+      {# Identité #}
+      <div class="flex-1">
+        <div class="flex items-center gap-3 flex-wrap">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Strategy Intelligence</div>
+          {# Type badge #}
+          {% if strategy.strategy_type == "ML" %}
+            <span class="px-2 py-0.5 rounded text-xs mono bg-blue-500/10 text-blue-300 border border-blue-400/20">🤖 ML</span>
+          {% elif strategy.strategy_type == "RULE" %}
+            <span class="px-2 py-0.5 rounded text-xs mono bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">📐 RULE</span>
+          {% else %}
+            <span class="px-2 py-0.5 rounded text-xs mono bg-amber-500/10 text-amber-300 border border-amber-400/20">⚗️ HYBRID</span>
+          {% endif %}
+          {# Status #}
+          {% if strategy.status == "LIVE" %}
+            <span class="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs mono bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>LIVE
+            </span>
+          {% elif strategy.status == "PAPER" %}
+            <span class="px-2 py-0.5 rounded text-xs mono bg-blue-500/10 text-blue-300 border border-blue-400/20">PAPER</span>
+          {% elif strategy.status == "PAUSED" %}
+            <span class="px-2 py-0.5 rounded text-xs mono bg-amber-500/10 text-amber-300 border border-amber-400/20">⏸ PAUSED</span>
+          {% elif strategy.status == "BACKTEST" %}
+            <span class="px-2 py-0.5 rounded text-xs mono bg-violet-500/10 text-violet-300 border border-violet-400/20">🔬 BACKTEST</span>
+          {% elif strategy.status == "ARCHIVED" %}
+            <span class="px-2 py-0.5 rounded text-xs mono bg-gray-500/10 text-gray-400 border border-gray-600/20">ARCHIVED</span>
+          {% else %}
+            <span class="px-2 py-0.5 rounded text-xs mono bg-white/5 text-gray-400 border border-white/10">{{ strategy.status }}</span>
+          {% endif %}
+          {% if strategy.is_autonomous %}
+            <span class="px-2 py-0.5 rounded text-xs mono" style="background:rgba(255,183,3,0.12);color:#ffb703;border:1px solid rgba(255,183,3,0.25);">⚡ AUTONOME</span>
+          {% endif %}
+          {% if not strategy.is_active %}
+            <span class="px-2 py-0.5 rounded text-xs mono bg-red-500/10 text-red-400 border border-red-400/20">INACTIF</span>
+          {% endif %}
+        </div>
+
+        <h2 class="text-white text-2xl font-semibold mt-2">{{ strategy.name }}</h2>
+        <div class="flex items-center gap-4 mt-2 flex-wrap text-sm text-gray-400">
+          <span class="mono">{{ strategy.asset.symbol }}</span>
+          <span class="text-gray-700">·</span>
+          <span class="mono">{{ strategy.timeframe.code }}</span>
+          {% if strategy.allow_live_execution %}
+            <span class="text-emerald-500 text-xs">✓ Exécution live autorisée</span>
+          {% endif %}
+        </div>
+        {% if strategy.description %}
+          <p class="text-sm text-gray-400 mt-3 max-w-2xl">{{ strategy.description }}</p>
+        {% endif %}
       </div>
 
-      <div class="flex flex-wrap gap-3">
-        <form method="post" action="{% url 'strategy-toggle-active' strategy.pk %}">
-          {% csrf_token %}
-          <button class="px-4 py-2 rounded-lg bg-white/5 text-gray-300 border border-white/10">
-            {% if strategy.is_active %}Désactiver{% else %}Activer{% endif %}
-          </button>
-        </form>
+      {# Score de santé + actions #}
+      <div class="flex flex-col items-end gap-4 xl:min-w-[260px]">
 
-        <form method="post" action="{% url 'strategy-toggle-autonomous' strategy.pk %}">
-          {% csrf_token %}
-          <button class="px-4 py-2 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-400/20">
-            {% if strategy.is_autonomous %}Auto OFF{% else %}Auto ON{% endif %}
-          </button>
-        </form>
+        {# Health score #}
+        <div class="card p-4 w-full xl:w-auto xl:min-w-[200px] text-center">
+          <div class="text-[10px] mono uppercase tracking-wider text-gray-600 mb-2">Score de santé</div>
+          <div class="relative w-20 h-20 mx-auto">
+            <svg viewBox="0 0 36 36" class="w-20 h-20 -rotate-90">
+              <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="3"/>
+              <circle cx="18" cy="18" r="15.9" fill="none"
+                stroke="{% if health >= 75 %}#00ff9d{% elif health >= 55 %}#3b82f6{% elif health >= 35 %}#ffb703{% else %}#ff4d6d{% endif %}"
+                stroke-width="3" stroke-dasharray="{{ health }}, 100"
+                stroke-linecap="round"/>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+              <span class="text-xl font-bold {{ health_class }}">{{ health }}</span>
+              <span class="text-[9px] text-gray-600 mono">/100</span>
+            </div>
+          </div>
+          <div class="mt-2 text-sm font-medium {{ health_class }}">{{ health_label }}</div>
+        </div>
 
-        <form method="post" action="{% url 'strategy-switch-status' strategy.pk %}" class="flex gap-2">
-          {% csrf_token %}
-          <select name="status" class="rounded-lg bg-white/5 border border-white/10 text-white px-3 py-2">
-            {% for s in "DRAFT,BACKTEST,PAPER,LIVE,PAUSED,ARCHIVED,FAILED"|split:"," %}
-              <option value="{{ s }}" {% if strategy.status == s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-          <button class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">
-            Appliquer
-          </button>
-        </form>
+        {# Boutons d'action #}
+        <div class="flex flex-wrap gap-2 justify-end">
+          <form method="post" action="{% url 'strategy-toggle-active' strategy.pk %}">
+            {% csrf_token %}
+            <button class="px-3 py-1.5 rounded-lg text-xs mono
+              {% if strategy.is_active %}bg-red-500/10 text-red-300 border border-red-400/20 hover:bg-red-500/15
+              {% else %}bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15{% endif %} transition">
+              {% if strategy.is_active %}⏹ Désactiver{% else %}▶ Activer{% endif %}
+            </button>
+          </form>
+          <form method="post" action="{% url 'strategy-toggle-autonomous' strategy.pk %}">
+            {% csrf_token %}
+            <button class="px-3 py-1.5 rounded-lg text-xs mono
+              {% if strategy.is_autonomous %}bg-amber-500/10 text-amber-300 border border-amber-400/20
+              {% else %}bg-white/5 text-gray-300 border border-white/10{% endif %} hover:bg-white/10 transition">
+              {% if strategy.is_autonomous %}⚡ Auto ON{% else %}⚡ Auto OFF{% endif %}
+            </button>
+          </form>
+          <form method="post" action="{% url 'strategy-switch-status' strategy.pk %}" class="flex gap-1">
+            {% csrf_token %}
+            <select name="status" class="rounded-lg text-xs mono bg-white/5 border border-white/10 text-white px-2 py-1.5">
+              {% for s in "DRAFT,BACKTEST,PAPER,LIVE,PAUSED,ARCHIVED,FAILED"|split:"," %}
+                <option value="{{ s }}" {% if strategy.status == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+            <button class="px-3 py-1.5 rounded-lg text-xs mono bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">Changer</button>
+          </form>
+          {% if latest_backtest %}
+            <a href="{% url 'backtest-detail' latest_backtest.pk %}"
+               class="px-3 py-1.5 rounded-lg text-xs mono bg-violet-500/10 text-violet-300 border border-violet-400/20 hover:bg-violet-500/15 transition">
+              🔬 Dernier backtest
+            </a>
+          {% endif %}
+          <a href="{% url 'launch-backtest' strategy.pk %}" onclick="return confirm('Lancer un nouveau backtest ?')"
+             class="px-3 py-1.5 rounded-lg text-xs mono bg-violet-500/15 text-violet-300 border border-violet-400/30 hover:bg-violet-500/20 transition">
+            ▶ Nouveau backtest
+          </a>
+        </div>
+      </div>
+    </div>
+
+    {# Lifecycle du statut #}
+    <div class="relative mt-6 pt-6 border-t border-white/5">
+      <div class="text-[10px] mono uppercase tracking-wider text-gray-600 mb-3">Cycle de vie</div>
+      <div class="flex items-center gap-0 overflow-x-auto pb-1">
+        {% for stage in "DRAFT,BACKTEST,PAPER,LIVE,PAUSED,ARCHIVED"|split:"," %}
+          <div class="flex items-center">
+            <div class="flex flex-col items-center px-3">
+              <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs mono font-bold
+                {% if strategy.status == stage %}
+                  {% if stage == 'LIVE' %}bg-emerald-500 text-black
+                  {% elif stage == 'PAUSED' %}bg-amber-500 text-black
+                  {% elif stage == 'ARCHIVED' %}bg-gray-500 text-white
+                  {% else %}bg-blue-500 text-white{% endif %}
+                {% elif strategy.status == 'ARCHIVED' or strategy.status == 'PAUSED' %}bg-white/5 text-gray-600 border border-white/10
+                {% else %}bg-white/5 text-gray-600 border border-white/10{% endif %}">
+                {% if stage == "DRAFT" %}D{% elif stage == "BACKTEST" %}B{% elif stage == "PAPER" %}P{% elif stage == "LIVE" %}L{% elif stage == "PAUSED" %}⏸{% else %}A{% endif %}
+              </div>
+              <div class="text-[9px] mono mt-1 {% if strategy.status == stage %}text-white{% else %}text-gray-600{% endif %}">{{ stage }}</div>
+            </div>
+            {% if not forloop.last %}
+              <div class="w-8 h-px bg-white/10 flex-shrink-0 -mt-3"></div>
+            {% endif %}
+          </div>
+        {% endfor %}
       </div>
     </div>
   </section>
 
-  <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
-    <div class="card p-5">
-      <div class="text-xs mono uppercase tracking-wider text-gray-600">Signals</div>
-      <div class="text-2xl text-white font-semibold mt-2">{{ stats.total|default:0 }}</div>
+  {# ══════════════════════════════════════════════════════════════
+     KPIs + métriques interprétées
+  ══════════════════════════════════════════════════════════════ #}
+  <section class="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+
+    <div class="card p-4">
+      <div class="text-[10px] mono uppercase tracking-wider text-gray-600">Signaux totaux</div>
+      <div class="text-2xl text-white font-semibold mt-2 mono">{{ stats.total|default:0 }}</div>
+      <div class="text-xs text-gray-600 mt-1">↑ {{ signals_24h }} / 24h · {{ signals_7d }} / 7j</div>
     </div>
-    <div class="card p-5">
-      <div class="text-xs mono uppercase tracking-wider text-gray-600">Executed</div>
-      <div class="text-2xl text-emerald-400 font-semibold mt-2">{{ stats.executed|default:0 }}</div>
+
+    <div class="card p-4">
+      <div class="text-[10px] mono uppercase tracking-wider text-gray-600">Exécutés</div>
+      <div class="text-2xl font-semibold mt-2 mono" style="color: var(--green)">{{ stats.executed|default:0 }}</div>
+      <div class="text-xs text-gray-600 mt-1">
+        {% if stats.total %}{{ stats.executed|default:0|floatformat:0 }}/{{ stats.total }} = {{ stats.executed|default:0|mul:100|div:stats.total|default:0|floatformat:0 }}%{% else %}—{% endif %}
+      </div>
     </div>
-    <div class="card p-5">
-      <div class="text-xs mono uppercase tracking-wider text-gray-600">Approved</div>
-      <div class="text-2xl text-blue-400 font-semibold mt-2">{{ stats.approved|default:0 }}</div>
+
+    <div class="card p-4">
+      <div class="text-[10px] mono uppercase tracking-wider text-gray-600">Win Rate</div>
+      <div class="text-2xl font-semibold mt-2 mono {{ metrics.win_rate.cls }}">{{ metrics.win_rate.pct }}</div>
+      <div class="text-xs mt-1 {{ metrics.win_rate.cls }}">{{ metrics.win_rate.label }}</div>
     </div>
-    <div class="card p-5">
-      <div class="text-xs mono uppercase tracking-wider text-gray-600">Avg confidence</div>
-      <div class="text-2xl text-amber-300 font-semibold mt-2">{{ stats.avg_confidence|default:0|floatformat:2 }}</div>
+
+    <div class="card p-4">
+      <div class="text-[10px] mono uppercase tracking-wider text-gray-600">Sharpe Ratio</div>
+      <div class="text-2xl font-semibold mt-2 mono {{ metrics.sharpe.cls }}">{{ metrics.sharpe.pct }}</div>
+      <div class="text-xs mt-1 {{ metrics.sharpe.cls }}">{{ metrics.sharpe.label }}</div>
+    </div>
+
+    <div class="card p-4">
+      <div class="text-[10px] mono uppercase tracking-wider text-gray-600">Max Drawdown</div>
+      <div class="text-2xl font-semibold mt-2 mono {{ metrics.drawdown.cls }}">{{ metrics.drawdown.pct }}</div>
+      <div class="text-xs mt-1 {{ metrics.drawdown.cls }}">{{ metrics.drawdown.label }}</div>
+    </div>
+
+    <div class="card p-4">
+      <div class="text-[10px] mono uppercase tracking-wider text-gray-600">Confiance moy.</div>
+      <div class="text-2xl font-semibold mt-2 mono {{ metrics.avg_conf.cls }}">{{ metrics.avg_conf.pct }}</div>
+      <div class="text-xs mt-1 {{ metrics.avg_conf.cls }}">{{ metrics.avg_conf.label }}</div>
     </div>
   </section>
 
-  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-    <div class="card p-6">
+  {# ══════════════════════════════════════════════════════════════
+     Graphique perf + Signal breakdown
+  ══════════════════════════════════════════════════════════════ #}
+  <section class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+    <div class="xl:col-span-2 card p-6">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-white font-semibold">Performance</h3>
+        <h3 class="text-white font-semibold">Courbes de performance</h3>
+        <div class="flex items-center gap-3 text-[10px] mono text-gray-600">
+          <span class="flex items-center gap-1"><span class="w-2 h-0.5 inline-block rounded" style="background:#00ff9d"></span>Win Rate</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-0.5 inline-block rounded" style="background:#3b82f6"></span>Avg Return</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-0.5 inline-block rounded" style="background:#ffb703"></span>Sharpe</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-0.5 inline-block rounded" style="background:#ff4d6d"></span>Drawdown</span>
+        </div>
       </div>
-      <div class="h-[320px]">
+      <div class="h-64">
         <canvas id="strategyPerfChart"></canvas>
       </div>
     </div>
 
     <div class="card p-6">
-      <h3 class="text-white font-semibold mb-4">Configuration</h3>
-      <div class="space-y-4 text-sm">
-        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
-          <div class="text-gray-500">Description</div>
-          <div class="text-white mt-2 whitespace-pre-wrap">{{ strategy.description|default:"—" }}</div>
+      <h3 class="text-white font-semibold mb-4">Répartition des signaux</h3>
+      <div class="h-44">
+        <canvas id="signalBreakdownChart"></canvas>
+      </div>
+      <div class="mt-4 space-y-1.5 text-xs mono">
+        <div class="flex justify-between text-gray-400">
+          <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full inline-block" style="background:#00ff9d"></span>Exécutés</span>
+          <span class="text-white">{{ stats.executed|default:0 }}</span>
         </div>
-        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
-          <div class="text-gray-500">Paramètres</div>
-          <pre class="text-xs text-gray-300 whitespace-pre-wrap mt-2">{{ strategy.parameters }}</pre>
+        <div class="flex justify-between text-gray-400">
+          <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full inline-block" style="background:#3b82f6"></span>Approuvés</span>
+          <span class="text-white">{{ stats.approved|default:0 }}</span>
+        </div>
+        <div class="flex justify-between text-gray-400">
+          <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full inline-block" style="background:#ff4d6d"></span>Rejetés</span>
+          <span class="text-white">{{ stats.rejected|default:0 }}</span>
+        </div>
+        <div class="flex justify-between text-gray-400">
+          <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full inline-block" style="background:#6b7280"></span>Expirés</span>
+          <span class="text-white">{{ stats.expired|default:0 }}</span>
+        </div>
+        <div class="flex justify-between text-gray-400">
+          <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full inline-block" style="background:#ffb703"></span>Nouveaux</span>
+          <span class="text-white">{{ stats.new|default:0 }}</span>
         </div>
       </div>
     </div>
   </section>
 
+  {# ══════════════════════════════════════════════════════════════
+     Configuration intelligente
+  ══════════════════════════════════════════════════════════════ #}
   <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-    <div class="card overflow-hidden">
-      <div class="px-6 py-4 border-b border-white/10"><h3 class="text-white font-semibold">Versions</h3></div>
-      {% if versions %}
-      <div class="divide-y divide-white/10">
-        {% for version in versions %}
-        <div class="px-6 py-4 flex items-center justify-between gap-3">
-          <div>
-            <div class="text-white font-medium">v{{ version.version }}</div>
-            <div class="text-xs text-gray-500 mt-1">{{ version.created_at|date:"d/m/Y H:i" }}</div>
-          </div>
-          {% if version.is_live %}
-            <span class="px-2 py-1 rounded text-xs mono pill-open">LIVE VERSION</span>
+
+    {# Paramètres de risque #}
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">⚖️ Paramètres de risque</h3>
+      <div class="grid grid-cols-2 gap-3">
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-[10px] mono uppercase text-gray-600">Risque / trade</div>
+          <div class="text-xl text-white font-semibold mt-1 mono">{{ strategy.risk_per_trade_percent }}%</div>
+          {% if strategy.risk_per_trade_percent <= 1 %}
+            <div class="text-xs text-emerald-400 mt-1">Conservateur ✅</div>
+          {% elif strategy.risk_per_trade_percent <= 2 %}
+            <div class="text-xs text-amber-400 mt-1">Modéré ⚡</div>
+          {% else %}
+            <div class="text-xs text-red-400 mt-1">Agressif ❌</div>
           {% endif %}
         </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div class="py-12 text-center text-gray-500 text-sm">Aucune version.</div>
-      {% endif %}
-    </div>
 
-    <div class="card overflow-hidden">
-      <div class="px-6 py-4 border-b border-white/10"><h3 class="text-white font-semibold">Prédictions récentes</h3></div>
-      {% if predictions %}
-      <div class="divide-y divide-white/10">
-        {% for pred in predictions %}
-        <div class="px-6 py-4">
-          <div class="flex items-center justify-between gap-3">
-            <div class="text-white font-medium">{{ pred.predicted_label|default:"—" }}</div>
-            <div class="text-xs mono text-gray-500">{{ pred.candle_time|date:"d/m/Y H:i" }}</div>
-          </div>
-          <div class="text-xs text-gray-500 mt-2">
-            Score {{ pred.predicted_score|floatformat:4 }} · Up {{ pred.probability_up|floatformat:2 }} · Down {{ pred.probability_down|floatformat:2 }}
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-[10px] mono uppercase text-gray-600">Drawdown max/jour</div>
+          <div class="text-xl text-white font-semibold mt-1 mono">{{ strategy.max_daily_drawdown_percent }}%</div>
+          {% if strategy.max_daily_drawdown_percent == 0 %}
+            <div class="text-xs text-gray-500 mt-1">Non défini</div>
+          {% elif strategy.max_daily_drawdown_percent <= 3 %}
+            <div class="text-xs text-emerald-400 mt-1">Strict ✅</div>
+          {% else %}
+            <div class="text-xs text-amber-400 mt-1">Souple ⚡</div>
+          {% endif %}
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-[10px] mono uppercase text-gray-600">Confiance min.</div>
+          <div class="text-xl text-white font-semibold mt-1 mono">{{ strategy.min_confidence_threshold|floatformat:2 }}</div>
+          {% if strategy.min_confidence_threshold >= 0.7 %}
+            <div class="text-xs text-emerald-400 mt-1">Sélectif ✅</div>
+          {% elif strategy.min_confidence_threshold >= 0.5 %}
+            <div class="text-xs text-amber-400 mt-1">Standard ⚡</div>
+          {% else %}
+            <div class="text-xs text-red-400 mt-1">Permissif ❌</div>
+          {% endif %}
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="text-[10px] mono uppercase text-gray-600">Expo max</div>
+          <div class="text-xl text-white font-semibold mt-1 mono">{{ strategy.max_total_exposure_percent }}%</div>
+          {% if strategy.max_total_exposure_percent <= 20 %}
+            <div class="text-xs text-emerald-400 mt-1">Prudent ✅</div>
+          {% elif strategy.max_total_exposure_percent <= 50 %}
+            <div class="text-xs text-amber-400 mt-1">Modéré ⚡</div>
+          {% else %}
+            <div class="text-xs text-red-400 mt-1">Élevé ❌</div>
+          {% endif %}
+        </div>
+
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4 col-span-2">
+          <div class="text-[10px] mono uppercase text-gray-600">Signaux / jour max · Cooldown</div>
+          <div class="flex items-center gap-4 mt-2">
+            <span class="text-white font-semibold mono">{{ strategy.max_signals_per_day }} sig/j</span>
+            <span class="text-gray-600">·</span>
+            <span class="text-white font-semibold mono">{{ strategy.cooldown_seconds }}s cooldown</span>
+            <span class="text-gray-600">·</span>
+            <span class="text-white font-semibold mono">{{ strategy.run_interval_seconds }}s intervalle</span>
           </div>
         </div>
-        {% endfor %}
       </div>
-      {% else %}
-      <div class="py-12 text-center text-gray-500 text-sm">Aucune prédiction.</div>
+    </div>
+
+    {# Règles d'entrée / sortie #}
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">📐 Règles d'entrée / sortie</h3>
+
+      {% if entry_rules_list %}
+        <div class="mb-4">
+          <div class="text-xs mono uppercase text-gray-600 mb-2">Entrée</div>
+          <div class="space-y-2">
+            {% for rule in entry_rules_list %}
+              <div class="flex items-start gap-2 rounded-lg bg-emerald-500/5 border border-emerald-400/15 px-3 py-2">
+                <span class="text-emerald-500 mt-0.5 flex-shrink-0">▶</span>
+                <span class="text-sm text-gray-300 font-mono">{{ rule }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+
+      {% if exit_rules_list %}
+        <div>
+          <div class="text-xs mono uppercase text-gray-600 mb-2">Sortie</div>
+          <div class="space-y-2">
+            {% for rule in exit_rules_list %}
+              <div class="flex items-start gap-2 rounded-lg bg-red-500/5 border border-red-400/15 px-3 py-2">
+                <span class="text-red-400 mt-0.5 flex-shrink-0">■</span>
+                <span class="text-sm text-gray-300 font-mono">{{ rule }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+
+      {% if not entry_rules_list and not exit_rules_list %}
+        {% if strategy.parameters %}
+          <div class="text-[10px] mono uppercase text-gray-600 mb-2">Paramètres</div>
+          <pre class="text-xs text-gray-400 bg-white/5 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap">{{ strategy.parameters|pprint_json }}</pre>
+        {% else %}
+          <p class="text-sm text-gray-500">Aucune règle configurée. Les paramètres sont gérés par le modèle ML.</p>
+        {% endif %}
       {% endif %}
     </div>
   </section>
 
+  {# ══════════════════════════════════════════════════════════════
+     Derniers signaux — table live
+  ══════════════════════════════════════════════════════════════ #}
   <section class="card overflow-hidden">
-    <div class="px-6 py-4 border-b border-white/10"><h3 class="text-white font-semibold">Derniers signaux</h3></div>
+    <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+      <div>
+        <h3 class="text-white font-semibold">Derniers signaux</h3>
+        <p class="text-xs text-gray-600 mt-0.5 mono">{{ signals_24h }} dans les 24h · {{ signals_7d }} dans les 7 jours</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-1.5 text-xs mono text-gray-500">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>LIVE
+        </div>
+        <a href="{% url 'signal-list' %}?strategy={{ strategy.pk }}"
+           class="text-xs mono text-gray-500 hover:text-gray-300 transition">Tous →</a>
+      </div>
+    </div>
+
     {% if signals %}
     <div class="overflow-x-auto">
-      <table class="w-full min-w-[1100px] text-sm">
+      <table class="w-full min-w-[900px] text-sm">
         <thead>
           <tr class="border-b border-white/10 text-left">
-            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Date</th>
-            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Side</th>
-            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Confidence</th>
-            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Prix</th>
-            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">RR</th>
-            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Status</th>
-            <th class="px-4 py-3 text-xs text-gray-600 mono uppercase text-right">Action</th>
+            <th class="px-4 py-3 text-[10px] text-gray-600 mono uppercase">Date signal</th>
+            <th class="px-4 py-3 text-[10px] text-gray-600 mono uppercase">Direction</th>
+            <th class="px-4 py-3 text-[10px] text-gray-600 mono uppercase">Confiance</th>
+            <th class="px-4 py-3 text-[10px] text-gray-600 mono uppercase">Prix</th>
+            <th class="px-4 py-3 text-[10px] text-gray-600 mono uppercase">SL / TP</th>
+            <th class="px-4 py-3 text-[10px] text-gray-600 mono uppercase">R/R</th>
+            <th class="px-4 py-3 text-[10px] text-gray-600 mono uppercase">Statut</th>
+            <th class="px-4 py-3 text-[10px] text-gray-600 mono uppercase text-right">Action</th>
           </tr>
         </thead>
         <tbody>
           {% for signal in signals %}
-          <tr class="table-row">
-            <td class="px-4 py-4 text-gray-300 mono">{{ signal.candle_time|date:"d/m/Y H:i" }}</td>
-            <td class="px-4 py-4">
+          <tr class="table-row border-b border-white/5 hover:bg-white/[.02] transition">
+            <td class="px-4 py-3 text-gray-400 mono text-xs">{{ signal.candle_time|date:"d/m/Y H:i" }}</td>
+            <td class="px-4 py-3">
               {% if signal.side == "BUY" %}
-                <span class="px-2 py-1 rounded text-xs mono pill-buy">BUY</span>
+                <span class="px-2 py-1 rounded text-xs mono bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">▲ BUY</span>
               {% elif signal.side == "SELL" %}
-                <span class="px-2 py-1 rounded text-xs mono pill-sell">SELL</span>
+                <span class="px-2 py-1 rounded text-xs mono bg-red-500/10 text-red-300 border border-red-400/20">▼ SELL</span>
               {% else %}
-                <span class="px-2 py-1 rounded text-xs mono pill-placed">HOLD</span>
+                <span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-400 border border-white/10">— HOLD</span>
               {% endif %}
             </td>
-            <td class="px-4 py-4 text-white mono">{{ signal.confidence|floatformat:2 }}</td>
-            <td class="px-4 py-4 text-white mono">{{ signal.price }}</td>
-            <td class="px-4 py-4 text-gray-300 mono">{{ signal.rr_ratio|floatformat:2 }}</td>
-            <td class="px-4 py-4"><span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-300 border border-white/10">{{ signal.status }}</span></td>
-            <td class="px-4 py-4 text-right">
-              <a href="{% url 'signal-detail' signal.pk %}" class="px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-xs mono">Voir</a>
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <div class="w-16 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                  <div class="h-full rounded-full
+                    {% if signal.confidence >= 0.75 %}bg-emerald-400{% elif signal.confidence >= 0.5 %}bg-amber-400{% else %}bg-red-400{% endif %}"
+                    style="width: {{ signal.confidence|floatformat:2|mul:100|default:0 }}%"></div>
+                </div>
+                <span class="text-xs mono text-white">{{ signal.confidence|floatformat:2 }}</span>
+              </div>
+            </td>
+            <td class="px-4 py-3 text-white mono text-xs">{{ signal.price }}</td>
+            <td class="px-4 py-3 text-xs mono">
+              {% if signal.stop_loss %}
+                <span class="text-red-400">SL {{ signal.stop_loss }}</span>
+                {% if signal.take_profit %}
+                  <span class="text-gray-600"> / </span>
+                  <span class="text-emerald-400">TP {{ signal.take_profit }}</span>
+                {% endif %}
+              {% else %}
+                <span class="text-gray-600">—</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3 mono text-xs
+              {% if signal.rr_ratio >= 2 %}text-emerald-400{% elif signal.rr_ratio >= 1 %}text-amber-400{% else %}text-gray-500{% endif %}">
+              {% if signal.rr_ratio %}{{ signal.rr_ratio|floatformat:2 }}R{% else %}—{% endif %}
+            </td>
+            <td class="px-4 py-3">
+              {% if signal.status == "EXECUTED" %}
+                <span class="px-2 py-1 rounded text-xs mono pill-filled">EXÉCUTÉ</span>
+              {% elif signal.status == "APPROVED" %}
+                <span class="px-2 py-1 rounded text-xs mono pill-open">APPROUVÉ</span>
+              {% elif signal.status == "REJECTED" %}
+                <span class="px-2 py-1 rounded text-xs mono pill-sell">REJETÉ</span>
+              {% elif signal.status == "NEW" %}
+                <span class="px-2 py-1 rounded text-xs mono bg-amber-500/10 text-amber-300 border border-amber-400/20">NOUVEAU</span>
+              {% elif signal.status == "EXPIRED" %}
+                <span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-500 border border-white/10">EXPIRÉ</span>
+              {% else %}
+                <span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-400 border border-white/10">{{ signal.status }}</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3 text-right">
+              <a href="{% url 'signal-detail' signal.pk %}"
+                 class="px-3 py-1.5 rounded-lg bg-white/5 text-gray-400 border border-white/10 text-xs mono hover:bg-white/10 transition">Voir</a>
             </td>
           </tr>
           {% endfor %}
@@ -176,63 +461,280 @@
       </table>
     </div>
     {% else %}
-    <div class="py-12 text-center text-gray-500 text-sm">Aucun signal.</div>
+      <div class="py-12 text-center text-gray-500 text-sm">
+        Aucun signal généré par cette stratégie.
+      </div>
     {% endif %}
   </section>
 
-  <section class="card overflow-hidden">
-    <div class="px-6 py-4 border-b border-white/10"><h3 class="text-white font-semibold">Derniers runs</h3></div>
-    {% if runs %}
-    <div class="divide-y divide-white/10">
-      {% for run in runs %}
-      <a href="{% url 'strategy-run-detail' run.pk %}" class="block px-6 py-4 hover:bg-white/[.02] transition">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <div class="text-white font-medium">{{ run.status }}</div>
-            <div class="text-xs text-gray-500 mt-1 mono">{{ run.run_started_at|date:"d/m/Y H:i:s" }}</div>
+  {# ══════════════════════════════════════════════════════════════
+     Runs — avec taux de succès et analyse
+  ══════════════════════════════════════════════════════════════ #}
+  <section class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+    {# Stats des runs #}
+    <div class="card p-6">
+      <h3 class="text-white font-semibold mb-4">⚙️ Santé des exécutions</h3>
+
+      <div class="space-y-4">
+        <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+          <div class="flex items-center justify-between">
+            <div class="text-xs mono text-gray-600 uppercase">Taux de succès</div>
+            <span class="text-lg font-bold mono
+              {% if run_success_rate >= 90 %}text-emerald-400{% elif run_success_rate >= 70 %}text-amber-400{% else %}text-red-400{% endif %}">
+              {{ run_success_rate }}%
+            </span>
           </div>
-          <div class="text-xs mono text-gray-400">{{ run.runtime_ms }} ms</div>
+          <div class="mt-2 h-2 rounded-full bg-white/10 overflow-hidden">
+            <div class="h-full rounded-full
+              {% if run_success_rate >= 90 %}bg-emerald-400{% elif run_success_rate >= 70 %}bg-amber-400{% else %}bg-red-400{% endif %}"
+              style="width:{{ run_success_rate }}%"></div>
+          </div>
+          <div class="mt-2 flex gap-4 text-xs mono text-gray-600">
+            <span>{{ run_agg.succeeded|default:0 }} OK</span>
+            <span>{{ run_agg.failed|default:0 }} erreurs</span>
+            <span>{{ run_agg.total|default:0 }} total</span>
+          </div>
         </div>
-      </a>
-      {% endfor %}
+
+        {% if latest_backtest %}
+        <div class="rounded-xl bg-violet-500/5 border border-violet-400/20 p-4">
+          <div class="text-[10px] mono uppercase text-gray-600 mb-2">Dernier backtest</div>
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-white text-sm font-medium">{{ latest_backtest.status }}</div>
+              <div class="text-xs text-gray-500 mono mt-1">{{ latest_backtest.created_at|date:"d/m/Y H:i" }}</div>
+            </div>
+            <a href="{% url 'backtest-detail' latest_backtest.pk %}"
+               class="px-3 py-1.5 rounded-lg text-xs mono bg-violet-500/10 text-violet-300 border border-violet-400/20 hover:bg-violet-500/15 transition">
+              Voir →
+            </a>
+          </div>
+        </div>
+        {% endif %}
+      </div>
     </div>
-    {% else %}
-    <div class="py-12 text-center text-gray-500 text-sm">Aucun run.</div>
-    {% endif %}
+
+    {# Liste des runs récents #}
+    <div class="xl:col-span-2 card overflow-hidden">
+      <div class="px-6 py-4 border-b border-white/10">
+        <h3 class="text-white font-semibold">Derniers runs</h3>
+      </div>
+      {% if runs %}
+      <div class="divide-y divide-white/5 max-h-72 overflow-y-auto">
+        {% for run in runs %}
+        <a href="{% url 'strategy-run-detail' run.pk %}"
+           class="flex items-center gap-4 px-6 py-3 hover:bg-white/[.02] transition group">
+          <div class="w-2 h-2 rounded-full flex-shrink-0
+            {% if run.status == 'SUCCEEDED' %}bg-emerald-400
+            {% elif run.status == 'RUNNING' %}bg-amber-400 animate-pulse
+            {% elif run.status == 'FAILED' %}bg-red-400
+            {% else %}bg-gray-600{% endif %}"></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="text-xs mono
+                {% if run.status == 'SUCCEEDED' %}text-emerald-400
+                {% elif run.status == 'RUNNING' %}text-amber-400
+                {% elif run.status == 'FAILED' %}text-red-400
+                {% else %}text-gray-500{% endif %}">
+                {{ run.status }}
+              </span>
+              {% if run.error_message %}
+                <span class="text-xs text-red-400 truncate max-w-[200px]" title="{{ run.error_message }}">
+                  ⚠ {{ run.error_message|truncatechars:40 }}
+                </span>
+              {% endif %}
+            </div>
+            <div class="text-xs text-gray-600 mono mt-0.5">{{ run.run_started_at|date:"d/m/Y H:i:s" }}</div>
+          </div>
+          <div class="text-xs mono text-gray-500">
+            {% if run.runtime_ms %}{{ run.runtime_ms }} ms{% endif %}
+          </div>
+          <svg class="w-4 h-4 text-gray-700 group-hover:text-gray-400 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+        <div class="py-10 text-center text-gray-500 text-sm">Aucun run enregistré.</div>
+      {% endif %}
+    </div>
   </section>
+
+  {# ══════════════════════════════════════════════════════════════
+     Versions + Prédictions
+  ══════════════════════════════════════════════════════════════ #}
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+    <div class="card overflow-hidden">
+      <div class="px-6 py-4 border-b border-white/10">
+        <h3 class="text-white font-semibold">Versions du modèle</h3>
+      </div>
+      {% if versions %}
+      <div class="divide-y divide-white/5">
+        {% for version in versions %}
+        <div class="px-6 py-4 flex items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-white font-semibold mono">v{{ version.version }}</span>
+              {% if version.is_live %}
+                <span class="px-2 py-0.5 rounded text-xs mono bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">ACTIVE</span>
+              {% endif %}
+            </div>
+            <div class="text-xs text-gray-500 mono mt-1">{{ version.created_at|date:"d/m/Y H:i" }}</div>
+          </div>
+          {% if version.model_path %}
+            <span class="text-xs mono text-gray-600 truncate max-w-[140px]" title="{{ version.model_path }}">{{ version.model_path|truncatechars:20 }}</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+        <div class="py-10 text-center text-gray-500 text-sm">Aucune version.</div>
+      {% endif %}
+    </div>
+
+    <div class="card overflow-hidden">
+      <div class="px-6 py-4 border-b border-white/10">
+        <h3 class="text-white font-semibold">Prédictions récentes</h3>
+        <p class="text-xs text-gray-600 mt-0.5">Sorties brutes du modèle avant filtrage des seuils</p>
+      </div>
+      {% if predictions %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-white/10">
+              <th class="px-4 py-2.5 text-left text-[10px] mono text-gray-600 uppercase">Date</th>
+              <th class="px-4 py-2.5 text-left text-[10px] mono text-gray-600 uppercase">Label</th>
+              <th class="px-4 py-2.5 text-right text-[10px] mono text-gray-600 uppercase">Score</th>
+              <th class="px-4 py-2.5 text-right text-[10px] mono text-gray-600 uppercase">↑ Prob</th>
+              <th class="px-4 py-2.5 text-right text-[10px] mono text-gray-600 uppercase">↓ Prob</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/5">
+            {% for pred in predictions %}
+            <tr class="hover:bg-white/[.02] transition">
+              <td class="px-4 py-3 text-xs mono text-gray-500">{{ pred.candle_time|date:"d/m H:i" }}</td>
+              <td class="px-4 py-3">
+                <span class="text-xs mono
+                  {% if pred.predicted_label == 'BUY' or pred.predicted_label == 'UP' %}text-emerald-400
+                  {% elif pred.predicted_label == 'SELL' or pred.predicted_label == 'DOWN' %}text-red-400
+                  {% else %}text-gray-400{% endif %}">
+                  {{ pred.predicted_label|default:"—" }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-right mono text-xs text-white">{{ pred.predicted_score|floatformat:3 }}</td>
+              <td class="px-4 py-3 text-right mono text-xs text-emerald-400">{{ pred.probability_up|floatformat:2 }}</td>
+              <td class="px-4 py-3 text-right mono text-xs text-red-400">{{ pred.probability_down|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div class="py-10 text-center text-gray-500 text-sm">Aucune prédiction disponible.</div>
+      {% endif %}
+    </div>
+  </section>
+
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-  (function () {
-    const data = {{ perf_chart_json|safe }};
-    const ctx = document.getElementById("strategyPerfChart");
-    if (!ctx) return;
-
-    new Chart(ctx, {
-      type: "line",
-      data: {
-        labels: data.labels,
-        datasets: [
-          { label: "Win rate", data: data.win_rate, borderColor: "#00ff9d", pointRadius: 0, tension: 0.3 },
-          { label: "Avg return", data: data.avg_return, borderColor: "#3b82f6", pointRadius: 0, tension: 0.3 },
-          { label: "Sharpe", data: data.sharpe, borderColor: "#ffb703", pointRadius: 0, tension: 0.3 },
-          { label: "Drawdown", data: data.drawdown, borderColor: "#ff4d6d", pointRadius: 0, tension: 0.3 },
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: { ticks: { color: "#6b7280" }, grid: { color: "rgba(255,255,255,0.05)" } },
-          y: { ticks: { color: "#6b7280" }, grid: { color: "rgba(255,255,255,0.05)" } }
-        },
-        plugins: {
-          legend: { labels: { color: "#cbd5e1" } }
-        }
+// ── Alpine component ─────────────────────────────────────────
+function strategyDetail() {
+  return {
+    init() {
+      this.initCharts();
+    },
+    initCharts() {
+      this.initPerfChart();
+      this.initBreakdownChart();
+    },
+    initPerfChart() {
+      const ctx = document.getElementById("strategyPerfChart");
+      if (!ctx) return;
+      const data = {{ perf_chart_json|safe }};
+      if (!data.labels || data.labels.length === 0) {
+        ctx.closest('.card').querySelector('h3').insertAdjacentHTML('afterend',
+          '<p class="text-sm text-gray-500 mt-2">Aucun snapshot de performance disponible.</p>');
+        ctx.parentElement.style.display = 'none';
+        return;
       }
-    });
-  })();
+      new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: data.labels,
+          datasets: [
+            { label: "Win Rate",   data: data.win_rate,   borderColor: "#00ff9d", backgroundColor: "rgba(0,255,157,.05)", fill: true, pointRadius: 0, tension: 0.4, borderWidth: 1.5 },
+            { label: "Avg Return", data: data.avg_return, borderColor: "#3b82f6", backgroundColor: "rgba(59,130,246,.04)", fill: false, pointRadius: 0, tension: 0.4, borderWidth: 1.5 },
+            { label: "Sharpe",     data: data.sharpe,     borderColor: "#ffb703", backgroundColor: "rgba(255,183,3,.04)",  fill: false, pointRadius: 0, tension: 0.4, borderWidth: 1.5 },
+            { label: "Drawdown",   data: data.drawdown,   borderColor: "#ff4d6d", backgroundColor: "rgba(255,77,109,.04)", fill: false, pointRadius: 0, tension: 0.4, borderWidth: 1.5 },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          scales: {
+            x: { ticks: { color: "#4b5563", maxTicksLimit: 8, font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: "rgba(255,255,255,.04)" } },
+            y: { ticks: { color: "#4b5563", font: { family: "'JetBrains Mono', monospace", size: 10 } }, grid: { color: "rgba(255,255,255,.04)" } }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: "#111827",
+              borderColor: "rgba(255,255,255,.1)",
+              borderWidth: 1,
+              titleColor: "#9ca3af",
+              bodyColor: "#e5e7eb",
+            }
+          }
+        }
+      });
+    },
+    initBreakdownChart() {
+      const ctx = document.getElementById("signalBreakdownChart");
+      if (!ctx) return;
+      const data = {{ signal_breakdown_json|safe }};
+      const total = data.values.reduce((a, b) => a + b, 0);
+      if (total === 0) {
+        ctx.closest('.card').querySelector('h3').insertAdjacentHTML('afterend',
+          '<p class="text-sm text-gray-500 mt-2">Aucun signal.</p>');
+        ctx.parentElement.style.display = 'none';
+        return;
+      }
+      new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: data.labels,
+          datasets: [{
+            data: data.values,
+            backgroundColor: data.colors,
+            borderColor: "#0d1117",
+            borderWidth: 2,
+            hoverOffset: 6,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          cutout: "68%",
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: "#111827",
+              borderColor: "rgba(255,255,255,.1)",
+              borderWidth: 1,
+              callbacks: {
+                label: ctx => ` ${ctx.label}: ${ctx.raw} (${(ctx.raw / total * 100).toFixed(1)}%)`
+              }
+            }
+          }
+        }
+      });
+    }
+  };
+}
 </script>
 {% endblock %}

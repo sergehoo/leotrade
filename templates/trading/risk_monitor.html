@@ -4,21 +4,120 @@
 {% block page_title %}Risk Monitor{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="space-y-6" x-data="riskLive()" x-init="init()">
+
+  <!-- Header -->
   <section class="card card-glow p-6">
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between flex-wrap gap-4">
       <div>
-        <div class="text-xs mono uppercase tracking-wider text-gray-600">Global Risk</div>
+        <div class="flex items-center gap-2">
+          <div class="text-xs mono uppercase tracking-wider text-gray-600">Global Risk</div>
+          <span class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] mono font-semibold"
+                style="background: rgba(0,255,157,0.1); color: var(--green); border: 1px solid rgba(0,255,157,0.25);">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            LIVE
+          </span>
+        </div>
         <h2 class="text-white text-2xl font-semibold mt-1">Surveillance du risque portefeuille</h2>
-        <p class="text-sm text-gray-500 mt-2">Drawdown · exposition · limites · ouverture de nouvelles positions</p>
+        <p class="text-sm text-gray-500 mt-2 flex items-center gap-2">
+          Drawdown · exposition · limites · ouverture de nouvelles positions
+          <span class="text-gray-600 mono text-xs" x-text="lastUpdated ? '· ' + lastUpdated : ''"></span>
+          <span x-show="loading" class="animate-spin inline-block w-3 h-3 border-2 border-white/20 border-t-white/60 rounded-full"></span>
+        </p>
       </div>
-      <a href="{% url 'trading:hedge-fund-dashboard' %}" class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300">
+      <a href="{% url 'trading:hedge-fund-dashboard' %}" class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-sm">
         Retour dashboard
       </a>
     </div>
   </section>
 
-  <section class="card overflow-hidden">
+  <!-- Live risk cards (populated by Alpine from API) -->
+  <div x-show="riskStates.length > 0">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <template x-for="state in riskStates" :key="state.portfolio_id">
+        <div class="card p-5 space-y-4">
+          <!-- Portfolio name + status -->
+          <div class="flex items-center justify-between">
+            <div class="text-white font-semibold" x-text="state.portfolio_name"></div>
+            <span class="px-2 py-1 rounded text-xs mono font-bold"
+              :style="state.status === 'BLOCK'
+                ? 'background: rgba(255,77,109,0.15); color: var(--red); border: 1px solid rgba(255,77,109,0.3);'
+                : state.status === 'REDUCE'
+                  ? 'background: rgba(255,183,3,0.15); color: var(--amber); border: 1px solid rgba(255,183,3,0.3);'
+                  : state.status === 'CAUTION'
+                    ? 'background: rgba(253,224,71,0.12); color: #fde047; border: 1px solid rgba(253,224,71,0.3);'
+                    : 'background: rgba(0,255,157,0.1); color: var(--green); border: 1px solid rgba(0,255,157,0.25);'"
+              x-text="state.status">
+            </span>
+          </div>
+
+          <!-- Drawdown gauge -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs mono text-gray-500 uppercase tracking-wider">Drawdown</span>
+              <span class="text-xs mono"
+                :style="state.drawdown_pct > 15 ? 'color: var(--red)' : state.drawdown_pct > 5 ? 'color: var(--amber)' : 'color: var(--green)'"
+                x-text="state.drawdown_pct.toFixed(2) + '%'">
+              </span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+              <div class="h-full rounded-full transition-all duration-700"
+                :style="'width: ' + Math.min(state.drawdown_pct, 100) + '%; background: ' + (state.drawdown_pct > 15 ? 'var(--red)' : state.drawdown_pct > 5 ? 'var(--amber)' : 'var(--green)')">
+              </div>
+            </div>
+          </div>
+
+          <!-- Exposure gauge -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs mono text-gray-500 uppercase tracking-wider">Exposition</span>
+              <span class="text-xs mono"
+                :style="state.exposure_pct > 80 ? 'color: var(--red)' : state.exposure_pct > 50 ? 'color: var(--amber)' : 'color: var(--green)'"
+                x-text="state.exposure_pct.toFixed(2) + '%'">
+              </span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+              <div class="h-full rounded-full transition-all duration-700"
+                :style="'width: ' + Math.min(state.exposure_pct, 100) + '%; background: ' + (state.exposure_pct > 80 ? 'var(--red)' : state.exposure_pct > 50 ? 'var(--amber)' : 'var(--green)')">
+              </div>
+            </div>
+          </div>
+
+          <!-- Metrics row -->
+          <div class="grid grid-cols-3 gap-3 text-xs mono">
+            <div>
+              <div class="text-gray-500 mb-0.5">Corrélation</div>
+              <div :style="state.correlation_risk > 0.7 ? 'color: var(--red)' : 'color: var(--amber)'"
+                x-text="state.correlation_risk.toFixed(2)"></div>
+            </div>
+            <div>
+              <div class="text-gray-500 mb-0.5">Risk recommandé</div>
+              <div style="color: var(--green);" x-text="state.recommended_risk.toFixed(2) + '%'"></div>
+            </div>
+            <div>
+              <div class="text-gray-500 mb-0.5">Nouvelles pos.</div>
+              <div :style="state.allow_new_positions ? 'color: var(--green)' : 'color: var(--red)'"
+                x-text="state.allow_new_positions ? 'AUTORISÉ' : 'BLOQUÉ'"></div>
+            </div>
+          </div>
+
+          <!-- Reason -->
+          <div x-show="state.reason" class="text-xs text-gray-500 bg-white/3 rounded-lg px-3 py-2 border border-white/8" x-text="state.reason"></div>
+
+          <!-- BLOCK pulse overlay -->
+          <div x-show="state.status === 'BLOCK'"
+            class="rounded-lg px-3 py-2 text-xs mono font-semibold flex items-center gap-2"
+            style="background: rgba(255,77,109,0.1); color: var(--red); border: 1px solid rgba(255,77,109,0.3);">
+            <span class="w-2 h-2 rounded-full bg-red-400 animate-pulse inline-block"></span>
+            NOUVELLES POSITIONS BLOQUÉES
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Fallback: static table (shown when API data not yet loaded) -->
+  <section class="card overflow-hidden" x-show="riskStates.length === 0 && !loading">
     <div class="px-6 py-4 border-b border-white/10">
       <h3 class="text-white font-semibold">Risk state actuel</h3>
     </div>
@@ -69,6 +168,7 @@
     {% endif %}
   </section>
 
+  <!-- Policies + Positions (static, from Django context) -->
   <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
     <div class="card p-6">
       <h3 class="text-white font-semibold mb-4">Policies</h3>
@@ -122,4 +222,35 @@
     </div>
   </section>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function riskLive() {
+  return {
+    riskStates: [],
+    loading: true,
+    lastUpdated: null,
+
+    async refresh() {
+      try {
+        const resp = await fetch('{% url "trading:risk-monitor-api" %}');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        this.riskStates = data.risk_states || [];
+        this.lastUpdated = new Date().toLocaleTimeString('fr-FR');
+      } catch(e) {
+        console.warn('risk poll error:', e);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    init() {
+      this.refresh();
+      setInterval(() => this.refresh(), 10000);
+    }
+  };
+}
+</script>
 {% endblock %}

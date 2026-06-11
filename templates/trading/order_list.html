@@ -5,16 +5,25 @@
 {% block page_title %}Ordres de trading{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="space-y-6" x-data="ordersLive()" x-init="init()">
 
   <!-- Header + stats -->
   <section class="card card-glow p-6">
     <div class="flex items-start justify-between flex-wrap gap-4">
       <div>
-        <div class="text-xs mono uppercase tracking-wider text-gray-500">Order Book</div>
+        <div class="flex items-center gap-2">
+          <div class="text-xs mono uppercase tracking-wider text-gray-500">Order Book</div>
+          <span class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] mono font-semibold"
+                :style="refreshing ? 'background: rgba(255,183,3,0.1); color: var(--amber); border: 1px solid rgba(255,183,3,0.25);' : 'background: rgba(0,255,157,0.1); color: var(--green); border: 1px solid rgba(0,255,157,0.25);'">
+            <span class="w-1.5 h-1.5 rounded-full animate-pulse"
+                  :class="refreshing ? 'bg-amber-400' : 'bg-emerald-400'"></span>
+            <span x-text="refreshing ? 'SYNC…' : 'LIVE'"></span>
+          </span>
+        </div>
         <h2 class="text-white text-2xl font-semibold mt-1">Historique des ordres</h2>
         <p class="text-sm text-gray-400 mt-2">
           Suivi unifié des ordres soumis (PAPER + LIVE), tous brokers confondus.
+          <span class="ml-2 text-gray-600 mono text-xs" x-text="lastUpdated ? '· Mis à jour : ' + lastUpdated : ''"></span>
         </p>
       </div>
 
@@ -204,32 +213,162 @@
       </div>
     {% endif %}
   </section>
+
+  <!-- Order quick-view drawer (slide-in) -->
+  <div
+    x-show="drawerOpen"
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="translate-x-full"
+    x-transition:enter-end="translate-x-0"
+    x-transition:leave="transition ease-in duration-150"
+    x-transition:leave-start="translate-x-0"
+    x-transition:leave-end="translate-x-full"
+    class="fixed inset-y-0 right-0 z-50 w-80 card border-l border-white/10 shadow-2xl overflow-y-auto flex flex-col"
+    style="display: none;"
+    @click.outside="drawerOpen = false">
+
+    <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
+      <h3 class="text-white font-semibold text-sm">Détail de l'ordre</h3>
+      <button @click="drawerOpen = false" class="text-gray-400 hover:text-white text-lg leading-none">&times;</button>
+    </div>
+
+    <div class="p-5 space-y-4 text-sm flex-1" x-show="selectedOrder">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <div class="text-gray-500 text-xs mono uppercase mb-1">Symbole</div>
+          <div class="text-white mono font-semibold" x-text="selectedOrder?.symbol || '—'"></div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs mono uppercase mb-1">Mode</div>
+          <div class="mono"
+            :style="selectedOrder?.mode === 'LIVE' ? 'color: var(--green)' : 'color: var(--amber)'"
+            x-text="selectedOrder?.mode || '—'"></div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs mono uppercase mb-1">Broker</div>
+          <div class="text-gray-300" x-text="selectedOrder?.broker || '—'"></div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs mono uppercase mb-1">Portefeuille</div>
+          <div class="text-gray-300" x-text="selectedOrder?.portfolio || '—'"></div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs mono uppercase mb-1">Side</div>
+          <div class="mono"
+            :style="selectedOrder?.side === 'BUY' ? 'color: var(--green)' : 'color: var(--red)'"
+            x-text="selectedOrder?.side || '—'"></div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs mono uppercase mb-1">Type</div>
+          <div class="text-gray-300 mono" x-text="selectedOrder?.order_type || '—'"></div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs mono uppercase mb-1">Qté demandée</div>
+          <div class="text-white mono" x-text="selectedOrder?.qty || '—'"></div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs mono uppercase mb-1">Qté remplie</div>
+          <div class="text-gray-300 mono" x-text="selectedOrder?.filled_qty || '0'"></div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs mono uppercase mb-1">Prix moyen</div>
+          <div class="text-gray-300 mono" x-text="selectedOrder?.avg_price || '—'"></div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs mono uppercase mb-1">Statut</div>
+          <div class="mono font-semibold" x-text="selectedOrder?.status || '—'"></div>
+        </div>
+      </div>
+      <div class="pt-2 border-t border-white/10">
+        <a :href="'/trading/orders/' + selectedOrder?.id + '/'"
+          class="block w-full text-center px-4 py-2 rounded-lg text-xs mono"
+          style="background: var(--green); color: #080c14;">
+          Voir le détail complet
+        </a>
+      </div>
+    </div>
+  </div>
+  <!-- Drawer overlay -->
+  <div x-show="drawerOpen" @click="drawerOpen = false"
+    class="fixed inset-0 z-40 bg-black/40" style="display: none;"></div>
 </div>
 
+{% block extra_js %}
 <script>
-/* Mise à jour live des lignes : à chaque event order.update reçu, on flash
-   la ligne concernée si déjà présente, sinon on rafraîchit la page. */
-(function () {
-  if (!window.LeoWS) return;
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  const wsUrl = `${protocol}://${window.location.host}/ws/orders/`;
+function ordersLive() {
+  return {
+    lastUpdated: null,
+    refreshing: false,
+    drawerOpen: false,
+    selectedOrder: null,
 
-  LeoWS.connect(wsUrl, {
-    name: "orders_list",
-    expectedEvent: "order.update",
-    onMessage: function (_data, payload) {
-      const id = payload.order_id;
-      if (!id) return;
-      const row = document.querySelector(`tr[data-order-id="${id}"]`);
-      if (row && window.LeoAnim) {
-        const sign = (payload.status === "FILLED") ? 1 : -1;
-        LeoAnim.tickRow(row, sign);
-      } else if (window.LeoAnim) {
-        // Nouvel ordre absent du tableau : toast pour informer
-        LeoAnim.toast(`Nouvel ordre ${payload.symbol || ""} — ${payload.status || ""}`, "info");
+    init() {
+      this.lastUpdated = new Date().toLocaleTimeString('fr-FR');
+      setInterval(() => this.refresh(), 15000);
+
+      // Row click → open drawer
+      document.querySelectorAll('tr[data-order-id]').forEach(row => {
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', (e) => {
+          if (e.target.closest('a, button, form')) return;
+          this.openDrawer(row);
+        });
+      });
+
+      // WebSocket live flash (existing logic preserved)
+      if (!window.LeoWS) return;
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const wsUrl = `${protocol}://${window.location.host}/ws/orders/`;
+      LeoWS.connect(wsUrl, {
+        name: "orders_list",
+        expectedEvent: "order.update",
+        onMessage: (_data, payload) => {
+          const id = payload.order_id;
+          if (!id) return;
+          const row = document.querySelector(`tr[data-order-id="${id}"]`);
+          if (row && window.LeoAnim) {
+            LeoAnim.tickRow(row, payload.status === "FILLED" ? 1 : -1);
+          } else if (window.LeoAnim) {
+            LeoAnim.toast(`Nouvel ordre ${payload.symbol || ""} — ${payload.status || ""}`, "info");
+          }
+          this.lastUpdated = new Date().toLocaleTimeString('fr-FR');
+        },
+      });
+    },
+
+    async refresh() {
+      if (this.refreshing) return;
+      this.refreshing = true;
+      try {
+        const url = new URL(window.location.href);
+        await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        this.lastUpdated = new Date().toLocaleTimeString('fr-FR');
+      } finally {
+        this.refreshing = false;
       }
     },
-  });
-})();
+
+    openDrawer(row) {
+      const id = row.dataset.orderId;
+      const cells = row.querySelectorAll('td');
+      this.selectedOrder = {
+        id,
+        date: cells[0]?.innerText?.trim(),
+        mode: cells[1]?.innerText?.trim(),
+        broker: cells[2]?.innerText?.trim(),
+        portfolio: cells[3]?.innerText?.trim(),
+        symbol: cells[4]?.innerText?.trim(),
+        side: cells[5]?.innerText?.trim(),
+        order_type: cells[6]?.innerText?.trim(),
+        qty: cells[7]?.innerText?.trim(),
+        filled_qty: cells[8]?.innerText?.trim(),
+        avg_price: cells[9]?.innerText?.trim(),
+        status: cells[10]?.innerText?.trim(),
+      };
+      this.drawerOpen = true;
+    }
+  };
+}
 </script>
+{% endblock %}
 {% endblock %}

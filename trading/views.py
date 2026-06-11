@@ -3,6 +3,7 @@ from django.http import JsonResponse
 from django.shortcuts import render
 
 # Create your views here.
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.views.generic import ListView, View, CreateView, DetailView
@@ -34,6 +35,41 @@ def market_data_api(request):
         cache.set(cache_key, data, timeout=30)
 
     return JsonResponse({"data": data})
+
+
+@login_required
+def signal_list_api(request):
+    """AJAX endpoint — retourne les signaux en JSON pour le polling Alpine."""
+    qs = Signal.objects.select_related(
+        "strategy", "strategy__asset", "strategy__timeframe"
+    ).order_by("-created_at")
+
+    status = request.GET.get("status")
+    side = request.GET.get("side")
+    strategy_id = request.GET.get("strategy_id")
+    if status:
+        qs = qs.filter(status=status)
+    if side:
+        qs = qs.filter(side=side)
+    if strategy_id:
+        qs = qs.filter(strategy_id=strategy_id)
+
+    qs = qs[:50]
+
+    data = []
+    for s in qs:
+        data.append({
+            "id": s.id,
+            "symbol": s.strategy.asset.symbol if s.strategy and s.strategy.asset else "—",
+            "strategy_name": s.strategy.name if s.strategy else "—",
+            "side": s.side,
+            "confidence": float(s.confidence or 0),
+            "price": str(s.price or ""),
+            "status": s.status,
+            "created_at": s.created_at.strftime("%d/%m %H:%M") if s.created_at else "",
+        })
+
+    return JsonResponse({"signals": data, "count": len(data)})
 
 class SignalListView(LoginRequiredMixin, ListView):
     model = Signal

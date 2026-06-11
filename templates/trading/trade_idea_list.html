@@ -274,6 +274,7 @@
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Liquidité</th>
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Exec Q</th>
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Signal EMA</th>
+              <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Horizon</th>
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Direction</th>
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Confiance</th>
               <th class="px-4 py-3 text-xs text-gray-600 mono uppercase">Score</th>
@@ -333,6 +334,12 @@
                 <td class="px-4 py-4 mono" :class="rsiClass(idea.rsi)" x-text="formatMaybe(idea.rsi)"></td>
                 <td class="px-4 py-4 mono text-gray-300" x-text="formatMaybe(idea.atr)"></td>
                 <td class="px-4 py-4 mono text-gray-300" x-text="idea.ema_signal || '—'"></td>
+
+                <td class="px-4 py-4">
+                  <span class="px-2 py-1 rounded text-xs mono border border-white/10 bg-white/5 text-sky-300"
+                        x-text="formatHorizon(idea.horizon_minutes)"
+                        :title="`Temps de maintien suggéré : ${idea.horizon_minutes} min`"></span>
+                </td>
 
                 <td class="px-4 py-4">
                   <span class="px-2 py-1 rounded text-xs mono border"
@@ -687,6 +694,20 @@ function tradeIdeasRealtime() {
     formatMaybe(value) {
       if (value === null || value === undefined) return "—";
       return Number(value).toFixed(2);
+    },
+
+    formatHorizon(minutes) {
+      const m = Number(minutes || 0);
+      if (m <= 0) return "—";
+      if (m < 60) return `${m}m`;
+      const h = Math.floor(m / 60);
+      const rem = m % 60;
+      if (m >= 1440) {
+        const d = Math.floor(m / 1440);
+        const rh = Math.floor((m % 1440) / 60);
+        return rh > 0 ? `${d}j ${rh}h` : `${d}j`;
+      }
+      return rem > 0 ? `${h}h${rem}m` : `${h}h`;
     },
 
     formatAge(isoTs) {

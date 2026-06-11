@@ -373,7 +373,8 @@
             </div>
 
             <form method="post" action="{% url 'trading-mode-toggle' %}"
-                  data-leo-trading-mode-form>
+                  data-leo-trading-mode-form
+                  data-no-disable="true">
                 {% csrf_token %}
                 <div class="mode-toggle w-full justify-between">
                     <button type="submit" name="mode" value="PAPER"

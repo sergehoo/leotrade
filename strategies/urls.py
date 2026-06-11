@@ -1,7 +1,8 @@
 from django.urls import path
-from .views import StrategyListView, StrategyDetailView,StrategyToggleActiveView,StrategyToggleAutonomousView,StrategySwitchStatusView,SignalListView,SignalDetailView,SignalApproveView,SignalRejectView,StrategyRunListView,StrategyRunDetailView
+from .views import StrategyListView, StrategyDetailView,StrategyToggleActiveView,StrategyToggleAutonomousView,StrategySwitchStatusView,SignalListView,SignalDetailView,SignalApproveView,SignalRejectView,StrategyRunListView,StrategyRunDetailView, strategy_list_api
 urlpatterns = [
     path("", StrategyListView.as_view(), name="strategy-list"),
+    path("api/", strategy_list_api, name="strategy-list-api"),
     path("<int:pk>/", StrategyDetailView.as_view(), name="strategy-detail"),
 
     path("<int:pk>/toggle-active/", StrategyToggleActiveView.as_view(), name="strategy-toggle-active"),

@@ -990,6 +990,9 @@ class TradeIdeaLiveFeedView(LoginRequiredMixin, TradeIdeaFilterMixin, View):
                 "max_loss": self._safe_float(getattr(idea, "max_loss", None)),
                 "expected_profit": self._safe_float(getattr(idea, "expected_profit", None)),
 
+                "horizon_minutes": idea.horizon_minutes,
+                "expires_at": idea.expires_at.isoformat() if idea.expires_at else None,
+
                 "status": idea.status,
                 "detail_url": reverse("trading:trade-idea-detail", kwargs={"pk": idea.pk}),
                 "has_review": bool(review),

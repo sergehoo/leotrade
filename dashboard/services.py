@@ -1,11 +1,34 @@
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
+
 from django.utils import timezone
 
 from portfolio.models import Portfolio
 from execution.models import Order
 from risk.models import RiskDecision, KillSwitchEvent
 from trading.models_ai import TradeRecommendation, MarketOpportunity, DecisionAudit
+
+
+def _sd(value, default=Decimal("0")) -> Decimal:
+    """Conversion Decimal robuste, renvoie *default* si la valeur est invalide."""
+    try:
+        if value is None or value == "":
+            return default
+        d = Decimal(str(value))
+        return d
+    except (InvalidOperation, TypeError, ValueError):
+        return default
+
+
+def _sf(value, default=0.0) -> float:
+    """Conversion float robuste."""
+    try:
+        if value is None or value == "":
+            return float(default)
+        return float(value)
+    except (TypeError, ValueError, InvalidOperation):
+        return float(default)
 
 
 class DashboardPremiumService:
@@ -43,11 +66,12 @@ class DashboardPremiumService:
             .order_by("-created_at")[:12]
         )
 
-        opportunities = list(
-            MarketOpportunity.objects
-            .filter(status="ACTIVE")
+        # Positions chargées en premier pour alimenter le filtre d'opportunités
+        positions = list(
+            portfolio.positions
+            .filter(status__in=["OPEN", "PARTIALLY_CLOSED"])
             .select_related("asset")
-            .order_by("-overall_score", "-created_at")[:12]
+            .order_by("-opened_at")[:15]
         )
 
         orders = list(
@@ -58,12 +82,28 @@ class DashboardPremiumService:
             .order_by("-created_at")[:15]
         )
 
-        positions = list(
-            portfolio.positions
-            .filter(status__in=["OPEN", "PARTIALLY_CLOSED"])
+        # Les opportunités de marché sont globales (pas d'owner) ; on
+        # priorise néanmoins celles dont l'asset correspond aux positions ouvertes.
+        portfolio_asset_ids: list[int] = [
+            p.asset_id for p in positions if getattr(p, "asset_id", None)
+        ]
+        opp_qs = (
+            MarketOpportunity.objects
+            .filter(status="ACTIVE")
             .select_related("asset")
-            .order_by("-opened_at")[:15]
+            .order_by("-overall_score", "-created_at")
         )
+        if portfolio_asset_ids:
+            from django.db.models import Case, When, IntegerField
+            opp_qs = opp_qs.annotate(
+                priority=Case(
+                    When(asset_id__in=portfolio_asset_ids, then=0),
+                    default=1,
+                    output_field=IntegerField(),
+                )
+            ).order_by("priority", "-overall_score", "-created_at")
+
+        opportunities = list(opp_qs[:12])
 
         risk_decisions = list(
             RiskDecision.objects
@@ -114,16 +154,27 @@ class DashboardPremiumService:
 
         activity_feed = sorted(activity_feed, key=lambda x: x["time"], reverse=True)[:12]
 
+        balance = _sd(getattr(portfolio, "current_balance", None))
+        equity = _sd(getattr(portfolio, "equity", None)) or balance
+        available_cash = _sd(getattr(portfolio, "available_cash", None))
+        locked_cash = _sd(getattr(portfolio, "locked_cash", None))
+        unrealized_pnl = _sd(getattr(portfolio, "unrealized_pnl", None))
+        realized_pnl = _sd(getattr(portfolio, "realized_pnl", None))
+        margin_used = _sd(getattr(portfolio, "margin_used", None))
+        drawdown = _sf(getattr(portfolio, "current_drawdown_percent", None))
+        max_drawdown = _sf(getattr(portfolio, "max_drawdown_percent", None))
+
         hero_stats = {
-            "balance": portfolio.current_balance,
-            "equity": portfolio.equity,
-            "available_cash": portfolio.available_cash,
-            "locked_cash": portfolio.locked_cash,
-            "unrealized_pnl": portfolio.unrealized_pnl,
-            "realized_pnl": portfolio.realized_pnl,
-            "margin_used": portfolio.margin_used,
-            "drawdown": portfolio.current_drawdown_percent,
-            "max_drawdown": portfolio.max_drawdown_percent,
+            "balance": balance,
+            "equity": equity,
+            "available_cash": available_cash,
+            "locked_cash": locked_cash,
+            "unrealized_pnl": unrealized_pnl,
+            "realized_pnl": realized_pnl,
+            "total_pnl": realized_pnl + unrealized_pnl,
+            "margin_used": margin_used,
+            "drawdown": drawdown,
+            "max_drawdown": max_drawdown,
             "open_positions_count": len(positions),
             "orders_count": len(orders),
             "recommendations_count": len(recommendations),

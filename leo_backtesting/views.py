@@ -18,6 +18,7 @@ Après :
 
 from __future__ import annotations
 
+import json as _json
 import logging
 
 from django.contrib import messages
@@ -95,6 +96,10 @@ class BacktestListView(LoginRequiredMixin, ListView):
         ctx["available_strategies"] = user_strategies.select_related(
             "asset", "timeframe"
         )[:50]
+
+        # IDs des backtests en cours (pour le polling Alpine)
+        running = full_qs.filter(status__in=["PENDING", "RUNNING"]).values_list("id", flat=True)
+        ctx["running_backtest_ids"] = _json.dumps(list(running))
         return ctx
 
 
