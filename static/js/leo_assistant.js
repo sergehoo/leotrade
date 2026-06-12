@@ -697,30 +697,128 @@ Analyse les indicateurs, le R/R, les risques, et donne-moi un conseil.`;
     return text.replace(ACTION_BLOCK_RE, "").trim();
   }
 
-  // ── Markdown léger ────────────────────────────────────────────────────────
+  // ── Rendu Markdown riche ───────────────────────────────────────────────────
+  // Titres (#/##/###), tableaux (| a | b |), listes (puces + numérotées),
+  // citations (>), séparateurs (---), surlignage (==texte==), gras, italique,
+  // code, liens internes et images internes (/static/, /media/).
+  // L'entrée est systématiquement échappée avant tout parsing (anti-XSS).
+
+  function renderInline(s) {
+    // Images : uniquement des ressources internes
+    s = s.replace(/!\[([^\]]*)\]\((\/(?:static|media)\/[^\s)]+)\)/g,
+      '<img class="leo-ai-img" src="$2" alt="$1" loading="lazy">');
+    // Liens : chemins internes ou ancres uniquement
+    s = s.replace(/\[([^\]]+)\]\((\/[^\s)]*|#[^\s)]*)\)/g,
+      '<a class="leo-ai-link" href="$2">$1</a>');
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    s = s.replace(/==([^=\n]+)==/g, '<mark>$1</mark>');
+    return s;
+  }
 
   function renderMarkdown(text) {
     if (!text) return "";
-    let s = escapeHtml(text);
+    const lines = escapeHtml(text).split("\n");
+    const out = [];
+    let list = null;        // "ul" | "ol" | null
+    let tableRows = null;   // lignes de tableau accumulées
+    let para = [];
 
-    // Sections titre : **Titre** ou __Titre__ en début de ligne
-    s = s.replace(/^\*\*([^*]+)\*\*\s*$/gm, '<div class="leo-ai-section-title">$1</div>');
-    // Bold
-    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    // Italic
-    s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    // Code inline
-    s = s.replace(/`(.+?)`/g, '<code>$1</code>');
-    // Listes (• ou -)
-    s = s.replace(/^[•\-]\s+(.+)$/gm, '<li>$1</li>');
-    s = s.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
-    // Sauts de ligne
-    s = s.replace(/\n\n/g, '</p><p>');
-    s = s.replace(/\n/g, '<br>');
-    if (!s.startsWith('<p>') && !s.startsWith('<div>') && !s.startsWith('<ul>')) {
-      s = '<p>' + s + '</p>';
+    const isTableSep = (line) => /^\s*\|?[\s:\-|]+\|?\s*$/.test(line) && line.includes("-");
+
+    function closePara() {
+      if (para.length) {
+        out.push('<p>' + para.join('<br>') + '</p>');
+        para = [];
+      }
     }
-    return s;
+    function closeList() {
+      if (list) { out.push(`</${list}>`); list = null; }
+    }
+    function closeTable() {
+      if (!tableRows) return;
+      const rows = tableRows;
+      tableRows = null;
+      if (!rows.length) return;
+      const toCells = (line) =>
+        line.replace(/^\s*\||\|\s*$/g, "").split("|").map(c => renderInline(c.trim()));
+      let html = '<div class="leo-ai-table-wrap"><table class="leo-ai-table">';
+      let start = 0;
+      if (rows.length > 1 && isTableSep(rows[1])) {
+        html += '<thead><tr>' + toCells(rows[0]).map(c => `<th>${c}</th>`).join('') + '</tr></thead>';
+        start = 2;
+      }
+      html += '<tbody>';
+      for (let i = start; i < rows.length; i++) {
+        if (isTableSep(rows[i])) continue;
+        html += '<tr>' + toCells(rows[i]).map(c => `<td>${c}</td>`).join('') + '</tr>';
+      }
+      html += '</tbody></table></div>';
+      out.push(html);
+    }
+    function closeAll() { closePara(); closeList(); closeTable(); }
+
+    for (const raw of lines) {
+      const line = raw.replace(/\s+$/, "");
+
+      // Tableau : la ligne commence et finit par |
+      if (/^\s*\|.*\|\s*$/.test(line)) {
+        closePara(); closeList();
+        (tableRows = tableRows || []).push(line.trim());
+        continue;
+      }
+      if (tableRows) closeTable();
+
+      // Ligne vide → fin de bloc
+      if (!line.trim()) { closeAll(); continue; }
+
+      // Séparateur horizontal (---, ***, ___, ⸻, ━━━, ───)
+      if (/^\s*([-*_]\s*){3,}$/.test(line) || /^[⸻━─]+$/.test(line.trim())) {
+        closeAll(); out.push('<hr class="leo-ai-hr">'); continue;
+      }
+
+      // Titres markdown
+      const h = line.match(/^(#{1,6})\s+(.+)$/);
+      if (h) {
+        closeAll();
+        const level = Math.min(h[1].length, 3);
+        out.push(`<div class="leo-ai-h${level}">${renderInline(h[2])}</div>`);
+        continue;
+      }
+      // **Titre** seul sur sa ligne (rétro-compatibilité)
+      const bt = line.match(/^\*\*([^*]+)\*\*:?\s*$/);
+      if (bt) {
+        closeAll();
+        out.push(`<div class="leo-ai-section-title">${renderInline(bt[1])}</div>`);
+        continue;
+      }
+
+      // Citation (le ">" est déjà échappé en &gt;)
+      const q = line.match(/^&gt;\s?(.*)$/);
+      if (q) {
+        closePara(); closeList();
+        out.push(`<blockquote class="leo-ai-quote">${renderInline(q[1])}</blockquote>`);
+        continue;
+      }
+
+      // Listes à puces / numérotées
+      const ul = line.match(/^\s*[•\-*]\s+(.+)$/);
+      const ol = line.match(/^\s*(\d+)[.)]\s+(.+)$/);
+      if (ul || ol) {
+        closePara(); closeTable();
+        const kind = ul ? "ul" : "ol";
+        if (list !== kind) { closeList(); out.push(`<${kind}>`); list = kind; }
+        out.push(`<li>${renderInline(ul ? ul[1] : ol[2])}</li>`);
+        continue;
+      }
+      closeList();
+
+      // Texte courant
+      para.push(renderInline(line));
+    }
+    closeAll();
+    return out.join("");
   }
 
   function escapeHtml(str) {

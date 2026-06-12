@@ -324,7 +324,109 @@
   font-family: 'IBM Plex Mono', monospace;
 }
 .leo-ai-bubble ul { margin: 4px 0; padding-left: 16px; }
-.leo-ai-bubble li { margin: 2px 0; font-size: 12.5px; }
+.leo-ai-bubble ol { margin: 4px 0; padding-left: 18px; }
+.leo-ai-bubble li { margin: 3px 0; font-size: 12.5px; }
+.leo-ai-bubble p { margin: 6px 0; }
+
+/* Titres hiérarchiques */
+.leo-ai-bubble .leo-ai-h1 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 12px 0 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.leo-ai-bubble .leo-ai-h2 {
+  font-size: 13px;
+  font-weight: 650;
+  color: #e2e8f0;
+  margin: 11px 0 5px;
+}
+.leo-ai-bubble .leo-ai-h3 {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--green);
+  margin: 10px 0 4px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Tableaux */
+.leo-ai-bubble .leo-ai-table-wrap {
+  overflow-x: auto;
+  margin: 8px 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+.leo-ai-bubble .leo-ai-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.leo-ai-bubble .leo-ai-table th {
+  text-align: left;
+  padding: 6px 9px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #94a3b8;
+  font-weight: 600;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.leo-ai-bubble .leo-ai-table td {
+  padding: 6px 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  vertical-align: top;
+}
+.leo-ai-bubble .leo-ai-table tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+/* Surlignage ==texte== — pour LE point essentiel */
+.leo-ai-bubble mark {
+  background: rgba(250, 204, 21, 0.18);
+  color: #fde68a;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+/* Citation — verdict / point clé encadré */
+.leo-ai-bubble .leo-ai-quote {
+  margin: 8px 0;
+  padding: 7px 11px;
+  border-left: 3px solid var(--green);
+  background: rgba(0, 255, 157, 0.05);
+  border-radius: 0 8px 8px 0;
+  color: #d1fae5;
+  font-size: 12.5px;
+}
+
+/* Séparateur */
+.leo-ai-bubble .leo-ai-hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 10px 0;
+}
+
+/* Liens internes & images */
+.leo-ai-bubble .leo-ai-link {
+  color: #60a5fa;
+  text-decoration: underline;
+  text-decoration-color: rgba(96, 165, 250, 0.4);
+  text-underline-offset: 2px;
+}
+.leo-ai-bubble .leo-ai-link:hover { color: #93c5fd; }
+.leo-ai-bubble .leo-ai-img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 6px 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
 
 /* ── Typing indicator ───────────────────────────────────────────────────────── */
 .leo-ai-thinking .leo-ai-bubble {
