@@ -50,7 +50,6 @@ def live_order(db, user, portfolio_live, broker_live):
         status="PENDING_SUBMIT",
         requested_quantity=Decimal("1"),
         approved_quantity=Decimal("1"),
-        approved_stake=Decimal("10.00"),
         requested_stake_amount=Decimal("10.00"),
         approved_notional=Decimal("10.00"),
         idempotency_key="deriv-flow-test-1",
@@ -110,6 +109,13 @@ def _mock_ws_client(
     return ws
 
 
+def _make_client(broker_account):
+    """DerivBrokerClient se construit désormais depuis un BrokerAccount
+    (token lu via les credentials chiffrés)."""
+    broker_account.set_secret("DERIV_TOKEN", "fake-token")
+    return DerivBrokerClient(broker_account)
+
+
 def _patch_deriv_client(ws_mock):
     """Patch DerivBrokerClient._open_authenticated_ws pour retourner ws_mock."""
     return mock.patch.object(
@@ -147,9 +153,7 @@ class TestDerivBrokerExternalRef:
         ws = _mock_ws_client()
 
         with _patch_deriv_client(ws), _patch_validate_contract(), _patch_async_sync():
-            client = DerivBrokerClient(
-                token="fake-token", app_id="12345"
-            )
+            client = _make_client(live_order.broker_account)
             client.submit_order(live_order)
 
         ref = BrokerExternalRef.objects.filter(
@@ -168,7 +172,7 @@ class TestDerivBrokerExternalRef:
         ws = _mock_ws_client()
 
         with _patch_deriv_client(ws), _patch_validate_contract(), _patch_async_sync():
-            client = DerivBrokerClient(token="fake-token", app_id="12345")
+            client = _make_client(live_order.broker_account)
             client.submit_order(live_order)
 
         ref = BrokerExternalRef.objects.filter(
@@ -187,7 +191,7 @@ class TestDerivBrokerExternalRef:
         ws = _mock_ws_client()
 
         with _patch_deriv_client(ws), _patch_validate_contract(), _patch_async_sync():
-            client = DerivBrokerClient(token="fake-token", app_id="12345")
+            client = _make_client(live_order.broker_account)
             client.submit_order(live_order)
             client.submit_order(live_order)
 
@@ -211,7 +215,7 @@ class TestDerivSubmitReturnValue:
         ws = _mock_ws_client()
 
         with _patch_deriv_client(ws), _patch_validate_contract(), _patch_async_sync():
-            client = DerivBrokerClient(token="fake-token", app_id="12345")
+            client = _make_client(live_order.broker_account)
             result = client.submit_order(live_order)
 
         assert result["broker_order_id"] == str(FAKE_CONTRACT_ID)
@@ -222,7 +226,7 @@ class TestDerivSubmitReturnValue:
         ws = _mock_ws_client()
 
         with _patch_deriv_client(ws), _patch_validate_contract(), _patch_async_sync():
-            client = DerivBrokerClient(token="fake-token", app_id="12345")
+            client = _make_client(live_order.broker_account)
             result = client.submit_order(live_order)
 
         assert len(result["fills"]) == 1
@@ -233,7 +237,7 @@ class TestDerivSubmitReturnValue:
         ws = _mock_ws_client()
 
         with _patch_deriv_client(ws), _patch_validate_contract(), _patch_async_sync():
-            client = DerivBrokerClient(token="fake-token", app_id="12345")
+            client = _make_client(live_order.broker_account)
             result = client.submit_order(live_order)
 
         fill = result["fills"][0]
@@ -245,7 +249,7 @@ class TestDerivSubmitReturnValue:
         ws = _mock_ws_client()
 
         with _patch_deriv_client(ws), _patch_validate_contract(), _patch_async_sync():
-            client = DerivBrokerClient(token="fake-token", app_id="12345")
+            client = _make_client(live_order.broker_account)
             result = client.submit_order(live_order)
 
         fill = result["fills"][0]
@@ -263,7 +267,7 @@ class TestDerivFillRegistered:
         """Résultat d'un submit_order mocké."""
         ws = _mock_ws_client()
         with _patch_deriv_client(ws), _patch_validate_contract(), _patch_async_sync():
-            client = DerivBrokerClient(token="fake-token", app_id="12345")
+            client = _make_client(live_order.broker_account)
             return client.submit_order(live_order)
 
     @pytest.mark.django_db
@@ -382,7 +386,7 @@ class TestDerivSubmitErrors:
         }
 
         with _patch_deriv_client(ws), _patch_validate_contract(), _patch_async_sync():
-            client = DerivBrokerClient(token="fake-token", app_id="12345")
+            client = _make_client(live_order.broker_account)
             with pytest.raises(RuntimeError, match="contract_id"):
                 client.submit_order(live_order)
 
@@ -398,7 +402,7 @@ class TestDerivSubmitErrors:
         }
 
         with _patch_deriv_client(ws), _patch_validate_contract(), _patch_async_sync():
-            client = DerivBrokerClient(token="fake-token", app_id="12345")
+            client = _make_client(live_order.broker_account)
             with pytest.raises(RuntimeError, match="proposal"):
                 client.submit_order(live_order)
 
@@ -415,7 +419,7 @@ class TestDerivSubmitErrors:
         ws = _mock_ws_client()
 
         with _patch_deriv_client(ws), _patch_validate_contract(), _patch_async_sync():
-            client = DerivBrokerClient(token="fake-token", app_id="12345")
+            client = _make_client(live_order.broker_account)
             with pytest.raises(ValueError, match="stake"):
                 client.submit_order(live_order)
 
@@ -445,7 +449,7 @@ class TestDerivFullFlowIntegration:
 
         # --- Étape 1 : submit ---
         with _patch_deriv_client(ws), _patch_validate_contract(), _patch_async_sync():
-            client = DerivBrokerClient(token="fake-token", app_id="12345")
+            client = _make_client(live_order.broker_account)
             result = client.submit_order(live_order)
 
         assert result["broker_order_id"] == str(FAKE_CONTRACT_ID)

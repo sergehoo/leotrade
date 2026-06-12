@@ -66,6 +66,59 @@ def profile_live(risk_profile_live):
     return risk_profile_live
 
 
+@pytest.fixture
+def portfolio_fx(db, user):
+    """Portfolio non-Deriv (BINANCE) : la règle stop-loss ne s'applique qu'hors Deriv."""
+    from brokers.models import BrokerAccount
+    from portfolio.models import Portfolio
+    broker = BrokerAccount.objects.create(
+        user=user,
+        broker="BINANCE",
+        name="Binance PAPER",
+        mode="PAPER",
+        is_active=True,
+        status="ACTIVE",
+    )
+    return Portfolio.objects.create(
+        user=user,
+        broker_account=broker,
+        name="FX Portfolio",
+        starting_balance=Decimal("10000.00"),
+        current_balance=Decimal("10000.00"),
+        available_cash=Decimal("10000.00"),
+        equity=Decimal("10000.00"),
+        max_equity=Decimal("10000.00"),
+        is_active=True,
+        is_default=False,
+    )
+
+
+@pytest.fixture
+def profile_fx(db, user, portfolio_fx):
+    """Profil de risque permissif rattaché au portfolio non-Deriv."""
+    return RiskProfile.objects.create(
+        user=user,
+        portfolio=portfolio_fx,
+        name="Test Profile FX",
+        is_active=True,
+        is_default=True,
+        max_risk_per_trade=Decimal("2.00"),
+        max_daily_loss=Decimal("5.00"),
+        max_weekly_loss=Decimal("10.00"),
+        max_drawdown=Decimal("15.00"),
+        max_open_positions=5,
+        max_symbol_exposure_percent=Decimal("25.00"),
+        max_asset_class_exposure_percent=Decimal("50.00"),
+        max_correlated_exposure_percent=Decimal("40.00"),
+        max_leverage=Decimal("3.00"),
+        min_confidence=Decimal("0.60"),
+        allow_short=True,
+        allow_live_trading=True,
+        require_stop_loss=False,
+        kill_switch_enabled=True,
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  SOFT — franchissables avec override=True
 # ─────────────────────────────────────────────────────────────────────────────
@@ -100,14 +153,14 @@ class TestSoftOverride:
         assert any(e["code"] == "AI_CONFIDENCE_TOO_LOW" for e in applied)
 
     @pytest.mark.django_db
-    def test_stop_loss_required_soft_blocks(self, portfolio_paper, profile_paper):
+    def test_stop_loss_required_soft_blocks(self, portfolio_fx, profile_fx):
         """STOP_LOSS_REQUIRED bloque quand override=False (non-Deriv)."""
-        profile_paper.require_stop_loss = True
-        profile_paper.save()
+        profile_fx.require_stop_loss = True
+        profile_fx.save()
 
-        # Forcer un symbole non-Deriv pour déclencher la règle stop-loss
+        # Portfolio non-Deriv + symbole non-Deriv pour déclencher la règle stop-loss
         result = RiskGuardService.validate_trade(
-            portfolio=portfolio_paper,
+            portfolio=portfolio_fx,
             symbol="EURUSD",           # pas un symbole Deriv volatility
             side="BUY",
             requested_stake=Decimal("10.00"),
@@ -125,13 +178,13 @@ class TestSoftOverride:
         assert result.block_severity == "SOFT"
 
     @pytest.mark.django_db
-    def test_stop_loss_required_passes_with_override(self, portfolio_paper, profile_paper):
+    def test_stop_loss_required_passes_with_override(self, portfolio_fx, profile_fx):
         """STOP_LOSS_REQUIRED est franchi avec override=True."""
-        profile_paper.require_stop_loss = True
-        profile_paper.save()
+        profile_fx.require_stop_loss = True
+        profile_fx.save()
 
         result = RiskGuardService.validate_trade(
-            portfolio=portfolio_paper,
+            portfolio=portfolio_fx,
             symbol="EURUSD",
             side="BUY",
             requested_stake=Decimal("10.00"),
@@ -196,8 +249,10 @@ class TestSoftOverride:
             defaults={
                 "total_loss_percent": Decimal("5.00"),
                 "total_loss_amount": Decimal("500.00"),
-                "equity_open": Decimal("10000.00"),
-                "equity_current": Decimal("9500.00"),
+                # refresh_*_state recalcule la perte depuis l'equite reelle (10 000) :
+                # on place equity_open au-dessus pour simuler ~4,76 % de perte.
+                "equity_open": Decimal("10500.00"),
+                "equity_current": Decimal("10000.00"),
             },
         )
 
@@ -221,8 +276,10 @@ class TestSoftOverride:
             defaults={
                 "total_loss_percent": Decimal("5.00"),
                 "total_loss_amount": Decimal("500.00"),
-                "equity_open": Decimal("10000.00"),
-                "equity_current": Decimal("9500.00"),
+                # refresh_*_state recalcule la perte depuis l'equite reelle (10 000) :
+                # on place equity_open au-dessus pour simuler ~4,76 % de perte.
+                "equity_open": Decimal("10500.00"),
+                "equity_current": Decimal("10000.00"),
             },
         )
 
@@ -248,8 +305,10 @@ class TestSoftOverride:
             defaults={
                 "total_loss_percent": Decimal("5.00"),
                 "total_loss_amount": Decimal("500.00"),
-                "equity_open": Decimal("10000.00"),
-                "equity_current": Decimal("9500.00"),
+                # refresh_*_state recalcule la perte depuis l'equite reelle (10 000) :
+                # on place equity_open au-dessus pour simuler ~4,76 % de perte.
+                "equity_open": Decimal("10500.00"),
+                "equity_current": Decimal("10000.00"),
             },
         )
 
@@ -275,8 +334,10 @@ class TestSoftOverride:
             defaults={
                 "total_loss_percent": Decimal("5.00"),
                 "total_loss_amount": Decimal("500.00"),
-                "equity_open": Decimal("10000.00"),
-                "equity_current": Decimal("9500.00"),
+                # refresh_*_state recalcule la perte depuis l'equite reelle (10 000) :
+                # on place equity_open au-dessus pour simuler ~4,76 % de perte.
+                "equity_open": Decimal("10500.00"),
+                "equity_current": Decimal("10000.00"),
             },
         )
 
@@ -371,10 +432,11 @@ class TestOverrideAuditPayload:
 
     @pytest.mark.django_db
     def test_override_payload_always_present_when_flag_true(
-        self, portfolio_paper, profile_paper
+        self, user, portfolio_paper, profile_paper
     ):
         """Quand risk_override=True, la clé 'risk_override' est toujours dans le payload,
         même si aucun blocage SOFT n'a été rencontré (trade propre)."""
+        # user_id réel : un RiskOverrideAudit est persisté avec une FK utilisateur
         result = RiskGuardService.validate_trade(
             portfolio=portfolio_paper,
             symbol="R_100",
@@ -388,12 +450,12 @@ class TestOverrideAuditPayload:
             confidence=Decimal("0.95"),
             risk_override=True,
             risk_override_reason="audit test",
-            risk_override_user_id=42,
+            risk_override_user_id=user.id,
         )
 
         assert "risk_override" in result.payload
         ro = result.payload["risk_override"]
-        assert ro["user_id"] == 42
+        assert ro["user_id"] == user.id
         assert ro["reason"] == "audit test"
         assert isinstance(ro["applied_to"], list)
 

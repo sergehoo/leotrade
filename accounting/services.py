@@ -47,7 +47,6 @@ class TransferError(Exception):
 
 class TransferService:
     @staticmethod
-    @transaction.atomic
     def transfer_wallet_to_portfolio(
         *,
         wallet_id: int,
@@ -95,38 +94,42 @@ class TransferService:
         )
 
         try:
-            # 2. Débit du Wallet (lève InsufficientFundsError si solde insuffisant)
-            wallet_entry = WalletLedgerService.debit(
-                wallet_id=wallet_id,
-                amount=amount,
-                external_event_id=f"transfer:{request_id}:wallet_debit",
-                description=description,
-                metadata={"transfer_id": transfer.id, "portfolio_id": portfolio_id},
-            )
+            # Bloc atomique interne : si une étape échoue, débit/crédit sont
+            # annulés ensemble, mais le record Transfer (PENDING → FAILED)
+            # survit pour garder une trace de l'échec.
+            with transaction.atomic():
+                # 2. Débit du Wallet (lève InsufficientFundsError si solde insuffisant)
+                wallet_entry = WalletLedgerService.debit(
+                    wallet_id=wallet_id,
+                    amount=amount,
+                    external_event_id=f"transfer:{request_id}:wallet_debit",
+                    description=description,
+                    metadata={"transfer_id": transfer.id, "portfolio_id": portfolio_id},
+                )
 
-            # 3. Crédit du Portfolio
-            portfolio_entry = PortfolioAccountingService.add_ledger_entry(
-                portfolio=portfolio,
-                entry_type="DEPOSIT",
-                amount=amount,
-                currency=portfolio.base_currency,
-                reference_type="WALLET_TRANSFER",
-                reference_id=str(transfer.id),
-                description=description,
-                metadata={"transfer_id": transfer.id, "wallet_id": wallet_id, "request_id": request_id},
-            )
+                # 3. Crédit du Portfolio
+                portfolio_entry = PortfolioAccountingService.add_ledger_entry(
+                    portfolio=portfolio,
+                    entry_type="DEPOSIT",
+                    amount=amount,
+                    currency=portfolio.base_currency,
+                    reference_type="WALLET_TRANSFER",
+                    reference_id=str(transfer.id),
+                    description=description,
+                    metadata={"transfer_id": transfer.id, "wallet_id": wallet_id, "request_id": request_id},
+                )
 
-            # 4. Mise à jour des soldes calculés (recompute_cash_state)
-            PortfolioService.recompute_cash_state(portfolio)
+                # 4. Mise à jour des soldes calculés (recompute_cash_state)
+                PortfolioService.recompute_cash_state(portfolio)
 
-            # 5. Marque le transfer comme COMPLETED
-            transfer.wallet_ledger_entry = wallet_entry
-            transfer.portfolio_ledger_entry = portfolio_entry
-            transfer.status = "COMPLETED"
-            transfer.completed_at = timezone.now()
-            transfer.save(update_fields=[
-                "wallet_ledger_entry", "portfolio_ledger_entry", "status", "completed_at",
-            ])
+                # 5. Marque le transfer comme COMPLETED
+                transfer.wallet_ledger_entry = wallet_entry
+                transfer.portfolio_ledger_entry = portfolio_entry
+                transfer.status = "COMPLETED"
+                transfer.completed_at = timezone.now()
+                transfer.save(update_fields=[
+                    "wallet_ledger_entry", "portfolio_ledger_entry", "status", "completed_at",
+                ])
 
             log.info(
                 "transfer.wallet_to_portfolio.ok request_id=%s wallet_id=%s portfolio_id=%s amount=%s",
@@ -151,7 +154,6 @@ class TransferService:
             raise
 
     @staticmethod
-    @transaction.atomic
     def transfer_portfolio_to_wallet(
         *,
         wallet_id: int,
@@ -200,32 +202,34 @@ class TransferService:
         )
 
         try:
-            portfolio_entry = PortfolioAccountingService.add_ledger_entry(
-                portfolio=portfolio,
-                entry_type="WITHDRAWAL",
-                amount=-amount,
-                reference_type="WALLET_TRANSFER",
-                reference_id=str(transfer.id),
-                description=description,
-                metadata={"transfer_id": transfer.id, "wallet_id": wallet_id, "request_id": request_id},
-            )
-            wallet_entry = WalletLedgerService.credit(
-                wallet_id=wallet_id,
-                amount=amount,
-                external_event_id=f"transfer:{request_id}:wallet_credit",
-                description=description,
-                metadata={"transfer_id": transfer.id, "portfolio_id": portfolio_id},
-            )
+            # Bloc atomique interne : voir transfer_wallet_to_portfolio.
+            with transaction.atomic():
+                portfolio_entry = PortfolioAccountingService.add_ledger_entry(
+                    portfolio=portfolio,
+                    entry_type="WITHDRAWAL",
+                    amount=-amount,
+                    reference_type="WALLET_TRANSFER",
+                    reference_id=str(transfer.id),
+                    description=description,
+                    metadata={"transfer_id": transfer.id, "wallet_id": wallet_id, "request_id": request_id},
+                )
+                wallet_entry = WalletLedgerService.credit(
+                    wallet_id=wallet_id,
+                    amount=amount,
+                    external_event_id=f"transfer:{request_id}:wallet_credit",
+                    description=description,
+                    metadata={"transfer_id": transfer.id, "portfolio_id": portfolio_id},
+                )
 
-            PortfolioService.recompute_cash_state(portfolio)
+                PortfolioService.recompute_cash_state(portfolio)
 
-            transfer.wallet_ledger_entry = wallet_entry
-            transfer.portfolio_ledger_entry = portfolio_entry
-            transfer.status = "COMPLETED"
-            transfer.completed_at = timezone.now()
-            transfer.save(update_fields=[
-                "wallet_ledger_entry", "portfolio_ledger_entry", "status", "completed_at",
-            ])
+                transfer.wallet_ledger_entry = wallet_entry
+                transfer.portfolio_ledger_entry = portfolio_entry
+                transfer.status = "COMPLETED"
+                transfer.completed_at = timezone.now()
+                transfer.save(update_fields=[
+                    "wallet_ledger_entry", "portfolio_ledger_entry", "status", "completed_at",
+                ])
 
             log.info(
                 "transfer.portfolio_to_wallet.ok request_id=%s amount=%s",

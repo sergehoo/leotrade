@@ -22,11 +22,14 @@ User = get_user_model()
 @pytest.fixture
 def wallet(db):
     user = User.objects.create_user(username="alice", password="x")
-    w = Wallet.objects.create(
-        user=user, currency="USD",
+    # Le wallet est auto-créé par signal post_save(User) : on le met à jour
+    w, _ = Wallet.objects.get_or_create(user=user, defaults={"currency": "USD"})
+    Wallet.objects.filter(pk=w.pk).update(
+        currency="USD",
         available_balance=Decimal("100.00"),
         locked_balance=Decimal("0.00"),
     )
+    w.refresh_from_db()
     return w
 
 
@@ -67,6 +70,9 @@ def test_concurrent_locks_no_overdraft(wallet):
     20 threads tentent de lock 10 chacun (= 200 demandé) sur 100 disponibles.
     Au final : exactement 10 réussissent (100 lockés), 10 InsufficientFunds.
     """
+    from django.db import connection
+    if connection.vendor != "postgresql":
+        pytest.skip("Test de concurrence : nécessite PostgreSQL (SQLite = writer unique).")
 
     def attempt(i):
         try:

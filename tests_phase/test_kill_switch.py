@@ -52,7 +52,7 @@ class TestKillSwitchTrigger:
         """trigger_kill_switch() crée un KillSwitchEvent is_active=True."""
         assert not KillSwitchEvent.objects.filter(portfolio=portfolio_live).exists()
 
-        RiskStateService.trigger_kill_switch(
+        RiskGuardService.trigger_kill_switch(
             portfolio_live,
             risk_profile_live,
             reason_code="DAILY_LOSS_LIMIT",
@@ -68,7 +68,7 @@ class TestKillSwitchTrigger:
     @pytest.mark.django_db
     def test_trigger_marks_daily_state_blocked(self, portfolio_live, risk_profile_live):
         """trigger_kill_switch() met kill_switch_triggered=True sur DailyRiskState."""
-        RiskStateService.trigger_kill_switch(
+        RiskGuardService.trigger_kill_switch(
             portfolio_live,
             risk_profile_live,
             reason_code="DAILY_LOSS_LIMIT",
@@ -87,7 +87,7 @@ class TestKillSwitchTrigger:
     @pytest.mark.django_db
     def test_trigger_marks_weekly_state_blocked(self, portfolio_live, risk_profile_live):
         """trigger_kill_switch() met kill_switch_triggered=True sur WeeklyRiskState."""
-        RiskStateService.trigger_kill_switch(
+        RiskGuardService.trigger_kill_switch(
             portfolio_live,
             risk_profile_live,
             reason_code="WEEKLY_LOSS_LIMIT",
@@ -111,7 +111,7 @@ class TestKillSwitchTrigger:
         """has_active_kill_switch() → True après un trigger."""
         assert not RiskGuardService.has_active_kill_switch(portfolio_live)
 
-        RiskStateService.trigger_kill_switch(
+        RiskGuardService.trigger_kill_switch(
             portfolio_live,
             risk_profile_live,
             reason_code="DAILY_LOSS_LIMIT",
@@ -255,7 +255,7 @@ class TestKillSwitchResolution:
             portfolio=portfolio_live, is_active=True
         ).count() == 2
 
-        RiskStateService.resolve_kill_switch(portfolio_live)
+        RiskGuardService.resolve_kill_switch(portfolio_live)
 
         assert KillSwitchEvent.objects.filter(
             portfolio=portfolio_live, is_active=True
@@ -277,7 +277,7 @@ class TestKillSwitchResolution:
             triggered_at=timezone.now(),
         )
 
-        RiskStateService.resolve_kill_switch(portfolio_live)
+        RiskGuardService.resolve_kill_switch(portfolio_live)
         portfolio_live.refresh_from_db()
 
         assert not RiskGuardService.has_active_kill_switch(portfolio_live)
@@ -301,7 +301,7 @@ class TestKillSwitchResolution:
         assert result_before.block_code == "KILL_SWITCH_LIVE"
 
         # Résoudre
-        RiskStateService.resolve_kill_switch(portfolio_live)
+        RiskGuardService.resolve_kill_switch(portfolio_live)
         portfolio_live.refresh_from_db()
 
         # Approuvé après resolve
@@ -333,8 +333,10 @@ class TestKillSwitchAutoTrigger:
             defaults={
                 "total_loss_percent": Decimal("5.00"),
                 "total_loss_amount": Decimal("500.00"),
-                "equity_open": Decimal("10000.00"),
-                "equity_current": Decimal("9500.00"),
+                # refresh_*_state recalcule la perte depuis l'equite reelle (10 000) :
+                # on place equity_open au-dessus pour simuler ~4,76 % de perte.
+                "equity_open": Decimal("10500.00"),
+                "equity_current": Decimal("10000.00"),
             },
         )
 
@@ -365,8 +367,10 @@ class TestKillSwitchAutoTrigger:
             defaults={
                 "total_loss_percent": Decimal("5.00"),
                 "total_loss_amount": Decimal("500.00"),
-                "equity_open": Decimal("10000.00"),
-                "equity_current": Decimal("9500.00"),
+                # refresh_*_state recalcule la perte depuis l'equite reelle (10 000) :
+                # on place equity_open au-dessus pour simuler ~4,76 % de perte.
+                "equity_open": Decimal("10500.00"),
+                "equity_current": Decimal("10000.00"),
             },
         )
 

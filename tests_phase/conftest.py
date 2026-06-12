@@ -40,6 +40,7 @@ def broker_paper(db, user):
         broker="DERIV",
         name="Deriv PAPER",
         mode="PAPER",
+        deriv_app_id="1089",
         is_active=True,
         status="ACTIVE",
     )
@@ -54,6 +55,7 @@ def broker_live(db, user):
         broker="DERIV",
         name="Deriv LIVE",
         mode="LIVE",
+        deriv_app_id="1089",
         is_active=True,
         status="ACTIVE",
     )

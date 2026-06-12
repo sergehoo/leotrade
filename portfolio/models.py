@@ -235,7 +235,8 @@ class Position(TimeStampedModel):
             if self.portfolio.broker_account_id != self.broker_account_id:
                 errors["broker_account"] = "Le broker de la position doit correspondre à celui du portefeuille."
 
-        if self.quantity <= 0:
+        # Une position totalement clôturée retombe légitimement à quantity = 0.
+        if self.quantity < 0 or (self.quantity == 0 and self.status != "CLOSED"):
             errors["quantity"] = "La quantité doit être strictement positive."
 
         if self.entry_price < 0:

@@ -232,7 +232,13 @@ class PortfolioService:
     @staticmethod
     @transaction.atomic
     def recompute_cash_state(portfolio: Portfolio) -> Portfolio:
-        totals = portfolio.ledger_entries.aggregate(total=Sum("amount"))
+        # ORDER_LOCK/ORDER_RELEASE sont des réservations, pas des mouvements :
+        # le débit réel arrive via TRADE_EXECUTION au fill. Les inclure ici
+        # double-compterait le montant locké (déjà soustrait via locked_cash),
+        # cassant l'invariant current_balance = available_cash + locked_cash.
+        totals = portfolio.ledger_entries.exclude(
+            entry_type__in=["ORDER_LOCK", "ORDER_RELEASE"]
+        ).aggregate(total=Sum("amount"))
         ledger_total = _quantize_money(totals["total"] or Decimal("0.00"))
 
         current_balance = _quantize_money(_to_decimal(portfolio.starting_balance) + ledger_total)

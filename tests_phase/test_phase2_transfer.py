@@ -23,12 +23,14 @@ User = get_user_model()
 @pytest.fixture
 def setup(db):
     user = User.objects.create_user(username="bob", password="x")
-    wallet = Wallet.objects.create(
-        user=user, currency="USD",
-        available_balance=Decimal("500.00"),
+    # Le wallet est auto-créé par signal post_save(User) : on le met à jour
+    wallet, _ = Wallet.objects.get_or_create(user=user, defaults={"currency": "USD"})
+    Wallet.objects.filter(pk=wallet.pk).update(
+        currency="USD", available_balance=Decimal("500.00"),
     )
+    wallet.refresh_from_db()
     broker = BrokerAccount.objects.create(
-        user=user, broker="DERIV", name="demo", is_active=True,
+        user=user, broker="DERIV", name="demo", deriv_app_id="1089", is_active=True,
     )
     portfolio = Portfolio.objects.create(
         user=user, broker_account=broker, name="main",

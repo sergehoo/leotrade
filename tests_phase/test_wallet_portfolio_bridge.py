@@ -64,7 +64,8 @@ def broker_account(user):
         user=user,
         broker="DERIV",
         name="demo",
-        mode="DEMO",
+        mode="PAPER",
+        deriv_app_id="1089",
         is_active=True,
     )
 

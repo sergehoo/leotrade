@@ -32,7 +32,7 @@ User = get_user_model()
 def _post_toggle(client, mode):
     """POST vers trading_mode_toggle et retourne la réponse."""
     return client.post(
-        reverse("trading_mode_toggle"),
+        reverse("trading-mode-toggle"),
         data={"mode": mode},
         follow=True,  # suit les redirections
     )
@@ -44,6 +44,7 @@ def _make_broker(user, name, mode="PAPER", broker="DERIV", is_active=True):
         broker=broker,
         name=name,
         mode=mode,
+        deriv_app_id="1089" if broker == "DERIV" else None,
         is_active=is_active,
         status="ACTIVE",
     )

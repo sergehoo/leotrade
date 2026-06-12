@@ -301,7 +301,7 @@ class TestLockToFillCycle:
             status="PENDING_SUBMIT",
             requested_quantity=Decimal("1"),
             approved_quantity=Decimal("1"),
-            approved_stake=LOCK_AMOUNT,
+            requested_stake_amount=LOCK_AMOUNT,
             approved_notional=LOCK_AMOUNT,
             idempotency_key="fill-cycle-test-1",
         )

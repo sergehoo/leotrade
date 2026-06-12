@@ -28,7 +28,7 @@ User = get_user_model()
 def setup(db):
     user = User.objects.create_user(username="deriv_user", password="x")
     broker = BrokerAccount.objects.create(
-        user=user, broker="DERIV", name="demo", is_active=True,
+        user=user, broker="DERIV", name="demo", deriv_app_id="1089", is_active=True,
     )
     portfolio = Portfolio.objects.create(
         user=user, broker_account=broker, name="main",

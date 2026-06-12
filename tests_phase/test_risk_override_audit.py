@@ -86,13 +86,13 @@ class TestAuditCreatedOnOverride:
 
     @pytest.mark.django_db
     def test_audit_links_correct_user(
-        self, portfolio_paper, risk_profile_paper
+        self, user, portfolio_paper, risk_profile_paper
     ):
-        """L'audit enregistre le bon user_id."""
-        _validate(portfolio_paper, override=True, user_id=42)
+        """L'audit enregistre le bon user_id (FK réelle vers auth_user)."""
+        _validate(portfolio_paper, override=True, user_id=user.id)
 
         audit = RiskOverrideAudit.objects.first()
-        assert audit.user_id == 42
+        assert audit.user_id == user.id
 
     @pytest.mark.django_db
     def test_audit_records_symbol_and_side(
@@ -298,7 +298,8 @@ class TestProfileSnapshot:
         risk_profile_paper.save()
 
         audit = RiskOverrideAudit.objects.first()
-        assert audit.profile_snapshot["max_daily_loss"] == "7.77"
+        # Comparaison en Decimal : le snapshot sérialise avec les décimales du champ ("7.7700")
+        assert Decimal(audit.profile_snapshot["max_daily_loss"]) == Decimal("7.77")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
