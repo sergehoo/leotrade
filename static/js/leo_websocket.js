@@ -259,12 +259,20 @@
   // ---------------------------------------------------------------------------
   const LeoWS = {
     connect: function (url, options) {
-      const conn = new Connection(url, options);
       const name = (options && options.name) || url;
-      // si une connexion existait déjà sous ce nom, on la ferme
-      if (connections.has(name)) {
-        connections.get(name).close();
+
+      // Réutilise une connexion vivante vers la même URL (cas fréquent :
+      // double init Alpine). Fermer une socket encore en CONNECTING pour la
+      // recréer aussitôt déclenche "WebSocket is closed before the
+      // connection is established" — on met juste à jour les callbacks.
+      const existing = connections.get(name);
+      if (existing && existing.url === url && existing.state !== "closed") {
+        if (options) Object.assign(existing.opts, options);
+        return existing;
       }
+      if (existing) existing.close();
+
+      const conn = new Connection(url, options);
       connections.set(name, conn);
       conn.connect();
       return conn;

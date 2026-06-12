@@ -580,9 +580,9 @@ function fundDashboardLive() {
       const protocol = window.location.protocol === "https:" ? "wss" : "ws";
       const wsUrl = `${protocol}://${window.location.host}/ws/dashboard/live/`;
 
-      // Si une connexion existe déjà (cas Alpine init double), on la ferme
-      try { this.leoConn && this.leoConn.close(); } catch (e) {}
-
+      // Cas Alpine init double : LeoWS.connect réutilise la connexion
+      // vivante du même nom (fermer une socket en CONNECTING déclenche un
+      // warning navigateur) — pas de close() manuel ici.
       this.leoConn = window.LeoWS.connect(wsUrl, {
         name: "fund_dashboard",
         expectedEvent: "dashboard.update",

@@ -6,7 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>{% block title %}LeoTrade — Fund Dashboard{% endblock %}</title>
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    {# Tailwind buildé statiquement (tailwind.config.js) — le CDN est déconseillé en prod #}
+    <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap"
           rel="stylesheet"/>
