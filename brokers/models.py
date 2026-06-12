@@ -1,3 +1,5 @@
+import logging
+
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -6,6 +8,10 @@ from core.models import TimeStampedModel
 from core.crypto import CryptoService
 
 User = get_user_model()
+
+# Audit des accès aux secrets : chaque décryptage est journalisé (qui/quoi/quand
+# via le contexte de requête structuré — jamais la valeur elle-même).
+secret_access_log = logging.getLogger("leotrade.brokers.secret_access")
 
 
 class BrokerAccount(TimeStampedModel):
@@ -163,6 +169,17 @@ class BrokerCredential(TimeStampedModel):
         return f"{self.broker_account.name} - {self.secret_type}"
 
     def get_secret_value(self) -> str:
+        # Audit trail : trace l'accès (jamais la valeur déchiffrée).
+        secret_access_log.info(
+            "credential.decrypted",
+            extra={
+                "event": "credential.decrypted",
+                "credential_id": self.pk,
+                "broker_account_id": self.broker_account_id,
+                "secret_type": self.secret_type,
+                "key_version": self.key_version,
+            },
+        )
         return CryptoService.decrypt(self.secret_value_encrypted)
 
 from .models_constraints import BrokerConstraint
