@@ -1,0 +1,146 @@
+{% extends "layout/base.html" %}
+{% block title %}LeoTrade — Notifications{% endblock %}
+{% block page_title %}Centre de notifications{% endblock %}
+
+{% block content %}
+<div class="space-y-4" x-data="notificationCenter()">
+
+  {# ── Barre d'actions ── #}
+  <section class="card p-4 flex flex-wrap items-center gap-3">
+    <div class="flex items-center gap-2">
+      <span class="text-sm text-white font-semibold">{{ page_obj.paginator.count }}</span>
+      <span class="text-xs text-gray-500">notification{{ page_obj.paginator.count|pluralize }}</span>
+      {% if unread_count %}
+        <span class="px-2 py-0.5 rounded-full text-[10px] mono bg-amber-500/10 text-amber-300 border border-amber-400/20">
+          {{ unread_count }} non lue{{ unread_count|pluralize }}
+        </span>
+      {% endif %}
+    </div>
+
+    <form method="get" class="flex flex-wrap items-center gap-2 ml-auto">
+      <select name="severity" class="rounded-lg text-xs mono bg-white/5 border border-white/10 text-white px-2 py-1.5">
+        <option value="">Sévérité — toutes</option>
+        {% for value, label in severity_choices %}
+          <option value="{{ value }}" {% if current_severity == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="event_type" class="rounded-lg text-xs mono bg-white/5 border border-white/10 text-white px-2 py-1.5 max-w-[220px]">
+        <option value="">Événement — tous</option>
+        {% for value, label in event_choices %}
+          <option value="{{ value }}" {% if current_event_type == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <label class="flex items-center gap-1.5 text-xs text-gray-400">
+        <input type="checkbox" name="unread" value="1" {% if unread_only %}checked{% endif %}
+               class="rounded bg-white/5 border-white/20"> Non lues
+      </label>
+      <button class="px-3 py-1.5 rounded-lg text-xs mono bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">Filtrer</button>
+    </form>
+
+    <button @click="markAllRead()"
+            class="px-3 py-1.5 rounded-lg text-xs mono bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+      ✓ Tout marquer lu
+    </button>
+    <a href="{% url 'notifications:preferences' %}"
+       class="px-3 py-1.5 rounded-lg text-xs mono bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">
+      ⚙ Préférences
+    </a>
+  </section>
+
+  {# ── Liste ── #}
+  <section class="card divide-y divide-white/5">
+    {% for n in notifications %}
+      <article class="p-4 flex items-start gap-3 {% if not n.is_read %}bg-white/[0.02]{% endif %}"
+               id="notif-{{ n.id }}">
+        <div class="mt-1 w-2 h-2 rounded-full flex-shrink-0
+          {% if n.severity == 'CRITICAL' %}bg-red-400
+          {% elif n.severity == 'WARNING' %}bg-amber-400
+          {% elif n.severity == 'SUCCESS' %}bg-emerald-400
+          {% else %}bg-blue-400{% endif %}"></div>
+
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <h3 class="text-sm {% if n.is_read %}text-gray-400{% else %}text-white font-semibold{% endif %}">{{ n.title }}</h3>
+            <span class="text-[10px] mono px-1.5 py-0.5 rounded bg-white/5 text-gray-500 border border-white/10">{{ n.get_event_type_display }}</span>
+            {% if n.priority == 'URGENT' %}
+              <span class="text-[10px] mono px-1.5 py-0.5 rounded bg-red-500/10 text-red-300 border border-red-400/20">URGENT</span>
+            {% endif %}
+          </div>
+          <p class="mt-1 text-xs text-gray-500 leading-relaxed">{{ n.message }}</p>
+          <div class="mt-1.5 flex items-center gap-3 text-[10px] mono text-gray-600">
+            <span>{{ n.created_at|date:"d/m/Y H:i" }}</span>
+            {% if n.channels_sent %}<span>Envoyée : {{ n.channels_sent|join:", " }}</span>{% endif %}
+            <span class="{% if n.status == 'FAILED' %}text-red-400{% elif n.status == 'SENT' %}text-emerald-500/70{% endif %}">{{ n.status }}</span>
+          </div>
+        </div>
+
+        {% if not n.is_read %}
+          <button @click="markRead({{ n.id }})"
+                  class="flex-shrink-0 px-2 py-1 rounded-lg text-[10px] mono bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-white transition">
+            Marquer lu
+          </button>
+        {% endif %}
+      </article>
+    {% empty %}
+      {# État vide professionnel — zéro fake data #}
+      <div class="p-12 text-center">
+        <div class="text-3xl mb-3">🔕</div>
+        <h3 class="text-white text-sm font-semibold">Aucune notification pour le moment</h3>
+        <p class="mt-2 text-xs text-gray-500 max-w-md mx-auto">
+          Les événements de trading (ordres, positions, risque, IA, brokers)
+          apparaîtront ici en temps réel. Configure tes canaux préférés
+          (email, SMS, WhatsApp) dans les préférences.
+        </p>
+        <a href="{% url 'notifications:preferences' %}"
+           class="inline-block mt-4 px-4 py-2 rounded-lg text-xs mono bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+          Configurer mes préférences →
+        </a>
+      </div>
+    {% endfor %}
+  </section>
+
+  {# ── Pagination ── #}
+  {% if page_obj.has_other_pages %}
+    <div class="flex items-center justify-between text-xs mono text-gray-500">
+      <span>Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      <div class="flex gap-2">
+        {% if page_obj.has_previous %}
+          <a href="?page={{ page_obj.previous_page_number }}{% if current_event_type %}&event_type={{ current_event_type }}{% endif %}{% if current_severity %}&severity={{ current_severity }}{% endif %}{% if unread_only %}&unread=1{% endif %}"
+             class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition">← Précédent</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+          <a href="?page={{ page_obj.next_page_number }}{% if current_event_type %}&event_type={{ current_event_type }}{% endif %}{% if current_severity %}&severity={{ current_severity }}{% endif %}{% if unread_only %}&unread=1{% endif %}"
+             class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition">Suivant →</a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function notificationCenter() {
+  return {
+    async markRead(id) {
+      const res = await fetch(`/api/notifications/${id}/mark-read/`, {
+        method: "POST",
+        headers: {"X-CSRFToken": this.csrf(), "X-Requested-With": "XMLHttpRequest"},
+      });
+      if (res.ok) window.location.reload();
+    },
+    async markAllRead() {
+      const res = await fetch("/api/notifications/mark-all-read/", {
+        method: "POST",
+        headers: {"X-CSRFToken": this.csrf(), "X-Requested-With": "XMLHttpRequest"},
+      });
+      if (res.ok) window.location.reload();
+    },
+    csrf() {
+      const m = document.cookie.match(/csrftoken=([^;]+)/);
+      return m ? m[1] : "";
+    },
+  };
+}
+</script>
+{% endblock %}

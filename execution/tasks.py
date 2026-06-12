@@ -43,6 +43,17 @@ def reconcile_all_active_portfolios_task():
                 "status": "FAILED",
                 "error": str(exc),
             })
+            from notifications.shortcuts import notify
+            notify(
+                portfolio.user, "BROKER_RECONCILIATION_FAILED",
+                title=f"Réconciliation broker échouée — {portfolio.name}",
+                message=(
+                    f"La réconciliation des ordres de « {portfolio.name} » a échoué : "
+                    f"{str(exc)[:200]}. Les soldes affichés peuvent être temporairement décalés."
+                ),
+                payload={"portfolio_id": portfolio.id, "error": str(exc)[:500]},
+                dedupe_key=f"reconcile_failed:{portfolio.id}",
+            )
     return payload
 
 

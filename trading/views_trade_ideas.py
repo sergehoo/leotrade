@@ -1299,6 +1299,16 @@ class TradeIdeaApproveView(LoginRequiredMixin, UserScopedTradeIdeaMixin, View):
         idea.status = "APPROVED"
         idea.save(update_fields=["status", "updated_at"])
 
+        from notifications.shortcuts import notify
+        notify(
+            request.user, "AI_OPPORTUNITY_APPROVED",
+            title=f"Opportunité approuvée : {idea.direction} {idea.symbol}",
+            message=(
+                f"Tu as approuvé l'idée {idea.direction} {idea.symbol} "
+                f"(score {idea.overall_score:.2f}, R/R {idea.expected_rr or '—'})."
+            ),
+            payload={"idea_id": idea.pk, "symbol": idea.symbol, "direction": idea.direction},
+        )
         messages.success(request, "Idée approuvée.")
         return redirect("trading:trade-idea-detail", pk=idea.pk)
 
@@ -1314,6 +1324,13 @@ class TradeIdeaRejectView(LoginRequiredMixin, UserScopedTradeIdeaMixin, View):
         idea.status = "REJECTED"
         idea.save(update_fields=["status", "updated_at"])
 
+        from notifications.shortcuts import notify
+        notify(
+            request.user, "AI_OPPORTUNITY_REJECTED",
+            title=f"Opportunité rejetée : {idea.direction} {idea.symbol}",
+            message=f"Tu as rejeté l'idée {idea.direction} {idea.symbol}.",
+            payload={"idea_id": idea.pk, "symbol": idea.symbol, "direction": idea.direction},
+        )
         messages.success(request, "Idée rejetée.")
         return redirect("trading:trade-idea-detail", pk=idea.pk)
 

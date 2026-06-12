@@ -55,6 +55,13 @@ class BrokerAccountCreateView(LoginRequiredMixin, CreateView):
         broker = form.save(user=self.request.user)
         self.object = broker
         messages.success(self.request, "Compte broker créé avec succès.")
+        from notifications.shortcuts import notify
+        notify(
+            self.request.user, "BROKER_ACCOUNT_CREATED",
+            title=f"Compte broker créé : {broker.name}",
+            message=f"Compte {broker.broker} « {broker.name} » créé en mode {broker.mode}.",
+            payload={"broker_account_id": broker.pk, "broker": broker.broker, "mode": broker.mode},
+        )
         return redirect(self.get_success_url())
 
     def form_invalid(self, form):
@@ -83,6 +90,13 @@ class BrokerAccountUpdateView(LoginRequiredMixin, UpdateView):
         broker = form.save(user=self.request.user)
         self.object = broker
         messages.success(self.request, "Compte broker mis à jour avec succès.")
+        from notifications.shortcuts import notify
+        notify(
+            self.request.user, "BROKER_ACCOUNT_UPDATED",
+            title=f"Compte broker modifié : {broker.name}",
+            message=f"La configuration du compte {broker.broker} « {broker.name} » a été modifiée.",
+            payload={"broker_account_id": broker.pk, "broker": broker.broker, "mode": broker.mode},
+        )
         return redirect(self.get_success_url())
 
     def form_invalid(self, form):
@@ -124,6 +138,13 @@ class BrokerAccountSetDefaultView(LoginRequiredMixin, View):
         broker.save(update_fields=["is_default", "updated_at"])
 
         messages.success(request, f"{broker.name} défini comme broker par défaut.")
+        from notifications.shortcuts import notify
+        notify(
+            request.user, "BROKER_DEFAULT_CHANGED",
+            title=f"Broker par défaut : {broker.name}",
+            message=f"« {broker.name} » ({broker.broker}, mode {broker.mode}) est maintenant ton broker par défaut.",
+            payload={"broker_account_id": broker.pk, "broker": broker.broker, "mode": broker.mode},
+        )
         return redirect("broker-list")
 
 
@@ -164,12 +185,29 @@ class BrokerAccountTestConnectionView(LoginRequiredMixin, View):
             "updated_at",
         ])
 
+        from notifications.shortcuts import notify
         if ok:
             messages.success(request, f"Connexion réussie pour {broker.name}.")
+            notify(
+                request.user, "BROKER_CONNECTION_OK",
+                title=f"Connexion broker réussie : {broker.name}",
+                message=f"Le test de connexion à {broker.broker} « {broker.name} » a réussi.",
+                payload={"broker_account_id": broker.pk, "broker": broker.broker},
+            )
         else:
             messages.error(
                 request,
                 f"Échec de connexion pour {broker.name}: {error_message or 'Erreur inconnue'}"
+            )
+            notify(
+                request.user, "BROKER_CONNECTION_FAILED",
+                title=f"Connexion broker échouée : {broker.name}",
+                message=(
+                    f"Le test de connexion à {broker.broker} « {broker.name} » a échoué : "
+                    f"{error_message or 'erreur inconnue'}. Vérifie tes identifiants dans la configuration."
+                ),
+                payload={"broker_account_id": broker.pk, "broker": broker.broker,
+                         "error": (error_message or "")[:500]},
             )
 
         return redirect("broker-list")

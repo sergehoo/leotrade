@@ -443,6 +443,17 @@
             </svg>
             Opportunités IA
         </a>
+        <a href="{% url 'notifications:center' %}"
+           class="nav-link {% if request.resolver_match.namespace == 'notifications' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                      d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            Notifications
+            {# Badge non-lu — alimenté par le WS unread.count + fallback initial #}
+            <span id="leo-notif-badge" x-cloak
+                  class="ml-auto hidden min-w-[18px] text-center px-1 py-0.5 rounded-full text-[10px] mono bg-amber-500/15 text-amber-300 border border-amber-400/25"></span>
+        </a>
         <a href="{% url 'trading:hedge-fund-dashboard' %}"
            class="nav-link {% if request.resolver_match.url_name == 'hedge-fund-dashboard' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -769,16 +780,35 @@
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
         const wsUrl = `${protocol}://${window.location.host}/ws/notifications/`;
 
+        function updateNotifBadge(count) {
+            const badge = document.getElementById("leo-notif-badge");
+            if (!badge) return;
+            const n = Number(count) || 0;
+            badge.textContent = n > 99 ? "99+" : String(n);
+            badge.classList.toggle("hidden", n === 0);
+            badge.removeAttribute("x-cloak");
+        }
+
         LeoWS.connect(wsUrl, {
             name: "user_notifications",
-            expectedEvent: "notification.created",
-            onMessage: function (_data, payload) {
+            onMessage: function (data, payload) {
+                // Badge non-lu (NotificationCenterConsumer → unread.count)
+                if (data && data.type === "unread.count") {
+                    updateNotifBadge(data.count);
+                    return;
+                }
+                // Toast pour les nouvelles notifications
+                if (data && data.type === "notification.created") {
+                    payload = data.payload || payload;
+                }
                 if (!payload || !payload.message) return;
                 const kind = (payload.kind || payload.level || "info").toLowerCase();
+                const map = {critical: "error", warning: "info"};
                 const allowed = ["success", "error", "info"];
-                const safeKind = allowed.includes(kind) ? kind : "info";
+                let safeKind = map[kind] || kind;
+                if (!allowed.includes(safeKind)) safeKind = "info";
                 if (window.LeoAnim && typeof LeoAnim.toast === "function") {
-                    LeoAnim.toast(payload.message, safeKind);
+                    LeoAnim.toast(payload.title ? `${payload.title} — ${payload.message}` : payload.message, safeKind);
                 } else {
                     console.info("[notification]", payload.message);
                 }

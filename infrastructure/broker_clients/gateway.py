@@ -88,6 +88,25 @@ class BrokerGateway:
                     "gateway.circuit_opened broker_account_id=%s broker=%s failures=%s last_error=%s",
                     self.broker_account.pk, self.broker_account.broker, failures, exc,
                 )
+                # Anomalie broker → notification critique au propriétaire
+                # (dédupliquée : une par compte et par heure max).
+                try:
+                    from notifications.shortcuts import notify
+                    notify(
+                        self.broker_account.user, "BROKER_ERROR",
+                        title=f"Broker injoignable : {self.broker_account.name}",
+                        message=(
+                            f"{failures} échecs consécutifs sur {self.broker_account.broker} "
+                            f"« {self.broker_account.name} » — circuit breaker ouvert "
+                            f"{self.OPEN_SECONDS}s. Dernière erreur : {str(exc)[:200]}"
+                        ),
+                        payload={"broker_account_id": self.broker_account.pk,
+                                 "broker": self.broker_account.broker,
+                                 "failures": failures},
+                        dedupe_key=f"broker_circuit:{self.broker_account.pk}",
+                    )
+                except Exception:
+                    pass
         except Exception:
             # Le cache ne doit jamais transformer une erreur broker en crash
             log.exception("gateway.circuit_record_failed")

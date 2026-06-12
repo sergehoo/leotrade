@@ -201,6 +201,35 @@ class PositionCloseService:
             "close.position.ok position_id=%s closing_qty=%s realized_pnl=%s status=%s trade_id=%s",
             position.id, closing_qty, realized_pnl, position.status, trade.id,
         )
+
+        # Notification multicanale — PnL réel du round-trip
+        try:
+            from notifications.shortcuts import notify
+
+            owner = getattr(position.portfolio, "user", None)
+            outcome = "gagnante 🎯" if realized_pnl > 0 else ("perdante" if realized_pnl < 0 else "à l'équilibre")
+            full_close = position.status == "CLOSED"
+            notify(
+                owner, "POSITION_CLOSED",
+                title=(
+                    f"Position {'fermée' if full_close else 'réduite'} : "
+                    f"{position.symbol} ({realized_pnl:+.2f})"
+                ),
+                message=(
+                    f"Clôture {'totale' if full_close else 'partielle'} {outcome} "
+                    f"de {position.symbol} : {closing_qty} @ {exit_price}, "
+                    f"PnL réalisé {realized_pnl:+.2f}."
+                ),
+                payload={
+                    "position_id": position.id,
+                    "trade_id": trade.id,
+                    "symbol": position.symbol,
+                    "realized_pnl": str(realized_pnl),
+                    "full_close": full_close,
+                },
+            )
+        except Exception:
+            log.exception("close.position.notify_failed position_id=%s", position.id)
         return trade
 
 

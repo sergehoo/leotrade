@@ -359,6 +359,30 @@ class TradeIdeaGenerationService:
         if update_fields:
             scan_run.save(update_fields=update_fields)
 
+        # Notification résumé (une par run et par user — le rate limit du
+        # module évite tout spam si les cycles sont rapprochés).
+        if ideas:
+            from notifications.shortcuts import notify
+
+            best = max(ideas, key=lambda i: i.overall_score or 0)
+            notify(
+                user, "AI_OPPORTUNITY_DETECTED",
+                title=f"{len(ideas)} nouvelle(s) opportunité(s) IA",
+                message=(
+                    f"Le scan {timeframe_code or '5m'} a détecté {len(ideas)} "
+                    f"opportunité(s). Meilleure : {best.direction} {best.symbol} "
+                    f"(score {best.overall_score:.2f})."
+                ),
+                payload={
+                    "scan_run_id": scan_run.id,
+                    "count": len(ideas),
+                    "best_idea_id": best.id,
+                    "best_symbol": best.symbol,
+                    "best_score": best.overall_score,
+                    "timeframe": timeframe_code or "5m",
+                },
+            )
+
         return ideas
 # class TradeIdeaGenerationService:
 #     MIN_OVERALL_SCORE = 0.65

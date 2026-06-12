@@ -84,6 +84,7 @@ INSTALLED_APPS = [
     "wallet",
     "api",
     "channels",
+    "notifications",
 
     # Phase IA hybride
     "ai_engine",
@@ -201,6 +202,26 @@ LOGIN_REDIRECT_URL = "/dashboard/"
 ACCOUNT_LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "LeoTrade <no-reply@leotrade.io>")
+SITE_URL = env("SITE_URL", "http://127.0.0.1:8000")
+
+# ── Notifications multicanales ────────────────────────────────────────────
+# SMS : "twilio" ou "local_ci" (agrégateur ivoirien) — fallback automatique
+# sur l'autre provider en cas d'échec.
+NOTIFY_SMS_PRIMARY = env("NOTIFY_SMS_PRIMARY", "twilio")
+NOTIFY_WHATSAPP_PRIMARY = env("NOTIFY_WHATSAPP_PRIMARY", "twilio")
+
+TWILIO_ACCOUNT_SID = env("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = env("TWILIO_AUTH_TOKEN", "")
+TWILIO_SMS_FROM = env("TWILIO_SMS_FROM", "")
+TWILIO_WHATSAPP_FROM = env("TWILIO_WHATSAPP_FROM", "")
+
+SMS_LOCAL_CI_URL = env("SMS_LOCAL_CI_URL", "")
+SMS_LOCAL_CI_API_KEY = env("SMS_LOCAL_CI_API_KEY", "")
+SMS_LOCAL_CI_SENDER = env("SMS_LOCAL_CI_SENDER", "LeoTrade")
+
+WHATSAPP_CLOUD_TOKEN = env("WHATSAPP_CLOUD_TOKEN", "")
+WHATSAPP_CLOUD_PHONE_ID = env("WHATSAPP_CLOUD_PHONE_ID", "")
 
 ALLAUTH_2FA_ALWAYS_REVEAL_BACKUP_TOKENS = False
 ALLAUTH_2FA_SETUP_URL_NAME = "two-factor-setup"
@@ -353,6 +374,23 @@ CELERY_BEAT_SCHEDULE = {
     "check-brokers-health-every-5-minutes": {
         "task": "brokers.tasks.check_all_brokers_health_task",
         "schedule": crontab(minute="*/5"),
+    },
+    # ── Notifications ───────────────────────────────────────────────────
+    "retry-failed-notifications-every-10-minutes": {
+        "task": "notifications.tasks.retry_failed_notifications_task",
+        "schedule": crontab(minute="*/10"),
+    },
+    "send-daily-trading-report-7am": {
+        "task": "notifications.tasks.send_daily_trading_report_task",
+        "schedule": crontab(hour=7, minute=0),
+    },
+    "send-weekly-trading-report-monday-7am": {
+        "task": "notifications.tasks.send_weekly_trading_report_task",
+        "schedule": crontab(hour=7, minute=0, day_of_week=1),
+    },
+    "cleanup-old-notifications-daily-3am": {
+        "task": "notifications.tasks.cleanup_old_notifications_task",
+        "schedule": crontab(hour=3, minute=0),
     },
     # Kill switch intelligent : coupe les stratégies dégradées (win rate
     # effondré / expectancy négative sur échantillon suffisant).
@@ -573,6 +611,7 @@ if SENTRY_DSN:
 #     "django_celery_beat",
 #     "django_celery_results",
 #     "channels",
+    "notifications",
 #
 #     # django-otp AVANT allauth_2fa
 #     "django_otp",

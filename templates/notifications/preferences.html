@@ -1,0 +1,117 @@
+{% extends "layout/base.html" %}
+{% block title %}LeoTrade — Préférences de notification{% endblock %}
+{% block page_title %}Préférences de notification{% endblock %}
+
+{% block content %}
+<form method="post" class="max-w-3xl space-y-4">
+  {% csrf_token %}
+
+  <section class="card p-5">
+    <h2 class="text-sm text-white font-semibold mb-1">Canaux</h2>
+    <p class="text-xs text-gray-500 mb-4">
+      L'email est le canal prioritaire. Les notifications critiques (kill switch,
+      pertes maximales, sécurité, mode LIVE) sont envoyées sur tous les canaux
+      activés et ignorent les heures de silence.
+    </p>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <label class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-gray-300">
+        <input type="checkbox" name="email_enabled" {% if pref.email_enabled %}checked{% endif %} class="rounded">
+        📧 Email
+      </label>
+      <label class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-gray-300">
+        <input type="checkbox" name="in_app_enabled" {% if pref.in_app_enabled %}checked{% endif %} class="rounded">
+        🔔 In-app
+      </label>
+      <label class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-gray-300">
+        <input type="checkbox" name="sms_enabled" {% if pref.sms_enabled %}checked{% endif %} class="rounded">
+        💬 SMS
+      </label>
+      <label class="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-gray-300">
+        <input type="checkbox" name="whatsapp_enabled" {% if pref.whatsapp_enabled %}checked{% endif %} class="rounded">
+        🟢 WhatsApp
+      </label>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-4">
+      <div>
+        <label class="block text-[10px] mono uppercase tracking-wider text-gray-600 mb-1">Téléphone (SMS)</label>
+        <input type="tel" name="phone_number" value="{{ pref.phone_number }}" placeholder="+2250700000000"
+               class="w-full rounded-lg text-xs mono bg-white/5 border border-white/10 text-white px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-[10px] mono uppercase tracking-wider text-gray-600 mb-1">WhatsApp (si différent)</label>
+        <input type="tel" name="whatsapp_number" value="{{ pref.whatsapp_number }}" placeholder="+2250700000000"
+               class="w-full rounded-lg text-xs mono bg-white/5 border border-white/10 text-white px-3 py-2">
+      </div>
+    </div>
+  </section>
+
+  <section class="card p-5">
+    <h2 class="text-sm text-white font-semibold mb-4">Catégories d'événements</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">
+      <label class="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-gray-300">
+        <span>📈 Trading — ordres, positions, TP/SL</span>
+        <input type="checkbox" name="trade_events_enabled" {% if pref.trade_events_enabled %}checked{% endif %} class="rounded">
+      </label>
+      <label class="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-gray-300">
+        <span>🛡 Risque — limites, drawdown, kill switch</span>
+        <input type="checkbox" name="risk_events_enabled" {% if pref.risk_events_enabled %}checked{% endif %} class="rounded">
+      </label>
+      <label class="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-gray-300">
+        <span>🔌 Brokers — connexion, synchronisation</span>
+        <input type="checkbox" name="broker_events_enabled" {% if pref.broker_events_enabled %}checked{% endif %} class="rounded">
+      </label>
+      <label class="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-gray-300">
+        <span>🤖 IA — opportunités, signaux, erreurs</span>
+        <input type="checkbox" name="ai_events_enabled" {% if pref.ai_events_enabled %}checked{% endif %} class="rounded">
+      </label>
+      <label class="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-gray-300">
+        <span>🔐 Sécurité &amp; compte — connexions, KYC, mode LIVE</span>
+        <input type="checkbox" name="security_events_enabled" {% if pref.security_events_enabled %}checked{% endif %} class="rounded">
+      </label>
+      <label class="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-gray-300">
+        <span>📊 Rapports — quotidien &amp; hebdomadaire</span>
+        <input type="checkbox" name="reports_enabled" {% if pref.reports_enabled %}checked{% endif %} class="rounded">
+      </label>
+    </div>
+    <p class="mt-3 text-[10px] text-gray-600">
+      Note : les événements critiques (kill switch, alertes sécurité) restent
+      notifiés en in-app + email même si leur catégorie est désactivée.
+    </p>
+  </section>
+
+  <section class="card p-5">
+    <h2 class="text-sm text-white font-semibold mb-1">Heures de silence</h2>
+    <p class="text-xs text-gray-500 mb-4">
+      Pendant cette fenêtre, seules les notifications in-app sont délivrées
+      (sauf événements critiques). Laisser vide pour désactiver.
+    </p>
+    <div class="flex flex-wrap items-center gap-3">
+      <div>
+        <label class="block text-[10px] mono uppercase tracking-wider text-gray-600 mb-1">Début</label>
+        <input type="time" name="quiet_hours_start" value="{{ pref.quiet_hours_start|time:'H:i'|default:'' }}"
+               class="rounded-lg text-xs mono bg-white/5 border border-white/10 text-white px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-[10px] mono uppercase tracking-wider text-gray-600 mb-1">Fin</label>
+        <input type="time" name="quiet_hours_end" value="{{ pref.quiet_hours_end|time:'H:i'|default:'' }}"
+               class="rounded-lg text-xs mono bg-white/5 border border-white/10 text-white px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-[10px] mono uppercase tracking-wider text-gray-600 mb-1">Langue</label>
+        <select name="preferred_language" class="rounded-lg text-xs mono bg-white/5 border border-white/10 text-white px-3 py-2">
+          <option value="fr" {% if pref.preferred_language == 'fr' %}selected{% endif %}>Français</option>
+          <option value="en" {% if pref.preferred_language == 'en' %}selected{% endif %}>English</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <div class="flex items-center gap-3">
+    <button class="px-4 py-2 rounded-lg text-xs mono bg-emerald-500/15 text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500/20 transition">
+      Enregistrer
+    </button>
+    <a href="{% url 'notifications:center' %}" class="text-xs text-gray-500 hover:text-gray-300 transition">← Retour au centre</a>
+  </div>
+</form>
+{% endblock %}

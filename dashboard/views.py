@@ -792,6 +792,19 @@ def trading_mode_toggle(request):
             request,
             f"Mode de trading basculé sur {mode}. Comptes mis à jour : {names}."
         )
+        if mode == "LIVE":
+            from notifications.shortcuts import notify
+            notify(
+                request.user, "LIVE_MODE_ENABLED",
+                title="⚠ Mode LIVE activé — argent réel",
+                message=(
+                    f"Le mode LIVE vient d'être activé sur {len(flipped)} compte(s) "
+                    f"broker ({names}). À partir de maintenant, chaque ordre engage "
+                    f"de l'argent réel. Si tu n'es pas à l'origine de ce changement, "
+                    f"repasse en PAPER immédiatement et change ton mot de passe."
+                ),
+                payload={"accounts": [a.id for a in flipped], "mode": mode},
+            )
 
     if skipped and not flipped:
         messages.info(
@@ -829,6 +842,12 @@ def kyc_submit(request):
             obj.rejection_reason = ""
             obj.save()
             messages.success(request, "Votre dossier KYC a été soumis.")
+            from notifications.shortcuts import notify
+            notify(
+                request.user, "KYC_SUBMITTED",
+                title="Dossier KYC soumis",
+                message="Ton dossier KYC a bien été soumis. Tu seras notifié dès qu'il aura été examiné.",
+            )
             return redirect("kyc-dashboard")
     else:
         form = KYCSubmissionForm(instance=profile)
@@ -893,6 +912,12 @@ def admin_kyc_approve(request, pk):
         "updated_at",
     ])
     messages.success(request, "Dossier KYC approuvé.")
+    from notifications.shortcuts import notify
+    notify(
+        profile.user, "KYC_APPROVED",
+        title="✅ Ton KYC est approuvé",
+        message="Ton dossier d'identité a été vérifié et approuvé. Toutes les fonctionnalités sont désormais accessibles.",
+    )
     return redirect("admin-kyc-detail", pk=profile.pk)
 
 
@@ -914,4 +939,14 @@ def admin_kyc_reject(request, pk):
         "updated_at",
     ])
     messages.success(request, "Dossier KYC rejeté.")
+    from notifications.shortcuts import notify
+    notify(
+        profile.user, "KYC_REJECTED",
+        title="Ton dossier KYC nécessite une correction",
+        message=(
+            f"Ton dossier KYC a été rejeté : {profile.rejection_reason} "
+            f"Corrige les éléments demandés et soumets-le à nouveau."
+        ),
+        payload={"rejection_reason": profile.rejection_reason},
+    )
     return redirect("admin-kyc-detail", pk=profile.pk)

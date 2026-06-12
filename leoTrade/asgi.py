@@ -10,6 +10,7 @@ from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
 
 import execution.routing
+import notifications.routing
 import portfolio.routing
 import trading.routing
 import market.routing
@@ -21,6 +22,7 @@ application = ProtocolTypeRouter({
         AuthMiddlewareStack(
             URLRouter(
                 ai_assistant.routing.websocket_urlpatterns   # panel IA — prioritaire
+                + notifications.routing.websocket_urlpatterns  # centre de notifications
                 + execution.routing.websocket_urlpatterns
                 + portfolio.routing.websocket_urlpatterns
                 + trading.routing.websocket_urlpatterns

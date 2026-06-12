@@ -529,6 +529,35 @@ class RiskGuardService:
             is_active=True,
         )
 
+        # Notification multicanale (critique : email + in-app + SMS/WhatsApp
+        # si autorisés). dedupe_key : une seule notif par event kill switch.
+        from notifications.shortcuts import notify
+        notify(
+            portfolio.user, "KILL_SWITCH_ACTIVATED",
+            title=f"Kill switch activé — {portfolio.name}",
+            message=(
+                f"Le kill switch vient d'être déclenché sur « {portfolio.name} » : "
+                f"{reason} Plus aucun nouvel ordre ne sera exécuté tant qu'il est actif."
+            ),
+            payload={
+                "portfolio_id": portfolio.id,
+                "portfolio_name": portfolio.name,
+                "reason_code": reason_code,
+                "reason": reason,
+            },
+            dedupe_key=f"kill_switch:{event.id}",
+        )
+        # Les limites de perte ont leur propre événement (en plus du kill switch)
+        if reason_code in ("DAILY_LOSS_LIMIT", "WEEKLY_LOSS_LIMIT", "MONTHLY_LOSS_LIMIT", "HIGH_DRAWDOWN"):
+            notify(
+                portfolio.user, reason_code if reason_code != "HIGH_DRAWDOWN" else "HIGH_DRAWDOWN",
+                title=f"Limite de risque atteinte — {portfolio.name}",
+                message=reason,
+                payload={"portfolio_id": portfolio.id, "portfolio_name": portfolio.name,
+                         "reason_code": reason_code},
+                dedupe_key=f"loss_limit:{reason_code}:{portfolio.id}:{timezone.localdate().isoformat()}",
+            )
+
         daily = RiskStateService.refresh_daily_state(portfolio)
         weekly = RiskStateService.refresh_weekly_state(portfolio)
         monthly = RiskStateService.refresh_monthly_state(portfolio)
@@ -576,10 +605,23 @@ class RiskGuardService:
     def resolve_kill_switch(cls, portfolio):
         active_events = portfolio.kill_switch_events.filter(is_active=True)
         now = timezone.now()
+        had_active = active_events.exists()
         for event in active_events:
             event.is_active = False
             event.resolved_at = now
             event.save(update_fields=["is_active", "resolved_at", "updated_at"])
+
+        if had_active:
+            from notifications.shortcuts import notify
+            notify(
+                portfolio.user, "KILL_SWITCH_DEACTIVATED",
+                title=f"Kill switch désactivé — {portfolio.name}",
+                message=(
+                    f"Le kill switch de « {portfolio.name} » a été levé : "
+                    f"le trading peut reprendre. Reste prudent sur les premières entrées."
+                ),
+                payload={"portfolio_id": portfolio.id, "portfolio_name": portfolio.name},
+            )
 
         RealtimeBroadcastService.broadcast_dashboard_update(
             user_id=portfolio.user_id,

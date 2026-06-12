@@ -107,6 +107,19 @@ class StrategyCircuitBreakerService:
             "circuit_breaker.tripped strategy_id=%s reason=%s win_rate=%s expectancy=%s",
             strategy.id, reason_code, event.win_rate, event.expectancy,
         )
+
+        from notifications.shortcuts import notify_admins
+        notify_admins(
+            "STRATEGY_CIRCUIT_BREAKER",
+            title=f"Stratégie coupée : {strategy.name}",
+            message=(
+                f"Le kill switch intelligent a mis en pause « {strategy.name} » : {reason} "
+                f"Réactivation possible après revue depuis l'admin ou la page stratégie."
+            ),
+            payload={"strategy_id": strategy.id, "reason_code": reason_code,
+                     "win_rate": event.win_rate, "expectancy": event.expectancy},
+            dedupe_key=f"circuit_breaker:{event.id}",
+        )
         return event
 
     @classmethod
