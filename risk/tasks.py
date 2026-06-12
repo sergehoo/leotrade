@@ -326,3 +326,60 @@ def auto_enforce_kill_switch_task():
         "triggered": triggered,
         "skipped": skipped,
     }
+
+@shared_task(name="risk.tasks.refresh_monthly_risk_states_task")
+def refresh_monthly_risk_states_task():
+    """
+    Rafraîchit les états de risque mensuels pour tous les portefeuilles actifs.
+    Délègue à RiskStateService.refresh_monthly_state (même logique safe-equity
+    que daily/weekly).
+    """
+    from risk.services import RiskStateService
+
+    refreshed = 0
+    portfolios = (
+        Portfolio.objects
+        .filter(is_active=True, broker_account__is_active=True)
+        .select_related("broker_account")
+    )
+
+    for portfolio in portfolios:
+        try:
+            RiskStateService.refresh_monthly_state(portfolio)
+            refreshed += 1
+        except Exception:
+            logger.exception(
+                "Échec refresh monthly risk state",
+                extra={"portfolio_id": portfolio.id},
+            )
+
+    logger.info(
+        "Rafraîchissement des états mensuels terminé",
+        extra={"monthly_refreshed": refreshed},
+    )
+    return {"monthly_refreshed": refreshed}
+
+
+@shared_task(name="risk.tasks.evaluate_strategy_circuit_breakers_task")
+def evaluate_strategy_circuit_breakers_task():
+    """
+    Kill switch intelligent : évalue toutes les stratégies actives et coupe
+    automatiquement celles dont les métriques d'apprentissage sont dégradées
+    (win rate effondré, expectancy négative).
+    """
+    from risk.services_circuit_breaker import StrategyCircuitBreakerService
+
+    tripped = StrategyCircuitBreakerService.evaluate_all()
+
+    if tripped:
+        logger.warning(
+            "Circuit breaker : stratégies coupées",
+            extra={
+                "tripped_count": len(tripped),
+                "strategy_ids": [e.strategy_id for e in tripped],
+            },
+        )
+    return {
+        "tripped": len(tripped),
+        "strategy_ids": [e.strategy_id for e in tripped],
+    }

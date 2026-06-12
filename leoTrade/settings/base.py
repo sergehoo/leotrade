@@ -340,6 +340,16 @@ CELERY_BEAT_SCHEDULE = {
         "task": "risk.tasks.refresh_weekly_risk_states_task",
         "schedule": crontab(minute="*/15"),
     },
+    "refresh-monthly-risk-states-every-30-minutes": {
+        "task": "risk.tasks.refresh_monthly_risk_states_task",
+        "schedule": crontab(minute="*/30"),
+    },
+    # Kill switch intelligent : coupe les stratégies dégradées (win rate
+    # effondré / expectancy négative sur échantillon suffisant).
+    "evaluate-strategy-circuit-breakers-every-15-minutes": {
+        "task": "risk.tasks.evaluate_strategy_circuit_breakers_task",
+        "schedule": crontab(minute="*/15"),
+    },
     # Kill switch enforcement — single canonical entry, every 2 minutes.
     # The duplicated "auto-enforce-kill-switch" entry below has been removed:
     # two beat entries pointing at the same task race each other and inflate

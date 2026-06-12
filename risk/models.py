@@ -33,6 +33,7 @@ class RiskProfile(TimeStampedModel):
     max_risk_per_trade = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("1.00"))
     max_daily_loss = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("3.00"))
     max_weekly_loss = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("6.00"))
+    max_monthly_loss = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("12.00"))
     max_drawdown = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("10.00"))
 
     max_open_positions = models.PositiveIntegerField(default=5)
@@ -114,6 +115,85 @@ class WeeklyRiskState(TimeStampedModel):
     class Meta:
         unique_together = [("portfolio", "week_start")]
         ordering = ["-week_start"]
+
+
+class MonthlyRiskState(TimeStampedModel):
+    portfolio = models.ForeignKey(
+        "portfolio.Portfolio",
+        on_delete=models.CASCADE,
+        related_name="monthly_risk_states",
+    )
+    month_start = models.DateField(db_index=True)
+
+    realized_pnl = models.DecimalField(max_digits=18, decimal_places=2, default=Decimal("0.00"))
+    unrealized_pnl = models.DecimalField(max_digits=18, decimal_places=2, default=Decimal("0.00"))
+    total_loss_amount = models.DecimalField(max_digits=18, decimal_places=2, default=Decimal("0.00"))
+    total_loss_percent = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("0.00"))
+
+    equity_open = models.DecimalField(max_digits=18, decimal_places=2, default=Decimal("0.00"))
+    equity_current = models.DecimalField(max_digits=18, decimal_places=2, default=Decimal("0.00"))
+
+    blocked_new_positions = models.BooleanField(default=False)
+    kill_switch_triggered = models.BooleanField(default=False)
+
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        unique_together = [("portfolio", "month_start")]
+        ordering = ["-month_start"]
+
+    def __str__(self):
+        return f"{self.portfolio.name} - {self.month_start} ({self.total_loss_percent}%)"
+
+
+class StrategyCircuitBreakerEvent(TimeStampedModel):
+    """Coupure automatique d'une stratégie dégradée (kill switch intelligent).
+
+    Déclenchée quand les métriques d'apprentissage (LearningSnapshot) passent
+    sous les seuils de qualité : la stratégie est mise en pause et l'événement
+    est conservé pour audit et réactivation manuelle.
+    """
+
+    REASON_CHOICES = [
+        ("DEGRADED_WIN_RATE", "Win rate dégradé"),
+        ("NEGATIVE_EXPECTANCY", "Expectancy négative"),
+        ("EXCESSIVE_LOSS", "Pertes excessives"),
+        ("BROKER_ANOMALY", "Anomalie broker"),
+        ("MANUAL", "Manuel"),
+    ]
+
+    strategy = models.ForeignKey(
+        "strategies.Strategy",
+        on_delete=models.CASCADE,
+        related_name="circuit_breaker_events",
+    )
+    reason_code = models.CharField(max_length=30, choices=REASON_CHOICES, db_index=True)
+    reason = models.TextField(blank=True)
+
+    win_rate = models.FloatField(default=0.0)
+    expectancy = models.FloatField(default=0.0)
+    total_trades = models.PositiveIntegerField(default=0)
+
+    is_active = models.BooleanField(default=True, db_index=True)
+    resolved_at = models.DateTimeField(blank=True, null=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="resolved_circuit_breakers",
+    )
+
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["strategy", "is_active"]),
+        ]
+
+    def __str__(self):
+        return f"{self.strategy_id} - {self.reason_code} ({'actif' if self.is_active else 'résolu'})"
 
 
 class RiskDecision(TimeStampedModel):

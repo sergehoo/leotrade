@@ -18,6 +18,7 @@ from .models import (
     RiskProfile,
     DailyRiskState,
     WeeklyRiskState,
+    MonthlyRiskState,
     RiskDecision,
     KillSwitchEvent,
 )
@@ -69,6 +70,10 @@ class RiskStateService:
     @staticmethod
     def _week_start(date_value):
         return date_value - timedelta(days=date_value.weekday())
+
+    @staticmethod
+    def _month_start(date_value):
+        return date_value.replace(day=1)
 
     @staticmethod
     def _is_deriv_portfolio(portfolio) -> bool:
@@ -229,6 +234,63 @@ class RiskStateService:
 
         state.save()
         return state
+
+    @classmethod
+    @transaction.atomic
+    def refresh_monthly_state(cls, portfolio):
+        portfolio = PortfolioService.refresh_portfolio_metrics(portfolio)
+
+        today = timezone.localdate()
+        month_start = cls._month_start(today)
+
+        first_snapshot = portfolio.snapshots.filter(
+            snapshot_time__date__gte=month_start,
+            snapshot_time__date__lte=today,
+        ).order_by("snapshot_time").first()
+
+        safe_equity_current = cls._safe_equity_current(portfolio)
+        safe_equity_open = cls._safe_equity_open(portfolio, first_snapshot)
+
+        state, _ = MonthlyRiskState.objects.get_or_create(
+            portfolio=portfolio,
+            month_start=month_start,
+            defaults={"equity_open": safe_equity_open},
+        )
+
+        # Corrige un MonthlyRiskState déjà contaminé.
+        if (
+            _d(state.equity_open) <= 0
+            or _d(state.equity_open) > safe_equity_current * Decimal("10")
+            or _d(state.total_loss_percent) > Decimal("100")
+        ):
+            state.equity_open = safe_equity_open
+
+        state.realized_pnl = _d(portfolio.realized_pnl)
+        state.unrealized_pnl = _d(portfolio.unrealized_pnl)
+        state.equity_current = safe_equity_current
+
+        loss_amount, loss_percent = cls._safe_loss_percent(
+            state.equity_open,
+            state.equity_current,
+        )
+
+        state.total_loss_amount = loss_amount
+        state.total_loss_percent = loss_percent
+
+        state.payload = {
+            "portfolio_equity": str(portfolio.equity),
+            "portfolio_balance": str(portfolio.current_balance),
+            "safe_equity_open": str(safe_equity_open),
+            "safe_equity_current": str(safe_equity_current),
+            "drawdown_percent": portfolio.current_drawdown_percent,
+            "first_snapshot_id": getattr(first_snapshot, "id", None),
+            "is_deriv_portfolio": cls._is_deriv_portfolio(portfolio),
+        }
+
+        state.save()
+        return state
+
+
 class PositionSizingService:
     @staticmethod
     def _quantize_step(value: Decimal, step: Decimal) -> Decimal:
@@ -469,6 +531,11 @@ class RiskGuardService:
 
         daily = RiskStateService.refresh_daily_state(portfolio)
         weekly = RiskStateService.refresh_weekly_state(portfolio)
+        monthly = RiskStateService.refresh_monthly_state(portfolio)
+
+        monthly.kill_switch_triggered = True
+        monthly.blocked_new_positions = True
+        monthly.save(update_fields=["kill_switch_triggered", "blocked_new_positions", "updated_at"])
 
         daily.kill_switch_triggered = True
         daily.blocked_new_positions = True
@@ -645,6 +712,7 @@ class RiskGuardService:
 
         daily_state = RiskStateService.refresh_daily_state(portfolio)
         weekly_state = RiskStateService.refresh_weekly_state(portfolio)
+        monthly_state = RiskStateService.refresh_monthly_state(portfolio)
 
         portfolio.refresh_from_db()
 
@@ -913,6 +981,35 @@ class RiskGuardService:
             else:
                 payload["weekly_loss_warning"] = (
                     "Perte hebdomadaire maximale atteinte — non bloquant en PAPER/DEMO."
+                )
+
+        # ── 8bis. Perte mensuelle maximale ─────────────────────────
+        if _d(monthly_state.total_loss_percent) >= _d(profile.max_monthly_loss):
+            if not is_demo:
+                if profile.kill_switch_enabled:
+                    cls.trigger_kill_switch(
+                        portfolio,
+                        profile,
+                        "MONTHLY_LOSS_LIMIT",
+                        "Perte mensuelle maximale atteinte.",
+                        payload=payload,
+                    )
+                soft = _soft_block_or_override(
+                    "MONTHLY_LOSS_LIMIT",
+                    (
+                        f"La perte du mois "
+                        f"({cls._humanize_pct(monthly_state.total_loss_percent)}) "
+                        f"a atteint la limite "
+                        f"({cls._humanize_pct(profile.max_monthly_loss)}). "
+                        f"Reprends le mois prochain, ajuste « max_monthly_loss » "
+                        f"dans ton profil, ou force l'exécution sous ta responsabilité."
+                    ),
+                )
+                if soft is not None:
+                    return soft
+            else:
+                payload["monthly_loss_warning"] = (
+                    "Perte mensuelle maximale atteinte — non bloquant en PAPER/DEMO."
                 )
 
         # ── 9. Drawdown maximal ────────────────────────────────────
