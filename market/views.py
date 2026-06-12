@@ -299,6 +299,41 @@ class CandleDetailView(LoginRequiredMixin, DetailView):
         scheme = "wss" if self.request.is_secure() else "ws"
         ctx["ws_feed_url"] = f"{scheme}://{self.request.get_host()}/ws/market/candles/{self.object.pk}/{selected_timeframe.code}/"
 
+        # Positions réelles de l'utilisateur sur cet actif → overlays du chart
+        # (entrée, stop loss, take profit). Aucune donnée simulée.
+        try:
+            from portfolio.models import Position
+
+            open_positions = (
+                Position.objects
+                .filter(
+                    portfolio__user=self.request.user,
+                    asset=self.object,
+                    status__in=["OPEN", "PARTIALLY_CLOSED"],
+                )
+                .select_related("portfolio")
+                .order_by("-opened_at")[:20]
+            )
+            positions_payload = [
+                {
+                    "id": p.id,
+                    "side": p.side,
+                    "quantity": float(p.quantity or 0),
+                    "entry_price": float(p.average_entry_price or p.entry_price or 0),
+                    "stop_loss": float(p.stop_loss) if p.stop_loss else None,
+                    "take_profit": float(p.take_profit) if p.take_profit else None,
+                    "opened_at": int(p.opened_at.timestamp()) if p.opened_at else None,
+                    "portfolio": p.portfolio.name if p.portfolio_id else "",
+                    "unrealized_pnl": float(p.unrealized_pnl or 0),
+                }
+                for p in open_positions
+            ]
+        except Exception:
+            positions_payload = []
+
+        ctx["positions_json"] = json.dumps(positions_payload)
+        ctx["open_positions_count"] = len(positions_payload)
+
         return ctx
 
 

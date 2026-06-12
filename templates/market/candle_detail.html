@@ -167,6 +167,16 @@
         </div>
       </div>
 
+      {% if open_positions_count %}
+        {# Légende des overlays — positions réelles uniquement #}
+        <div class="flex flex-wrap items-center gap-4 mb-2 text-[10px] mono text-gray-500">
+          <span class="text-gray-400">{{ open_positions_count }} position{{ open_positions_count|pluralize }} ouverte{{ open_positions_count|pluralize }} sur cet actif :</span>
+          <span class="flex items-center gap-1.5"><span class="inline-block w-4 border-t-2 border-dashed border-blue-400"></span> Entrée</span>
+          <span class="flex items-center gap-1.5"><span class="inline-block w-4 border-t-2 border-dotted border-red-400"></span> Stop loss</span>
+          <span class="flex items-center gap-1.5"><span class="inline-block w-4 border-t-2 border-dotted border-emerald-400"></span> Take profit</span>
+        </div>
+      {% endif %}
+
       <div id="candlestickChart" class="h-[460px] w-full"></div>
       <div id="volumeChart" class="h-[140px] w-full"></div>
     </div>
@@ -253,6 +263,7 @@
 function candleRealtimeApp() {
   return {
     candles: {{ candles_json|safe|default:"[]" }},
+    positions: {{ positions_json|safe|default:"[]" }},
     liveFeedUrl: "{{ live_feed_url|escapejs }}",
     wsFeedUrl: "{{ ws_feed_url|escapejs }}",
     timeframe: "{{ selected_timeframe.code|default:''|escapejs }}",
@@ -428,6 +439,76 @@ function candleRealtimeApp() {
       this.chart.timeScale().fitContent();
       this.volumeChart.timeScale().fitContent();
       this.updatePriceLine();
+      this.renderPositionOverlays();
+    },
+
+    renderPositionOverlays() {
+      // Positions réelles de l'utilisateur : entrée, SL, TP + marqueur d'entrée.
+      if (!this.candleSeries || !this.positions.length) return;
+
+      const markers = [];
+
+      this.positions.forEach(p => {
+        const isLong = p.side === "LONG";
+
+        if (p.entry_price > 0) {
+          this.candleSeries.createPriceLine({
+            price: p.entry_price,
+            color: isLong ? "#3b82f6" : "#a855f7",
+            lineWidth: 1,
+            lineStyle: 2, // dashed
+            axisLabelVisible: true,
+            title: `${isLong ? "▲" : "▼"} Entrée ${p.portfolio}`.trim(),
+          });
+        }
+        if (p.stop_loss) {
+          this.candleSeries.createPriceLine({
+            price: p.stop_loss,
+            color: "#ef4444",
+            lineWidth: 1,
+            lineStyle: 3, // dotted
+            axisLabelVisible: true,
+            title: "SL",
+          });
+        }
+        if (p.take_profit) {
+          this.candleSeries.createPriceLine({
+            price: p.take_profit,
+            color: "#10b981",
+            lineWidth: 1,
+            lineStyle: 3,
+            axisLabelVisible: true,
+            title: "TP",
+          });
+        }
+
+        // Marqueur à l'ouverture de la position (si dans la fenêtre du chart)
+        if (p.opened_at && this.candles.length
+            && p.opened_at >= Number(this.candles[0].open_time || 0)) {
+          markers.push({
+            time: p.opened_at,
+            position: isLong ? "belowBar" : "aboveBar",
+            color: isLong ? "#3b82f6" : "#a855f7",
+            shape: isLong ? "arrowUp" : "arrowDown",
+            text: `${p.side} ${p.quantity}`,
+          });
+        }
+      });
+
+      if (markers.length) {
+        markers.sort((a, b) => a.time - b.time);
+        try {
+          if (typeof window.LightweightCharts.createSeriesMarkers === "function") {
+            // API v5
+            window.LightweightCharts.createSeriesMarkers(this.candleSeries, markers);
+          } else if (typeof this.candleSeries.setMarkers === "function") {
+            // API v4 (fallback)
+            this.candleSeries.setMarkers(markers);
+          }
+        } catch (e) {
+          console.warn("Marqueurs de position non rendus:", e);
+        }
+      }
     },
 
     updatePriceLine() {

@@ -107,3 +107,48 @@ class SmokePagesTest(TestCase):
         portfolio.refresh_from_db()
         self.assertEqual(wallet.available_balance, Decimal("850"))
         self.assertEqual(portfolio.available_cash, Decimal("150"))
+
+
+class ChartPageTest(TestCase):
+    """Page chart : bougies réelles + overlays des positions de l'utilisateur."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from decimal import Decimal
+
+        from brokers.models import BrokerAccount
+        from market.models import Asset, Timeframe
+        from portfolio.models import Portfolio, Position
+
+        cls.user = get_user_model().objects.create_user(
+            username="chartuser", email="chart@test.io", password="x" * 12
+        )
+        cls.asset = Asset.objects.create(
+            symbol="R_100", name="Volatility 100", asset_class="SYNTHETIC",
+            exchange="DERIV", is_active=True,
+        )
+        Timeframe.objects.get_or_create(code="1m", defaults={"minutes": 1})
+        broker = BrokerAccount.objects.create(
+            user=cls.user, name="Paper", broker="BINANCE", mode="PAPER",
+        )
+        portfolio = Portfolio.objects.create(
+            user=cls.user, broker_account=broker, name="Chart PF", is_active=True,
+        )
+        Position.objects.create(
+            portfolio=portfolio, broker_account=broker, asset=cls.asset,
+            symbol="R_100", side="LONG",
+            quantity=Decimal("1"), entry_price=Decimal("100"),
+            average_entry_price=Decimal("100"), current_price=Decimal("101"),
+            stop_loss=Decimal("95"), take_profit=Decimal("110"),
+            status="OPEN", source="MANUAL",
+        )
+
+    def test_chart_page_includes_position_overlays(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("asset-chart", args=[self.asset.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["open_positions_count"], 1)
+        self.assertIn("position ouverte", resp.content.decode())
+        positions = resp.context["positions_json"]
+        self.assertIn('"stop_loss": 95.0', positions)
+        self.assertIn('"take_profit": 110.0', positions)
