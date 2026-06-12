@@ -31,128 +31,71 @@ def _to_decimal(value, default: str = "0") -> Decimal:
 def refresh_daily_risk_states_task():
     """
     Rafraîchit les états de risque journaliers pour tous les portefeuilles actifs.
-    """
-    today = timezone.localdate()
-    refreshed_daily = 0
 
+    Délègue à RiskStateService.refresh_daily_state : c'est la seule
+    implémentation, avec garde-fous anti-contamination (equity_open aberrant,
+    perte clampée ≤ 100 %). L'ancienne réimplémentation locale calculait
+    loss/equity_open sans borne et faisait déborder le champ Decimal(8,4)
+    ("numeric field overflow") dès qu'un portefeuille avait un equity_open
+    quasi nul.
+    """
+    from risk.services import RiskStateService
+
+    refreshed = 0
     portfolios = (
         Portfolio.objects
         .filter(is_active=True, broker_account__is_active=True)
         .select_related("broker_account")
     )
 
-    with transaction.atomic():
-        for portfolio in portfolios:
-            equity = _to_decimal(getattr(portfolio, "equity", 0), "0")
-            balance = _to_decimal(getattr(portfolio, "current_balance", 0), "0")
-            unrealized = _to_decimal(getattr(portfolio, "unrealized_pnl", 0), "0")
-            realized = _to_decimal(getattr(portfolio, "realized_pnl", 0), "0")
-
-            daily_state, created = DailyRiskState.objects.get_or_create(
-                portfolio=portfolio,
-                day=today,
-                defaults={
-                    "equity_open": balance,
-                    "equity_current": equity,
-                },
+    for portfolio in portfolios:
+        try:
+            RiskStateService.refresh_daily_state(portfolio)
+            refreshed += 1
+        except Exception:
+            logger.exception(
+                "Échec refresh daily risk state",
+                extra={"portfolio_id": portfolio.id},
             )
-
-            if created and not daily_state.equity_open:
-                daily_state.equity_open = balance
-
-            loss_amount = Decimal("0.00")
-            if realized < 0:
-                loss_amount += abs(realized)
-            if unrealized < 0:
-                loss_amount += abs(unrealized)
-
-            daily_state.equity_current = equity
-            daily_state.realized_pnl = realized
-            daily_state.unrealized_pnl = unrealized
-            daily_state.total_loss_amount = loss_amount
-
-            if daily_state.equity_open and daily_state.equity_open > 0:
-                daily_state.total_loss_percent = (loss_amount / daily_state.equity_open) * Decimal("100")
-            else:
-                daily_state.total_loss_percent = Decimal("0.00")
-
-            daily_state.open_positions_count = portfolio.positions.filter(status="OPEN").count()
-            daily_state.save()
-
-            refreshed_daily += 1
 
     logger.info(
         "Rafraîchissement des états journaliers terminé",
-        extra={"daily_refreshed": refreshed_daily},
+        extra={"daily_refreshed": refreshed},
     )
-
-    return {
-        "daily_refreshed": refreshed_daily,
-    }
+    return {"daily_refreshed": refreshed}
 
 
 @shared_task(name="risk.tasks.refresh_weekly_risk_states_task")
 def refresh_weekly_risk_states_task():
     """
-    Rafraîchit les états de risque hebdomadaires pour tous les portefeuilles actifs.
+    Rafraîchit les états de risque hebdomadaires pour tous les portefeuilles
+    actifs. Délègue à RiskStateService.refresh_weekly_state (mêmes garde-fous
+    que le daily — voir refresh_daily_risk_states_task).
     """
-    today = timezone.localdate()
-    week_start = today - timezone.timedelta(days=today.weekday())
-    refreshed_weekly = 0
+    from risk.services import RiskStateService
 
+    refreshed = 0
     portfolios = (
         Portfolio.objects
         .filter(is_active=True, broker_account__is_active=True)
         .select_related("broker_account")
     )
 
-    with transaction.atomic():
-        for portfolio in portfolios:
-            equity = _to_decimal(getattr(portfolio, "equity", 0), "0")
-            balance = _to_decimal(getattr(portfolio, "current_balance", 0), "0")
-            unrealized = _to_decimal(getattr(portfolio, "unrealized_pnl", 0), "0")
-            realized = _to_decimal(getattr(portfolio, "realized_pnl", 0), "0")
-
-            weekly_state, created = WeeklyRiskState.objects.get_or_create(
-                portfolio=portfolio,
-                week_start=week_start,
-                defaults={
-                    "equity_open": balance,
-                    "equity_current": equity,
-                },
+    for portfolio in portfolios:
+        try:
+            RiskStateService.refresh_weekly_state(portfolio)
+            refreshed += 1
+        except Exception:
+            logger.exception(
+                "Échec refresh weekly risk state",
+                extra={"portfolio_id": portfolio.id},
             )
-
-            if created and not weekly_state.equity_open:
-                weekly_state.equity_open = balance
-
-            loss_amount = Decimal("0.00")
-            if realized < 0:
-                loss_amount += abs(realized)
-            if unrealized < 0:
-                loss_amount += abs(unrealized)
-
-            weekly_state.equity_current = equity
-            weekly_state.realized_pnl = realized
-            weekly_state.unrealized_pnl = unrealized
-            weekly_state.total_loss_amount = loss_amount
-
-            if weekly_state.equity_open and weekly_state.equity_open > 0:
-                weekly_state.total_loss_percent = (loss_amount / weekly_state.equity_open) * Decimal("100")
-            else:
-                weekly_state.total_loss_percent = Decimal("0.00")
-
-            weekly_state.save()
-
-            refreshed_weekly += 1
 
     logger.info(
         "Rafraîchissement des états hebdomadaires terminé",
-        extra={"weekly_refreshed": refreshed_weekly},
+        extra={"weekly_refreshed": refreshed},
     )
-
-    return {
-        "weekly_refreshed": refreshed_weekly,
-    }
+    return {"weekly_refreshed": refreshed}
 
 
 @shared_task(name="risk.tasks.auto_enforce_kill_switch_task")

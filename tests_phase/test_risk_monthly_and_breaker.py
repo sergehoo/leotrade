@@ -242,3 +242,48 @@ def test_evaluate_all_only_trips_degraded(strategy, user):
     assert [e.strategy_id for e in tripped] == [strategy.id]
     healthy.refresh_from_db()
     assert healthy.is_active is True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  3. Régression : overflow numérique des tâches daily/weekly
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+def test_refresh_tasks_survive_contaminated_state(portfolio_paper):
+    """Un état contaminé (equity_open quasi nul) faisait déborder le champ
+    Decimal(8,4) ('numeric field overflow'). Les tâches délèguent désormais
+    au service qui répare l'état et clampe la perte ≤ 100 %."""
+    from risk.models import DailyRiskState, WeeklyRiskState
+    from risk.tasks import (
+        refresh_daily_risk_states_task,
+        refresh_weekly_risk_states_task,
+        refresh_monthly_risk_states_task,
+    )
+
+    today = timezone.localdate()
+    # equity_open dérisoire vs equity réelle 10 000 → l'ancien calcul
+    # produisait loss_percent ≈ 100 000 000 % → DataError en Postgres.
+    DailyRiskState.objects.create(
+        portfolio=portfolio_paper, day=today,
+        equity_open=Decimal("0.01"),
+    )
+    WeeklyRiskState.objects.create(
+        portfolio=portfolio_paper,
+        week_start=today - timezone.timedelta(days=today.weekday()),
+        equity_open=Decimal("0.01"),
+    )
+
+    r1 = refresh_daily_risk_states_task()
+    r2 = refresh_weekly_risk_states_task()
+    r3 = refresh_monthly_risk_states_task()
+
+    assert r1["daily_refreshed"] >= 1
+    assert r2["weekly_refreshed"] >= 1
+    assert r3["monthly_refreshed"] >= 1
+
+    daily = DailyRiskState.objects.get(portfolio=portfolio_paper, day=today)
+    # La formule du service est bornée : max(0, open-current)/open ≤ 100 %.
+    # L'ancien calcul (pertes PnL / equity_open) donnait ici ~10^8 % → DataError.
+    assert daily.total_loss_percent <= Decimal("100")
+    weekly = WeeklyRiskState.objects.get(portfolio=portfolio_paper)
+    assert weekly.total_loss_percent <= Decimal("100")

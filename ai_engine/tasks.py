@@ -35,9 +35,11 @@ def advise_open_trade_ideas_task(self, max_ideas: int = 50):
             log.info("advise_open_trade_ideas_task.skipped lock_held")
             return {"skipped": True}
 
+        # NB : TradeIdea n'a pas de FK portfolio (le portefeuille est résolu
+        # plus bas via l'utilisateur de l'idée).
         ideas_qs = TradeIdea.objects.filter(
             status__in=["NEW", "REVIEW"],
-        ).select_related("asset", "timeframe", "portfolio").order_by("-created_at")[:max_ideas]
+        ).select_related("asset", "timeframe", "user").order_by("-created_at")[:max_ideas]
 
         n_ok, n_skipped, n_err = 0, 0, 0
         for idea in ideas_qs:
@@ -47,9 +49,22 @@ def advise_open_trade_ideas_task(self, max_ideas: int = 50):
                 continue
 
             try:
+                # Portefeuille par défaut de l'utilisateur de l'idée
+                # (TradeIdea n'a pas de FK portfolio) — pour que l'IA
+                # raisonne avec les vraies contraintes de capital.
+                portfolio = None
+                if idea.user_id:
+                    from portfolio.models import Portfolio
+
+                    portfolio = (
+                        Portfolio.objects
+                        .filter(user_id=idea.user_id, is_active=True)
+                        .order_by("-is_default", "name")
+                        .first()
+                    )
                 decision = advise_for_trade_idea(
                     idea, user=getattr(idea, "user", None),
-                    portfolio=getattr(idea, "portfolio", None),
+                    portfolio=portfolio,
                 )
                 # Si EXECUTE et confidence haute, on peut tagger l'idea comme APPROVED
                 if decision.decision == "EXECUTE" and decision.confidence >= 0.75:

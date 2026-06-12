@@ -554,3 +554,6 @@ def run_learning_refresh_cycle():
         updated += 1
 
     return {"updated_learning_snapshots": updated}
+
+# Enregistre les tâches IA du module annexe dans le worker (cf. brokers/tasks.py).
+from trading import tasks_ai  # noqa: E402,F401

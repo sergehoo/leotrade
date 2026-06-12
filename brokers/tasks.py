@@ -74,3 +74,9 @@ def check_all_brokers_health_task():
         ])
 
     return {"checked": checked, "healthy": healthy}
+
+
+# Celery autodiscover n'importe que <app>.tasks : on importe explicitement le
+# module annexe pour que ses tâches (sync_deriv_balance_task, etc.) soient
+# enregistrées dans le worker — sinon "Received unregistered task".
+from brokers import tasks_deriv_sync  # noqa: E402,F401

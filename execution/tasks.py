@@ -265,3 +265,6 @@ def _mark_failed_and_release(order, reason: str):
 def _set_order_field(order, field, value):
     if value is not None:
         setattr(order, field, str(value))
+
+# Enregistre les tâches de maintenance du module annexe dans le worker.
+from execution import tasks_maintenance  # noqa: E402,F401
