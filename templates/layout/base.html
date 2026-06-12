@@ -16,6 +16,8 @@
     <script src="{% static 'js/leo_bootstrap.js' %}"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
+        [x-cloak] { display: none !important; }
+
         @keyframes leoFloat {
             0%, 100% {
                 transform: translateY(0px);
@@ -664,10 +666,17 @@
         </div>
 
         <div class="flex items-center gap-4">
-            <div class="hidden lg:flex items-center gap-3 text-xs mono text-gray-400">
-                <span>BTC <span class="text-gray-200">42,381</span></span>
-                <span>ETH <span class="text-gray-200">2,241</span></span>
-                <span>XAU <span class="text-gray-200">2,012</span></span>
+            {# Ticker temps réel — données de marché réelles uniquement (masqué si source indisponible) #}
+            <div class="hidden lg:flex items-center gap-3 text-xs mono text-gray-400"
+                 x-data="topbarTicker()" x-init="start()" x-show="items.length > 0" x-cloak>
+                <template x-for="t in items" :key="t.symbol">
+                    <span>
+                        <span x-text="t.label"></span>
+                        <span class="text-gray-200" x-text="t.price"></span>
+                        <span :class="t.change >= 0 ? 'text-emerald-400' : 'text-red-400'"
+                              x-text="(t.change >= 0 ? '+' : '') + t.change.toFixed(2) + '%'"></span>
+                    </span>
+                </template>
             </div>
 
             {# Badge connexion temps réel — propage l'état de LeoWS #}
@@ -775,6 +784,43 @@
             },
         });
     })();
+</script>
+<script>
+    // Ticker topbar — données réelles uniquement (zéro fake data).
+    // Si l'API ne renvoie rien, le ticker reste masqué (x-show).
+    function topbarTicker() {
+        return {
+            items: [],
+            _timer: null,
+            start() {
+                this.refresh();
+                this._timer = setInterval(() => this.refresh(), 30000);
+            },
+            async refresh() {
+                try {
+                    const res = await fetch("{% url 'trading:market-data' %}", {
+                        headers: {"X-Requested-With": "XMLHttpRequest"},
+                    });
+                    if (!res.ok) { this.items = []; return; }
+                    const json = await res.json();
+                    if (!json.available || !Array.isArray(json.data)) { this.items = []; return; }
+                    const wanted = ["BTC/USD", "ETH/USD", "XAU/USD (Gold)"];
+                    const labels = {"BTC/USD": "BTC", "ETH/USD": "ETH", "XAU/USD (Gold)": "XAU"};
+                    this.items = json.data
+                        .filter(d => wanted.includes(d.symbol) && d.price != null)
+                        .slice(0, 3)
+                        .map(d => ({
+                            symbol: d.symbol,
+                            label: labels[d.symbol] || d.symbol,
+                            price: Number(d.price).toLocaleString("en-US", {maximumFractionDigits: 2}),
+                            change: Number(d.change || 0),
+                        }));
+                } catch (e) {
+                    this.items = [];
+                }
+            },
+        };
+    }
 </script>
 {% block extra_js %}{% endblock %}
 

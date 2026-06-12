@@ -34,7 +34,8 @@ def market_data_api(request):
         data = get_landing_market_data()
         cache.set(cache_key, data, timeout=30)
 
-    return JsonResponse({"data": data})
+    # available=False → le frontend affiche un état "source indisponible"
+    return JsonResponse({"data": data, "available": bool(data)})
 
 
 @login_required

@@ -87,14 +87,10 @@ SYMBOLS = {
     },
 }
 
-FALLBACK_MARKET_DATA = [
-    {"symbol": "BTC/USD", "price": 42381.50, "change": 2.34, "category": "crypto"},
-    {"symbol": "ETH/USD", "price": 2241.80, "change": 1.87, "category": "crypto"},
-    {"symbol": "EUR/USD", "price": 1.0854, "change": 0.08, "category": "forex"},
-    {"symbol": "SPX500", "price": 5248.32, "change": 0.54, "category": "indices"},
-    {"symbol": "AAPL", "price": 189.20, "change": 1.12, "category": "stocks"},
-    {"symbol": "XAU/USD (Gold)", "price": 2012.40, "change": -0.12, "category": "commodities"},
-]
+# Politique "zéro fake data" : aucun prix simulé n'est jamais renvoyé.
+# Si la source de marché est indisponible, on renvoie une liste vide et
+# le frontend affiche un état "données indisponibles" explicite.
+FALLBACK_MARKET_DATA: list[dict] = []
 
 
 def _flatten_symbols(categories: Optional[Iterable[str]] = None) -> tuple[dict[str, str], dict[str, str]]:
@@ -164,7 +160,7 @@ def get_all_market_data(
     Args:
         categories: liste optionnelle des catégories à charger
                     ex: ['crypto', 'forex']
-        use_fallback: retourne un fallback si aucune donnée récupérée
+        use_fallback: conservé pour rétro-compatibilité (plus aucun fallback simulé)
         chunk_size: nombre de tickers par batch pour limiter le rate limit
 
     Returns:
@@ -182,7 +178,7 @@ def get_all_market_data(
     label_to_symbol, symbol_to_category = _flatten_symbols(categories=categories)
 
     if not label_to_symbol:
-        return FALLBACK_MARKET_DATA if use_fallback else []
+        return []
 
     reverse_map = {symbol: label for label, symbol in label_to_symbol.items()}
     yahoo_symbols = list(reverse_map.keys())
@@ -237,12 +233,7 @@ def get_all_market_data(
     # Tri propre par catégorie puis symbole
     data.sort(key=lambda x: (x["category"], x["symbol"]))
 
-    if not data and use_fallback:
-        if categories:
-            selected = set(categories)
-            return [item for item in FALLBACK_MARKET_DATA if item["category"] in selected]
-        return FALLBACK_MARKET_DATA
-
+    # Zéro fake data : pas de substitution simulée si la source échoue.
     return data
 
 
@@ -294,7 +285,7 @@ def _fetch_with_map(
     chunk_size: int,
 ) -> list[dict]:
     if not label_to_symbol:
-        return FALLBACK_MARKET_DATA if use_fallback else []
+        return []
 
     reverse_map = {symbol: label for label, symbol in label_to_symbol.items()}
     yahoo_symbols = list(reverse_map.keys())
@@ -340,8 +331,7 @@ def _fetch_with_map(
 
     data.sort(key=lambda x: (x["category"], x["symbol"]))
 
-    if not data and use_fallback:
-        return FALLBACK_MARKET_DATA
+    # Zéro fake data : pas de substitution simulée si la source échoue.
     return data
 
 

@@ -333,6 +333,11 @@
 <div class="fixed top-[73px] left-0 right-0 z-40 overflow-hidden py-2 border-y ticker-mask" style="background:rgba(5,10,18,0.88); border-color:rgba(255,255,255,0.04)">
   <div x-data="ticker()" x-init="init()" class="ticker-inner flex gap-8 text-[11px] text-slate-500">
 
+    {# Zéro fake data : si la source de marché est indisponible, on l'affiche explicitement #}
+    <span x-show="loaded && data.length === 0" class="text-slate-600">
+      Données de marché momentanément indisponibles
+    </span>
+
     <template x-for="item in data" :key="item.symbol">
         <span>
             <span x-text="item.symbol"></span>
@@ -749,11 +754,18 @@
 function ticker() {
     return {
         data: [],
+        loaded: false,
 
         async fetchData() {
-            const res = await fetch("/trading/api/market-data/");
-            const json = await res.json();
-            this.data = json.data;
+            try {
+                const res = await fetch("/trading/api/market-data/");
+                const json = await res.json();
+                this.data = Array.isArray(json.data) ? json.data : [];
+            } catch (e) {
+                this.data = [];
+            } finally {
+                this.loaded = true;
+            }
         },
 
         formatPrice(p) {
