@@ -344,6 +344,11 @@ CELERY_BEAT_SCHEDULE = {
         "task": "risk.tasks.refresh_monthly_risk_states_task",
         "schedule": crontab(minute="*/30"),
     },
+    # Comparaison prévision/réalité — alimente le score de performance IA.
+    "evaluate-strategy-predictions-every-10-minutes": {
+        "task": "ai_engine.tasks.evaluate_predictions_task",
+        "schedule": crontab(minute="*/10"),
+    },
     # Kill switch intelligent : coupe les stratégies dégradées (win rate
     # effondré / expectancy négative sur échantillon suffisant).
     "evaluate-strategy-circuit-breakers-every-15-minutes": {

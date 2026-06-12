@@ -65,3 +65,20 @@ def advise_open_trade_ideas_task(self, max_ideas: int = 50):
 
         log.info("advise_open_trade_ideas_task.done ok=%s skipped=%s err=%s", n_ok, n_skipped, n_err)
         return {"ok": n_ok, "skipped": n_skipped, "err": n_err}
+
+
+@shared_task(name="ai_engine.tasks.evaluate_predictions_task")
+def evaluate_predictions_task(limit: int = 500):
+    """
+    Comparaison prévision/réalité : confronte chaque StrategyPrediction
+    non évaluée à la bougie réelle suivante et persiste le résultat
+    (actual_label / is_correct). Alimente le score de performance IA.
+    """
+    from ai_engine.services_performance import PredictionEvaluationService
+
+    result = PredictionEvaluationService.evaluate_pending(limit=limit)
+    log.info(
+        "evaluate_predictions_task done evaluated=%s correct=%s",
+        result["evaluated"], result["correct"],
+    )
+    return result

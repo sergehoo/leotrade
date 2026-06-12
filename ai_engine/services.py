@@ -281,6 +281,12 @@ class AITradeAdvisor:
             suggested_take_profit=decision.suggested_take_profit,
             rationale=decision.rationale or "",
             risks=decision.risks or [],
+            analysis={
+                "primary_scenario": decision.primary_scenario or "",
+                "alternative_scenario": decision.alternative_scenario or "",
+                "invalidation": decision.invalidation or "",
+                "probability_estimate": decision.probability_estimate,
+            },
             prompt_inputs=prompt_inputs,
             raw_response=decision.raw_response or {},
             latency_ms=decision.latency_ms or 0,

@@ -78,6 +78,9 @@ class AIDecisionLog(models.Model):
 
     rationale = models.TextField(blank=True, help_text="Explication libre fournie par le LLM")
     risks = models.JSONField(default=list, blank=True, help_text="Liste de risques identifiés")
+    # Analyse copilote enrichie : primary_scenario, alternative_scenario,
+    # invalidation, probability_estimate (cf. AIDecision).
+    analysis = models.JSONField(default=dict, blank=True, help_text="Scénarios, invalidation, probabilité")
 
     # Audit trail
     prompt_inputs = models.JSONField(default=dict, blank=True, help_text="Features + contexte envoyés")

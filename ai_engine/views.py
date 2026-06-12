@@ -163,3 +163,22 @@ def list_decisions_view(request):
         for d in qs
     ]
     return JsonResponse({"results": rows, "count": len(rows)})
+
+
+@login_required
+def ai_performance_view(request):
+    """Centre IA — score de performance, calibration, historique (données réelles)."""
+    from .services_performance import AIPerformanceService, PredictionEvaluationService
+
+    try:
+        days = max(1, min(int(request.GET.get("days", 30)), 365))
+    except (TypeError, ValueError):
+        days = 30
+
+    scope_user = None if request.GET.get("scope") == "platform" else request.user
+
+    return JsonResponse({
+        "summary": AIPerformanceService.summary(user=scope_user, days=days),
+        "history": AIPerformanceService.recommendation_history(user=scope_user, limit=30),
+        "prediction_accuracy": PredictionEvaluationService.accuracy(days=days),
+    })

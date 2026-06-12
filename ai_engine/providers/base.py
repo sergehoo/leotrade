@@ -64,6 +64,12 @@ class AIDecision:
     rationale: str = ""
     risks: list[str] = field(default_factory=list)
 
+    # Analyse copilote enrichie (jamais générique)
+    primary_scenario: str = ""        # scénario principal attendu
+    alternative_scenario: str = ""    # scénario alternatif si le principal échoue
+    invalidation: str = ""            # condition objective qui invalide le scénario
+    probability_estimate: float | None = None  # probabilité estimée du scénario principal
+
     # Métadonnées techniques (rempli par l'orchestrator)
     provider: str = ""
     model_name: str = ""

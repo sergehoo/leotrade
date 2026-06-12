@@ -188,10 +188,17 @@ class StrategyPrediction(TimeStampedModel):
     raw_output = models.JSONField(default=dict, blank=True)
     features_snapshot = models.JSONField(default=dict, blank=True)
 
+    # Comparaison prévision/réalité — rempli a posteriori par
+    # PredictionEvaluationService quand la bougie suivante est connue.
+    actual_label = models.CharField(max_length=50, blank=True)
+    is_correct = models.BooleanField(null=True, blank=True, db_index=True)
+    evaluated_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ["-candle_time"]
         indexes = [
             models.Index(fields=["strategy", "candle_time"]),
+            models.Index(fields=["strategy", "is_correct"]),
         ]
 
     def __str__(self):

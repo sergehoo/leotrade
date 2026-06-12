@@ -42,6 +42,12 @@ Règles absolues :
 4. confidence ∈ [0.0, 1.0]. Sois calibré : 0.9+ uniquement si tous les signaux concordent.
 5. Tu ne JAMAIS recommandes plus que max_risk_per_trade_pct du capital.
 6. Tu décris les risques concrets dans "risks".
+7. Jamais de réponse générique : chaque champ doit citer les valeurs concrètes
+   des indicateurs fournis (ex. "RSI à 28, sous la borne 30").
+8. "invalidation" décrit une condition OBJECTIVE et vérifiable (niveau de prix,
+   croisement d'indicateur) qui annule ton scénario principal.
+9. "probability_estimate" est ta probabilité calibrée que le scénario principal
+   se réalise sur l'horizon du timeframe (0.0-1.0, cohérente avec confidence).
 
 Schéma de sortie OBLIGATOIRE :
 {
@@ -52,7 +58,11 @@ Schéma de sortie OBLIGATOIRE :
   "suggested_stake": float | null,
   "suggested_stop_loss": float | null,
   "suggested_take_profit": float | null,
-  "rationale": "explication concise en français, max 3 phrases",
+  "rationale": "analyse détaillée en français citant les indicateurs, max 5 phrases",
+  "primary_scenario": "scénario principal attendu (mouvement, cible, horizon)",
+  "alternative_scenario": "scénario alternatif si le principal échoue",
+  "invalidation": "condition objective qui invalide le scénario principal",
+  "probability_estimate": 0.0-1.0,
   "risks": ["risque1", "risque2", ...]
 }
 """
@@ -296,6 +306,14 @@ def _parsed_to_decision(
         suggested_take_profit=_to_dec(parsed.get("suggested_take_profit")),
         rationale=str(parsed.get("rationale", ""))[:2000],
         risks=[str(r) for r in risks][:10],
+        primary_scenario=str(parsed.get("primary_scenario", ""))[:1000],
+        alternative_scenario=str(parsed.get("alternative_scenario", ""))[:1000],
+        invalidation=str(parsed.get("invalidation", ""))[:500],
+        probability_estimate=(
+            max(0.0, min(1.0, float(parsed["probability_estimate"])))
+            if parsed.get("probability_estimate") is not None
+            else None
+        ),
         provider=provider,
         model_name=model_name,
         raw_response=raw_response,

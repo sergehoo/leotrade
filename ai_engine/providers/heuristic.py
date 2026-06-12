@@ -124,6 +124,20 @@ class HeuristicProvider(BaseAIProvider):
                 f"SL/TP basés sur ATR={atr:.6f}."
             ),
             risks=[],
+            primary_scenario=(
+                f"Poursuite {'haussière' if direction == 'LONG' else 'baissière'} "
+                f"vers TP={tp} (3×ATR)" if tp else
+                f"Mouvement {'haussier' if direction == 'LONG' else 'baissier'} attendu"
+            ),
+            alternative_scenario=(
+                f"Retournement contre la position : sortie sur SL={sl} (1,5×ATR)"
+                if sl else "Consolidation sans direction exploitable"
+            ),
+            invalidation=(
+                f"Clôture {'sous' if direction == 'LONG' else 'au-dessus de'} {sl}"
+                if sl else "Croisement SMA20/SMA50 inverse"
+            ),
+            probability_estimate=round(min(0.9, 0.45 + score * 0.3), 2),
             provider=self.name,
             model_name=self.model_name,
         )
