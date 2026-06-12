@@ -27,3 +27,50 @@ def sync_broker_constraint_task(broker_account_id: int, symbol: str):
         "constraint_id": constraint.id,
         "symbol": constraint.symbol,
     }
+
+@shared_task(name="brokers.tasks.check_all_brokers_health_task")
+def check_all_brokers_health_task():
+    """
+    Health check périodique de tous les comptes broker actifs.
+
+    Passe par le BrokerGateway (retry + circuit breaker) et persiste le
+    résultat sur BrokerAccount (last_connection_status / error / at) —
+    données affichées telles quelles par le Centre Broker.
+    """
+    import logging
+
+    from django.utils import timezone
+
+    from infrastructure.broker_clients.gateway import BrokerGateway, CircuitOpenError
+
+    logger = logging.getLogger("leotrade.brokers.health")
+
+    checked = healthy = 0
+    for account in BrokerAccount.objects.filter(is_active=True):
+        checked += 1
+        try:
+            gateway = BrokerGateway(account)
+            gateway.test_connection()
+            account.last_connection_status = True
+            account.last_connection_error = ""
+            account.status = "ACTIVE"
+            healthy += 1
+        except CircuitOpenError as exc:
+            account.last_connection_status = False
+            account.last_connection_error = str(exc)
+            account.status = "ERROR"
+        except Exception as exc:
+            account.last_connection_status = False
+            account.last_connection_error = str(exc)[:2000]
+            account.status = "ERROR"
+            logger.warning(
+                "broker.health_check_failed account_id=%s broker=%s error=%s",
+                account.pk, account.broker, exc,
+            )
+        account.last_connected_at = timezone.now()
+        account.save(update_fields=[
+            "last_connection_status", "last_connection_error",
+            "last_connected_at", "status", "updated_at",
+        ])
+
+    return {"checked": checked, "healthy": healthy}

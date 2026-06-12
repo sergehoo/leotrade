@@ -349,6 +349,11 @@ CELERY_BEAT_SCHEDULE = {
         "task": "ai_engine.tasks.evaluate_predictions_task",
         "schedule": crontab(minute="*/10"),
     },
+    # Centre Broker : health check de tous les comptes actifs.
+    "check-brokers-health-every-5-minutes": {
+        "task": "brokers.tasks.check_all_brokers_health_task",
+        "schedule": crontab(minute="*/5"),
+    },
     # Kill switch intelligent : coupe les stratégies dégradées (win rate
     # effondré / expectancy négative sur échantillon suffisant).
     "evaluate-strategy-circuit-breakers-every-15-minutes": {

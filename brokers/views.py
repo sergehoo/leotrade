@@ -1,7 +1,9 @@
 import logging
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -171,3 +173,47 @@ class BrokerAccountTestConnectionView(LoginRequiredMixin, View):
             )
 
         return redirect("broker-list")
+
+@login_required
+def broker_health_api(request):
+    """Centre Broker — statut de connexion, circuit breaker, sync, erreurs.
+
+    Données réelles uniquement : état persisté par les health checks et le
+    circuit breaker partagé du BrokerGateway.
+    """
+    from brokers.models_external_ref import BrokerExternalRef
+    from infrastructure.broker_clients.gateway import BrokerGateway
+
+    accounts = BrokerAccount.objects.filter(user=request.user).order_by("-is_default", "name")
+
+    data = []
+    for account in accounts:
+        # État du circuit sans construire le client réel (pas d'I/O broker ici)
+        circuit = BrokerGateway(account, client=object()).circuit_state()
+
+        last_sync = (
+            BrokerExternalRef.objects
+            .filter(broker_account=account)
+            .order_by("-last_seen_at")
+            .values_list("last_seen_at", flat=True)
+            .first()
+        )
+
+        data.append({
+            "id": account.pk,
+            "name": account.name,
+            "broker": account.broker,
+            "mode": account.mode,
+            "is_default": account.is_default,
+            "status": account.status,
+            "connected": bool(account.last_connection_status),
+            "last_connected_at": (
+                account.last_connected_at.isoformat()
+                if account.last_connected_at else None
+            ),
+            "last_error": account.last_connection_error or "",
+            "circuit_state": circuit,
+            "last_sync_at": last_sync.isoformat() if last_sync else None,
+        })
+
+    return JsonResponse({"accounts": data, "count": len(data)})
