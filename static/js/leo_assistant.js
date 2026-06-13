@@ -228,6 +228,10 @@
           updateBadge(data.actions.length);
         }
 
+        if (data.action_request) {
+          renderActionRequestCard(data.id, data.action_request);
+        }
+
         if (data.meta && data.meta.has_kill_switch) {
           showKillSwitchBanner(true);
         }
@@ -408,6 +412,70 @@
     OPEN_MODAL:    "Ouvrir interface",
     INFO:          "Information",
   };
+
+  // ── Carte de demande d'action (confirmation transactionnelle) ────────────
+  // Badge PAPER/LIVE, verdict Risk Engine, boutons Confirmer / Annuler.
+  // La confirmation passe par le backend (AssistantActionRequest) — double
+  // confirmation exigée en LIVE.
+  function renderActionRequestCard(msgId, req) {
+    if (!els.messages || !req) return;
+
+    // Mise à jour d'une carte existante (changement de statut)
+    const existing = document.querySelector(`[data-action-request-id="${req.id}"]`);
+    const isFinal = ["EXECUTED", "CANCELLED", "FAILED", "EXPIRED"].includes(req.status);
+
+    const live = req.mode === "LIVE";
+    const modeBadge = live
+      ? '<span class="leo-ai-req-badge leo-ai-req-live">LIVE — ARGENT RÉEL</span>'
+      : '<span class="leo-ai-req-badge leo-ai-req-paper">PAPER</span>';
+    const risk = req.risk_summary || {};
+    const riskBadge = risk.decision
+      ? `<span class="leo-ai-req-badge ${risk.decision === "APPROVE" ? "leo-ai-req-risk-ok" : "leo-ai-req-risk-ko"}">Risk : ${escapeHtml(risk.decision)}</span>`
+      : "";
+    const statusLabel = {
+      WAITING_CONFIRMATION: live ? "⏳ En attente de DOUBLE confirmation" : "⏳ En attente de confirmation",
+      CONFIRMED: "⚠ 1/2 confirmations — confirme encore une fois",
+      EXECUTED: "✅ Exécutée",
+      CANCELLED: "✕ Annulée",
+      FAILED: "⚠ Échec",
+      EXPIRED: "⌛ Expirée",
+    }[req.status] || req.status;
+
+    const buttons = isFinal ? "" : `
+      <div class="leo-ai-req-buttons">
+        <button class="leo-ai-req-confirm" data-req-confirm="${req.id}">
+          ${req.status === "CONFIRMED" ? "Confirmer (2/2)" : "✓ Confirmer"}
+        </button>
+        <button class="leo-ai-req-cancel" data-req-cancel="${req.id}">✕ Annuler</button>
+      </div>`;
+
+    const html = `
+      <div class="leo-ai-req-head">${modeBadge}${riskBadge}
+        <span class="leo-ai-req-status">${statusLabel}</span>
+      </div>
+      ${req.error_message ? `<div class="leo-ai-req-error">${escapeHtml(req.error_message)}</div>` : ""}
+      ${buttons}`;
+
+    let card = existing;
+    if (!card) {
+      card = document.createElement("div");
+      card.className = "leo-ai-action-card leo-ai-req-card";
+      card.dataset.actionRequestId = req.id;
+      const bubble = document.querySelector(`[data-msg-id="${msgId}"]`);
+      const wrapper = bubble ? bubble.closest(".leo-ai-msg") : null;
+      (wrapper || els.messages).appendChild(card);
+    }
+    card.innerHTML = html;
+
+    card.querySelectorAll("[data-req-confirm]").forEach((b) =>
+      b.addEventListener("click", () =>
+        send({type: "action_request_confirm", request_id: req.id})));
+    card.querySelectorAll("[data-req-cancel]").forEach((b) =>
+      b.addEventListener("click", () =>
+        send({type: "action_request_cancel", request_id: req.id})));
+
+    scrollToBottom();
+  }
 
   function renderActionCards(msgId, actions, historical = false) {
     const msgEl = document.querySelector(`[data-msg-id="${msgId}"]`);

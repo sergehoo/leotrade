@@ -1,7 +1,16 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .api import AssistantConversationViewSet, assistant_analytics, assistant_history
+from .api import (
+    AssistantConversationViewSet,
+    action_request_cancel,
+    action_request_confirm,
+    action_requests,
+    assistant_analytics,
+    assistant_command,
+    assistant_history,
+    assistant_tools,
+)
 from .views import (
     AssistantConversationView,
     ConversationCenterView,
@@ -24,6 +33,12 @@ urlpatterns = [
     path("api/", include(router.urls)),
     path("api/history/", assistant_history, name="api_history"),
     path("api/analytics/", assistant_analytics, name="api_analytics"),
+    # Actions assistant
+    path("api/action-requests/", action_requests, name="api_action_requests"),
+    path("api/action-requests/<int:pk>/confirm/", action_request_confirm, name="api_action_confirm"),
+    path("api/action-requests/<int:pk>/cancel/", action_request_cancel, name="api_action_cancel"),
+    path("api/tools/", assistant_tools, name="api_tools"),
+    path("api/command/", assistant_command, name="api_command"),
 
     # Centre des conversations (web)
     path("conversations/", ConversationCenterView.as_view(), name="conversations"),

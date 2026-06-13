@@ -927,3 +927,33 @@
   .leo-ai-dots span { animation: none; background: #6b7280; }
   .leo-ai-msg { animation: none; }
 }
+
+/* ── Cartes de demande d'action (confirmation transactionnelle) ─────────── */
+.leo-ai-req-card { margin-top: 8px; }
+.leo-ai-req-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.leo-ai-req-badge {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em;
+  padding: 2px 7px; border-radius: 6px;
+}
+.leo-ai-req-paper { background: rgba(255,183,3,.12); color: #ffd166; border: 1px solid rgba(255,183,3,.3); }
+.leo-ai-req-live  { background: rgba(255,77,109,.15); color: #ff8fa3; border: 1px solid rgba(255,77,109,.4); }
+.leo-ai-req-risk-ok { background: rgba(0,255,157,.1); color: #6dffcb; border: 1px solid rgba(0,255,157,.25); }
+.leo-ai-req-risk-ko { background: rgba(255,77,109,.1); color: #ffb3c1; border: 1px solid rgba(255,77,109,.25); }
+.leo-ai-req-status { font-size: 11px; color: #cbd5e1; margin-left: auto; }
+.leo-ai-req-error { margin-top: 6px; font-size: 11px; color: #ffb3c1; }
+.leo-ai-req-buttons { display: flex; gap: 8px; margin-top: 9px; }
+.leo-ai-req-confirm, .leo-ai-req-cancel {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  padding: 6px 14px; border-radius: 8px; cursor: pointer; transition: .15s;
+}
+.leo-ai-req-confirm {
+  background: rgba(0,255,157,.12); color: #6dffcb;
+  border: 1px solid rgba(0,255,157,.3);
+}
+.leo-ai-req-confirm:hover { background: rgba(0,255,157,.2); }
+.leo-ai-req-cancel {
+  background: rgba(255,255,255,.04); color: #94a3b8;
+  border: 1px solid rgba(255,255,255,.12);
+}
+.leo-ai-req-cancel:hover { background: rgba(255,77,109,.1); color: #ffb3c1; }

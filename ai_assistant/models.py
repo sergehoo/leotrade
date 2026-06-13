@@ -475,3 +475,114 @@ class AIQuotaPayment(models.Model):
 
     def __str__(self):
         return f"Payment#{self.pk} {self.quota.user} {self.plan} ${self.amount_usd} [{self.status}]"
+
+
+class AssistantActionRequest(models.Model):
+    """
+    Confirmation transactionnelle des actions de l'assistant.
+
+    Règle absolue : l'assistant ne déclenche JAMAIS une action sensible sur
+    un simple texte. Il crée une AssistantActionRequest (résumé + analyse
+    risque), l'utilisateur confirme explicitement (token), et seulement
+    alors l'exécution passe par les services backend + Risk Engine.
+    En mode LIVE : DOUBLE confirmation obligatoire.
+    """
+
+    STATUS_DRAFT = "DRAFT"
+    STATUS_WAITING = "WAITING_CONFIRMATION"
+    STATUS_CONFIRMED = "CONFIRMED"          # 1re confirmation reçue (LIVE : en attend une 2e)
+    STATUS_EXECUTED = "EXECUTED"
+    STATUS_CANCELLED = "CANCELLED"
+    STATUS_FAILED = "FAILED"
+    STATUS_EXPIRED = "EXPIRED"
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, "Brouillon"),
+        (STATUS_WAITING, "En attente de confirmation"),
+        (STATUS_CONFIRMED, "Confirmée"),
+        (STATUS_EXECUTED, "Exécutée"),
+        (STATUS_CANCELLED, "Annulée"),
+        (STATUS_FAILED, "Échec"),
+        (STATUS_EXPIRED, "Expirée"),
+    ]
+
+    ACTION_CHOICES = [
+        ("EXECUTE_TRADE_IDEA", "Exécuter une trade idea"),
+        ("PREPARE_TRADE", "Préparer un trade"),
+        ("APPROVE_TRADE_IDEA", "Approuver une trade idea"),
+        ("REJECT_TRADE_IDEA", "Rejeter une trade idea"),
+        ("CANCEL_ORDER", "Annuler un ordre"),
+        ("CLOSE_POSITION", "Fermer une position"),
+        ("REDUCE_POSITION", "Réduire une position"),
+        ("SYNC_PORTFOLIO", "Synchroniser le portefeuille"),
+        ("TEST_BROKER", "Tester la connexion broker"),
+        ("ACTIVATE_KILL_SWITCH", "Activer le kill switch"),
+        ("DEACTIVATE_KILL_SWITCH", "Désactiver le kill switch"),
+        ("DISABLE_AUTO_TRADING", "Désactiver l'auto-trading"),
+        ("ENABLE_AUTO_TRADING", "Activer l'auto-trading"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="assistant_action_requests",
+    )
+    conversation = models.ForeignKey(
+        AssistantConversation, on_delete=models.CASCADE,
+        related_name="action_requests",
+    )
+    message = models.ForeignKey(
+        "AssistantMessage", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="action_requests",
+    )
+
+    intent = models.CharField(max_length=40, blank=True, db_index=True)
+    action_type = models.CharField(max_length=40, choices=ACTION_CHOICES, db_index=True)
+    status = models.CharField(
+        max_length=25, choices=STATUS_CHOICES,
+        default=STATUS_WAITING, db_index=True,
+    )
+
+    # Cible métier (TradeIdea, Order, Position, Portfolio, BrokerAccount…)
+    target_type = models.CharField(max_length=40, blank=True)
+    target_id = models.PositiveIntegerField(null=True, blank=True)
+
+    # Mode d'exécution au moment de la préparation (badge UI + double confirm)
+    mode = models.CharField(max_length=10, default="PAPER", db_index=True)
+    requires_double_confirmation = models.BooleanField(default=False)
+    confirmations_received = models.PositiveSmallIntegerField(default=0)
+
+    summary = models.TextField(help_text="Résumé lisible présenté avant confirmation.")
+    risk_summary = models.JSONField(
+        default=dict, blank=True,
+        help_text="Sortie du Risk Engine : décision, stake approuvé, blocages.",
+    )
+    payload = models.JSONField(default=dict, blank=True)
+    result = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+
+    confirmation_token = models.CharField(max_length=64, unique=True, db_index=True)
+    expires_at = models.DateTimeField(db_index=True)
+    executed_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "status"]),
+            models.Index(fields=["conversation", "status"]),
+        ]
+
+    def __str__(self):
+        return f"ActionRequest#{self.pk} {self.action_type} [{self.status}]"
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_actionable(self) -> bool:
+        return (
+            self.status in (self.STATUS_WAITING, self.STATUS_CONFIRMED)
+            and not self.is_expired
+        )

@@ -121,6 +121,10 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
                 await self._switch_to_context(ctx)
         elif msg_type == "select_conversation":
             await self._select_conversation(content.get("id"))
+        elif msg_type == "action_request_confirm":
+            await self._handle_action_request_decision(content.get("request_id"), confirm=True)
+        elif msg_type == "action_request_cancel":
+            await self._handle_action_request_decision(content.get("request_id"), confirm=False)
         elif msg_type == "history":
             session = await self._get_or_create_session()
             history = await self._load_history(session)
@@ -165,7 +169,13 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         await self._ensure_title(session, user_text)
         await self.send_json({"type": "user_saved", "id": user_msg.id})
 
-        # 2. Placeholder ASSISTANT (status=PARTIAL) — l'ID part tout de suite
+        # 2. Moteur d'intentions : actions trading gérées DÉTERMINISTIQUEMENT
+        #    (jamais par le LLM seul) ; GENERAL_CHAT → génération LLM détachée.
+        handled = await self._handle_intent(session, user_text, extra_ctx)
+        if handled:
+            return
+
+        # 3. Placeholder ASSISTANT (status=PARTIAL) — l'ID part tout de suite
         placeholder_msg = await self._save_message(
             session, "ASSISTANT", "", {}, status="PARTIAL",
         )
@@ -255,6 +265,124 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
     # ──────────────────────────────────────────────────────────────────────────
     # DB helpers & conversations
     # ──────────────────────────────────────────────────────────────────────────
+
+    # ── Moteur d'intentions & actions ───────────────────────────────────────
+
+    async def _handle_intent(self, session, user_text: str, extra_ctx: dict) -> bool:
+        """Retourne True si le message a été traité par un outil/confirmation
+        (le LLM n'est alors pas appelé)."""
+        from .services_intent import AssistantIntentService, Intent
+
+        detected = await sync_to_async(AssistantIntentService.detect)(user_text)
+
+        if detected.intent == Intent.CONFIRM_TRADE_EXECUTION:
+            return await self._confirm_pending_request(session)
+        if detected.intent == Intent.CANCEL_ACTION:
+            return await self._cancel_pending_request(session)
+
+        from .services_tools import AssistantToolRegistry
+        tool_name = AssistantToolRegistry.for_intent(detected.intent)
+        if tool_name is None:
+            return False  # GENERAL_CHAT → LLM
+
+        result = await sync_to_async(AssistantToolRegistry.run)(
+            tool_name, self.user, session, detected.entities,
+        )
+        await self._send_tool_result(session, result, intent=detected.intent)
+        return True
+
+    async def _confirm_pending_request(self, session) -> bool:
+        from .services_actions import (
+            AssistantActionService,
+            AssistantConfirmationService,
+        )
+
+        pending = await sync_to_async(AssistantActionService.latest_pending)(
+            self.user, session,
+        )
+        if pending is None:
+            return False  # rien à confirmer → laisser le LLM répondre
+
+        outcome = await sync_to_async(AssistantConfirmationService.confirm)(
+            self.user, pending.id,
+        )
+        request = outcome.get("request")
+        reply = outcome.get("message") or (
+            "✅ Action exécutée." if outcome.get("ok") else "⚠ Échec de l'action."
+        )
+        await self._send_tool_result(session, {
+            "ok": outcome.get("ok", False),
+            "reply": reply,
+            "action_request": (
+                AssistantActionService.serialize(request) if request else None
+            ),
+            "data": {},
+        }, intent="CONFIRM_TRADE_EXECUTION")
+        return True
+
+    async def _cancel_pending_request(self, session) -> bool:
+        from .services_actions import (
+            AssistantActionService,
+            AssistantConfirmationService,
+        )
+
+        pending = await sync_to_async(AssistantActionService.latest_pending)(
+            self.user, session,
+        )
+        if pending is None:
+            return False
+
+        outcome = await sync_to_async(AssistantConfirmationService.cancel)(
+            self.user, pending.id,
+        )
+        request = outcome.get("request")
+        await self._send_tool_result(session, {
+            "ok": outcome.get("ok", False),
+            "reply": outcome.get("message", "Action annulée."),
+            "action_request": (
+                AssistantActionService.serialize(request) if request else None
+            ),
+            "data": {},
+        }, intent="CANCEL_ACTION")
+        return True
+
+    async def _handle_action_request_decision(self, request_id, confirm: bool):
+        """Boutons Confirmer / Annuler des cartes d'action."""
+        if not request_id:
+            return
+        from .services_actions import (
+            AssistantActionService,
+            AssistantConfirmationService,
+        )
+
+        fn = (AssistantConfirmationService.confirm if confirm
+              else AssistantConfirmationService.cancel)
+        outcome = await sync_to_async(fn)(self.user, int(request_id))
+        request = outcome.get("request")
+        await self._send_tool_result(self.session, {
+            "ok": outcome.get("ok", False),
+            "reply": outcome.get("message", ""),
+            "action_request": (
+                AssistantActionService.serialize(request) if request else None
+            ),
+            "data": {},
+        }, intent="CONFIRM_TRADE_EXECUTION" if confirm else "CANCEL_ACTION")
+
+    async def _send_tool_result(self, session, result: dict, intent: str):
+        """Persiste la réponse outil comme message ASSISTANT + envoie au client."""
+        reply = result.get("reply") or ("✅ Fait." if result.get("ok") else "⚠ Échec.")
+        msg = await self._save_message(session, "ASSISTANT", reply, {"intent": intent})
+        await self.send_json({"type": "start", "id": msg.id})
+        await self.send_json({
+            "type": "done",
+            "id": msg.id,
+            "status": "SAVED",
+            "clean_content": reply,
+            "actions": [],
+            "action_request": result.get("action_request"),
+            "quota": None,
+            "meta": {"intent": intent, "tool_ok": result.get("ok", False)},
+        })
 
     # ── Groupes channel-layer (un par conversation) ────────────────────────
 

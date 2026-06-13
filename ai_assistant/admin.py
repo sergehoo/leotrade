@@ -10,6 +10,7 @@ from .models import (
     AIQuotaPayment,
     AIUserQuota,
     AssistantAction,
+    AssistantActionRequest,
     AssistantAttachment,
     AssistantConversation,
     AssistantConversationParticipant,
@@ -135,3 +136,18 @@ class AIUserQuotaAdmin(admin.ModelAdmin):
 class AIQuotaPaymentAdmin(admin.ModelAdmin):
     list_display = ("id", "quota", "plan", "amount_usd", "method", "status", "created_at")
     list_filter = ("method", "status", "plan")
+
+
+@admin.register(AssistantActionRequest)
+class AssistantActionRequestAdmin(admin.ModelAdmin):
+    """Audit des actions actionnables : qui, quoi, mode, statut, résultat."""
+    list_display = (
+        "id", "user", "action_type", "intent", "mode", "status",
+        "requires_double_confirmation", "confirmations_received",
+        "target_type", "target_id", "executed_at", "created_at",
+    )
+    list_filter = ("action_type", "status", "mode",
+                   "requires_double_confirmation", "created_at")
+    search_fields = ("user__username", "user__email", "summary", "intent")
+    date_hierarchy = "created_at"
+    readonly_fields = [f.name for f in AssistantActionRequest._meta.fields]

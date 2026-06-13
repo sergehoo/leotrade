@@ -155,3 +155,148 @@ def assistant_analytics(request):
     if request.query_params.get("scope") == "global" and request.user.is_staff:
         return Response(ConversationService.analytics(user=None))
     return Response(ConversationService.analytics(user=request.user))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Actions assistant — API REST (web + Flutter)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def action_requests(request):
+    """GET : liste paginée des demandes d'action de l'utilisateur.
+    POST : exécute un outil (équivalent REST du chat) — corps :
+    {"tool": "prepare_trade_execution", "conversation_id": 1, "params": {...}}"""
+    from .models import AssistantActionRequest
+    from .services_actions import AssistantActionService
+    from .services_conversation import ConversationService
+    from .services_tools import AssistantToolRegistry
+
+    if request.method == "GET":
+        qs = AssistantActionRequest.objects.filter(user=request.user)
+        status_filter = request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter.upper())
+        paginator = MessagePagination()
+        page = paginator.paginate_queryset(qs.order_by("-created_at"), request)
+        return paginator.get_paginated_response(
+            [AssistantActionService.serialize(r) for r in page]
+        )
+
+    tool = request.data.get("tool", "")
+    conversation = None
+    if request.data.get("conversation_id"):
+        conversation = ConversationService.get_owned(
+            request.user, int(request.data["conversation_id"]),
+        )
+    if conversation is None:
+        conversation = ConversationService.get_or_create_for_context(request.user, {})
+
+    result = AssistantToolRegistry.run(
+        tool, request.user, conversation, request.data.get("params") or {},
+    )
+    return Response(result, status=200 if result.get("ok") else 400)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def action_request_confirm(request, pk: int):
+    from .services_actions import AssistantActionService, AssistantConfirmationService
+
+    outcome = AssistantConfirmationService.confirm(
+        request.user, pk, token=request.data.get("token"),
+    )
+    req = outcome.get("request")
+    return Response({
+        "ok": outcome.get("ok", False),
+        "message": outcome.get("message", ""),
+        "executed": outcome.get("executed", False),
+        "request": AssistantActionService.serialize(req) if req else None,
+    }, status=200 if outcome.get("ok") else 400)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def action_request_cancel(request, pk: int):
+    from .services_actions import AssistantActionService, AssistantConfirmationService
+
+    outcome = AssistantConfirmationService.cancel(request.user, pk)
+    req = outcome.get("request")
+    return Response({
+        "ok": outcome.get("ok", False),
+        "message": outcome.get("message", ""),
+        "request": AssistantActionService.serialize(req) if req else None,
+    }, status=200 if outcome.get("ok") else 400)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def assistant_tools(request):
+    """Catalogue des outils internes disponibles."""
+    from .services_tools import AssistantToolRegistry
+
+    return Response({
+        "tools": AssistantToolRegistry.describe(),
+        "intents": sorted(AssistantToolRegistry.INTENT_TOOLS.keys()),
+    })
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def assistant_command(request):
+    """Commande en langage naturel hors WebSocket (Flutter, intégrations) :
+    {"text": "ferme ma position BTC", "conversation_id": 3}
+    → détection d'intention + outil + éventuelle demande de confirmation."""
+    from .services_conversation import ConversationService
+    from .services_intent import AssistantIntentService, Intent
+    from .services_tools import AssistantToolRegistry
+
+    text = (request.data.get("text") or "").strip()
+    if not text:
+        return Response({"ok": False, "message": "Texte vide."}, status=400)
+
+    conversation = None
+    if request.data.get("conversation_id"):
+        conversation = ConversationService.get_owned(
+            request.user, int(request.data["conversation_id"]),
+        )
+    if conversation is None:
+        conversation = ConversationService.get_or_create_for_context(request.user, {})
+
+    detected = AssistantIntentService.detect(text)
+
+    if detected.intent in (Intent.CONFIRM_TRADE_EXECUTION, Intent.CANCEL_ACTION):
+        from .services_actions import AssistantActionService, AssistantConfirmationService
+
+        pending = AssistantActionService.latest_pending(request.user, conversation)
+        if pending is None:
+            return Response({"ok": False, "intent": detected.intent,
+                             "message": "Aucune action en attente de confirmation."},
+                            status=400)
+        fn = (AssistantConfirmationService.confirm
+              if detected.intent == Intent.CONFIRM_TRADE_EXECUTION
+              else AssistantConfirmationService.cancel)
+        outcome = fn(request.user, pending.id)
+        req = outcome.get("request")
+        return Response({
+            "ok": outcome.get("ok", False),
+            "intent": detected.intent,
+            "message": outcome.get("message", ""),
+            "request": AssistantActionService.serialize(req) if req else None,
+        })
+
+    tool = AssistantToolRegistry.for_intent(detected.intent)
+    if tool is None:
+        return Response({
+            "ok": False, "intent": detected.intent,
+            "message": "Intention conversationnelle : utilise le chat WebSocket pour le dialogue libre.",
+        }, status=200)
+
+    result = AssistantToolRegistry.run(tool, request.user, conversation, detected.entities)
+    return Response({
+        "ok": result.get("ok", False),
+        "intent": detected.intent,
+        "tool": tool,
+        "reply": result.get("reply", ""),
+        "action_request": result.get("action_request"),
+    })
