@@ -23,18 +23,18 @@ from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from .models import AssistantSession, AssistantMessage, AssistantAction, AIUserQuota, AIQuotaPayment
+from .models import AssistantConversation, AssistantMessage, AssistantAction, AIUserQuota, AIQuotaPayment
 from .services import QuotaService
 
 log = logging.getLogger("leotrade.ai_assistant")
 
 
-class AssistantSessionView(LoginRequiredMixin, View):
+class AssistantConversationView(LoginRequiredMixin, View):
     """Retourne la session active + les N derniers messages."""
 
     def get(self, request):
         session = (
-            AssistantSession.objects
+            AssistantConversation.objects
             .filter(user=request.user, is_active=True)
             .order_by("-updated_at")
             .first()
@@ -216,3 +216,12 @@ def stripe_webhook(request):
                 log.info("quota.stripe.completed user=%s plan=%s", user_id, plan)
 
     return HttpResponse(status=200)
+
+
+class ConversationCenterView(LoginRequiredMixin, View):
+    """Centre des conversations — interface type ChatGPT (liste, recherche,
+    archivage, reprise). Les données viennent de l'API DRF."""
+
+    def get(self, request):
+        from django.shortcuts import render
+        return render(request, "assistant/conversations.html")

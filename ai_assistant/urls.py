@@ -1,6 +1,10 @@
-from django.urls import path
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
+
+from .api import AssistantConversationViewSet, assistant_analytics, assistant_history
 from .views import (
-    AssistantSessionView,
+    AssistantConversationView,
+    ConversationCenterView,
     ActionConfirmView,
     ActionRejectView,
     PendingActionsView,
@@ -12,9 +16,20 @@ from .views import (
 
 app_name = "ai_assistant"
 
+router = DefaultRouter()
+router.register("conversations", AssistantConversationViewSet, basename="assistant-conversation")
+
 urlpatterns = [
+    # API REST conversations (web + future app Flutter)
+    path("api/", include(router.urls)),
+    path("api/history/", assistant_history, name="api_history"),
+    path("api/analytics/", assistant_analytics, name="api_analytics"),
+
+    # Centre des conversations (web)
+    path("conversations/", ConversationCenterView.as_view(), name="conversations"),
+
     # Session & actions
-    path("session/", AssistantSessionView.as_view(), name="session"),
+    path("session/", AssistantConversationView.as_view(), name="session"),
     path("action/<int:pk>/confirm/", ActionConfirmView.as_view(), name="action_confirm"),
     path("action/<int:pk>/reject/", ActionRejectView.as_view(), name="action_reject"),
     path("actions/pending/", PendingActionsView.as_view(), name="pending_actions"),

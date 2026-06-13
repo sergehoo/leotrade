@@ -112,10 +112,10 @@
           const wrapper = bubble.closest(".leo-ai-msg");
           if (wrapper) wrapper.remove();
         } else if (bubble) {
-          // Bulle partiellement remplie → nettoyer les marqueurs d'action et noter l'interruption
-          const cleaned = stripActionMarkers(bubble.dataset.raw || "");
-          bubble.dataset.raw = cleaned + "\n\n*[réponse interrompue — reconnexion en cours…]*";
-          bubble.innerHTML = renderMarkdown(bubble.dataset.raw);
+          // La génération continue côté serveur : on garde la bulle telle
+          // quelle, les chunks manquants seront resynchronisés au "done"
+          // (clean_content) ou au rechargement de l'historique.
+          bubble.innerHTML = renderMarkdown(stripActionMarkers(bubble.dataset.raw || ""));
         }
         state.isThinking = false;
         setSendDisabled(false);
@@ -153,20 +153,26 @@
   function handleServerMessage(data) {
     switch (data.type) {
 
-      case "session":
+      case "session": {
+        const switched = state.sessionId && data.session_id !== state.sessionId;
         state.sessionId = data.session_id;
         if (data.quota) updateQuotaUI(data.quota);
-        // N'affiche l'historique que lors de la PREMIÈRE connexion.
-        // Sur les reconnexions suivantes, on conserve le DOM en place pour
-        // éviter que les messages streamés en cours ou déjà affichés disparaissent.
-        if (!state.historyLoaded) {
+        // Recharge l'historique : à la première connexion OU quand on bascule
+        // sur une autre conversation (contexte métier, reprise depuis le centre).
+        if (!state.historyLoaded || switched) {
           state.historyLoaded = true;
           if (data.history && data.history.length) {
             renderHistory(data.history);
           } else {
+            clearMessages();
             appendWelcome();
           }
         }
+        break;
+      }
+
+      case "user_saved":
+        // Accusé de réception : le message utilisateur est persisté en base.
         break;
 
       case "thinking":
@@ -183,10 +189,18 @@
         appendAssistantBubble(data.id, "");
         break;
 
-      case "chunk":
+      case "chunk": {
         state.isThinking = false;
+        // Dédup à la reconnexion : si la bulle (rechargée depuis l'historique)
+        // contient déjà ce texte, on ignore le chunk en retard.
+        if (typeof data.acc_len === "number") {
+          const bubble = document.querySelector(`[data-msg-id="${data.id}"]`);
+          const currentLen = bubble && bubble.dataset.raw ? bubble.dataset.raw.length : 0;
+          if (currentLen >= data.acc_len) break;
+        }
         appendChunk(data.id, data.text);
         break;
+      }
 
       case "done":
         state.isThinking = false;
@@ -265,6 +279,10 @@
 
   // ── Rendu des messages ────────────────────────────────────────────────────
 
+  function clearMessages() {
+    if (els.messages) els.messages.innerHTML = "";
+  }
+
   function renderHistory(messages) {
     if (!els.messages) return;
     els.messages.innerHTML = "";
@@ -278,9 +296,15 @@
       if (m.role === "USER") {
         appendUserBubble(m.content, m.created_at);
       } else if (m.role === "ASSISTANT") {
-        // Les messages sans contenu (stream interrompu non finalisé) affichent
-        // un placeholder italique pour ne pas laisser de trou dans l'historique.
-        const displayContent = m.content || "*[réponse interrompue — non sauvegardée]*";
+        // Le contenu est TOUJOURS conservé en base (sauvegarde progressive).
+        // PARTIAL = génération encore en cours (elle se poursuit côté serveur),
+        // FAILED  = moteur IA interrompu, contenu partiel conservé.
+        let displayContent = m.content;
+        if (m.status === "PARTIAL") {
+          displayContent = (m.content || "") + "\n\n*⏳ Génération en cours côté serveur…*";
+        } else if (m.status === "FAILED" && !m.content) {
+          displayContent = "*Le moteur IA n'a pas pu répondre — réessaie.*";
+        }
         appendAssistantBubble(m.id, displayContent, m.created_at);
         if (m.actions && m.actions.length) {
           renderActionCards(m.id, m.actions, true);
@@ -912,10 +936,23 @@ Analyse les indicateurs, le R/R, les risques, et donne-moi un conseil.`;
 
   // ── API publique ──────────────────────────────────────────────────────────
 
+  function openConversation(conversationId) {
+    open();
+    const trySend = () => {
+      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        state.ws.send(JSON.stringify({type: "select_conversation", id: conversationId}));
+      } else {
+        setTimeout(trySend, 400);
+      }
+    };
+    trySend();
+  }
+
   window.LeoAssistant = {
     open,
     close,
     toggle,
+    openConversation,
     sendMessage,
     confirmAction,
     rejectAction,
@@ -925,6 +962,15 @@ Analyse les indicateurs, le R/R, les risques, et donne-moi un conseil.`;
     payStripe,
     isOpen: () => state.isOpen,
   };
+
+  // Reprise depuis le centre des conversations : ?assistant_conversation=<id>
+  function maybeOpenFromUrl() {
+    try {
+      const id = new URLSearchParams(window.location.search).get("assistant_conversation");
+      if (id) openConversation(parseInt(id, 10));
+    } catch (e) { /* noop */ }
+  }
+  setTimeout(maybeOpenFromUrl, 600);
 
   // Init au DOMContentLoaded
   if (document.readyState === "loading") {

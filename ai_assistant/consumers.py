@@ -66,11 +66,23 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
             return
 
         self.user = user
+        self._group = None
 
         await self.accept()
 
-        # Création ou reprise de session
-        session = await self._get_or_create_session()
+        # Route /ws/assistant/conversation/<id>/ → épingle la conversation
+        pinned_id = (self.scope.get("url_route", {}).get("kwargs") or {}).get("conversation_id")
+        if pinned_id:
+            session = await self._get_owned_conversation(int(pinned_id))
+            if session is None:
+                await self.send_json({"type": "error", "message": "Conversation introuvable."})
+                await self.close(code=4404)
+                return
+            self.session = session
+        else:
+            session = await self._get_or_create_session()
+
+        await self._join_conversation_group(session.id)
         history = await self._load_history(session)
 
         # Snapshot quota pour initialiser l'UI
@@ -85,28 +97,9 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         })
 
     async def disconnect(self, close_code):
-        """
-        À la déconnexion, si un stream était en cours, on sauvegarde
-        la réponse partielle pour qu'elle apparaisse dans l'historique.
-        """
-        if self._stream_msg and self._stream_text:
-            import asyncio
-            try:
-                latency_ms = int((time.monotonic() - self._stream_t0) * 1000)
-                clean, actions = extract_actions(self._stream_text)
-                await asyncio.shield(
-                    self._finalize_assistant_message(
-                        msg=self._stream_msg,
-                        content=clean + "\n\n*[réponse partielle — connexion interrompue]*",
-                        context_snapshot=self._stream_ctx,
-                        latency_ms=latency_ms,
-                        raw_actions=actions,
-                    )
-                )
-            except Exception:
-                pass
-        self._stream_msg  = None
-        self._stream_text = ""
+        """La génération est détachée du WS (AssistantGenerationService) :
+        elle continue côté serveur. On quitte simplement le groupe."""
+        await self._leave_conversation_group()
 
     async def receive_json(self, content):
         msg_type = content.get("type", "chat")
@@ -120,9 +113,14 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         elif msg_type == "context_update":
             ctx = content.get("context") or {}
             self.client_context = ctx
-            # Si le client demande une nouvelle session, clore l'ancienne
+            # Si le client demande une nouvelle conversation pour ce contexte
             if ctx.get("_new_session"):
-                await self._close_and_create_session()
+                await self._start_new_conversation(ctx)
+            else:
+                # Changement de contexte métier → bascule de conversation
+                await self._switch_to_context(ctx)
+        elif msg_type == "select_conversation":
+            await self._select_conversation(content.get("id"))
         elif msg_type == "history":
             session = await self._get_or_create_session()
             history = await self._load_history(session)
@@ -158,102 +156,29 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         # Fusionne les contextes client
         extra_ctx = {**self.client_context, **(content.get("context") or {})}
 
-        session = await self._get_or_create_session(
-            page=extra_ctx.get("page"),
-            meta=extra_ctx,
-        )
+        # Conversation du contexte métier courant (bascule si nécessaire)
+        await self._switch_to_context(extra_ctx)
+        session = self.session
 
-        # 1. Persiste le message utilisateur
+        # 1. Persiste IMMÉDIATEMENT le message utilisateur (status=SAVED)
         user_msg = await self._save_message(session, "USER", user_text, {})
+        await self._ensure_title(session, user_text)
+        await self.send_json({"type": "user_saved", "id": user_msg.id})
 
-        # 2. Construit le contexte live
-        live_ctx = await sync_to_async(AssistantContextService.build)(
-            user=self.user,
-            extra=extra_ctx,
-        )
-        context_text = _format_context_for_prompt(live_ctx)
-
-        # 3. Construit l'historique conversationnel pour le LLM
-        lm_messages = await self._build_lm_messages(session, user_text, context_text)
-
-        # 4. Signal « en train de réfléchir »
-        await self.send_json({"type": "thinking"})
-
-        # 5. Stream la réponse
-        t0 = time.monotonic()
-        full_response = ""
-
-        # Crée d'abord un placeholder pour avoir l'ID immédiat
-        placeholder_msg = await self._save_message(session, "ASSISTANT", "", live_ctx)
-        assistant_msg_id = placeholder_msg.id
-
-        # Enregistre l'état du stream pour la sauvegarde sur déconnexion
-        self._stream_msg  = placeholder_msg
-        self._stream_text = ""
-        self._stream_ctx  = live_ctx
-        self._stream_t0   = t0
-
-        await self.send_json({"type": "start", "id": assistant_msg_id})
-
-        stream_ok = False
-        try:
-            async for chunk in AssistantStreamService.stream(
-                messages=lm_messages,
-                system_prompt=ASSISTANT_SYSTEM_PROMPT,
-            ):
-                full_response += chunk
-                self._stream_text = full_response  # mise à jour continue
-                await self.send_json({"type": "chunk", "text": chunk, "id": assistant_msg_id})
-            stream_ok = True
-        except Exception as exc:
-            log.exception("assistant.stream.error session=%s err=%s", session.id, exc)
-            error_text = "\n\n⚠️ Erreur de communication avec le moteur IA. Veuillez réessayer."
-            full_response += error_text
-            self._stream_text = full_response
-            try:
-                await self.send_json({"type": "chunk", "text": error_text, "id": assistant_msg_id})
-            except Exception:
-                pass
-
-        latency_ms = int((time.monotonic() - t0) * 1000)
-
-        # 6. Extraction des actions proposées
-        clean_response, raw_actions = extract_actions(full_response)
-
-        # 7. Persiste TOUJOURS le message (même si stream partiel)
-        saved_actions = await self._finalize_assistant_message(
-            msg=placeholder_msg,
-            content=clean_response or full_response,
-            context_snapshot=live_ctx,
-            latency_ms=latency_ms,
-            raw_actions=raw_actions,
+        # 2. Placeholder ASSISTANT (status=PARTIAL) — l'ID part tout de suite
+        placeholder_msg = await self._save_message(
+            session, "ASSISTANT", "", {}, status="PARTIAL",
         )
 
-        # Réinitialise le tracking du stream — déconnexion ne re-sauvera pas
-        self._stream_msg  = None
-        self._stream_text = ""
-
-        # 8. Consommer 1 message du quota (seulement si stream OK)
-        if stream_ok:
-            updated_quota = await sync_to_async(QuotaService.get_or_create)(self.user)
-            await sync_to_async(updated_quota.consume)()
-        else:
-            updated_quota = await sync_to_async(QuotaService.get_or_create)(self.user)
-
-        # 9. Envoie le signal de fin + texte nettoyé + actions + quota mis à jour
-        # clean_content permet au client de remplacer le texte brut (qui
-        # contenait les marqueurs <<<ACTION>>>) par le texte final épuré.
-        await self.send_json({
-            "type": "done",
-            "id": assistant_msg_id,
-            "clean_content": clean_response,
-            "actions": saved_actions,
-            "quota": _serialize_quota(updated_quota),
-            "meta": {
-                "latency_ms": latency_ms,
-                "has_kill_switch": live_ctx.get("risk", {}).get("kill_switch_active", False),
-            },
-        })
+        # 3. Génération DÉTACHÉE : survit à la fermeture de la page / du WS.
+        #    Les événements thinking/start/chunk/done arrivent via le groupe.
+        from .services_generation import AssistantGenerationService
+        AssistantGenerationService.launch(
+            conversation_id=session.id,
+            message_id=placeholder_msg.id,
+            user_text=user_text,
+            extra_ctx=extra_ctx,
+        )
 
     async def _handle_action_confirm(self, content: dict):
         action_id = content.get("action_id")
@@ -328,45 +253,111 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
             })
 
     # ──────────────────────────────────────────────────────────────────────────
-    # DB helpers (sync_to_async)
+    # DB helpers & conversations
     # ──────────────────────────────────────────────────────────────────────────
 
+    # ── Groupes channel-layer (un par conversation) ────────────────────────
+
+    async def _join_conversation_group(self, conversation_id: int):
+        from .services_generation import conversation_group
+        await self._leave_conversation_group()
+        group = conversation_group(conversation_id)
+        try:
+            await self.channel_layer.group_add(group, self.channel_name)
+            self._group = group
+        except Exception:
+            log.warning("assistant.group_add_failed conv=%s", conversation_id)
+
+    async def _leave_conversation_group(self):
+        group = getattr(self, "_group", None)
+        if group:
+            try:
+                await self.channel_layer.group_discard(group, self.channel_name)
+            except Exception:
+                pass
+            self._group = None
+
+    async def assistant_stream(self, event):
+        """Relai des événements de génération (thinking/start/chunk/done)."""
+        await self.send_json(event.get("data") or {})
+
+    # ── Sélection / bascule de conversation ────────────────────────────────
+
+    async def _switch_to_context(self, extra_ctx: dict):
+        """Bascule sur la conversation du contexte métier si elle diffère."""
+        from .services_conversation import ConversationService
+
+        target = await sync_to_async(ConversationService.get_or_create_for_context)(
+            self.user, extra_ctx,
+        )
+        if getattr(self, "session", None) is None or target.id != self.session.id:
+            self.session = target
+            await self._join_conversation_group(target.id)
+            history = await self._load_history(target)
+            await self.send_json({
+                "type": "session",
+                "session_id": target.id,
+                "context_type": target.context_type,
+                "context_id": target.context_id,
+                "title": target.title,
+                "history": history,
+            })
+        return self.session
+
+    async def _select_conversation(self, conversation_id):
+        """Reprise explicite d'une conversation (centre des conversations)."""
+        if not conversation_id:
+            return
+        session = await self._get_owned_conversation(int(conversation_id))
+        if session is None:
+            await self.send_json({"type": "error", "message": "Conversation introuvable."})
+            return
+        self.session = session
+        await self._join_conversation_group(session.id)
+        history = await self._load_history(session)
+        await self.send_json({
+            "type": "session",
+            "session_id": session.id,
+            "context_type": session.context_type,
+            "context_id": session.context_id,
+            "title": session.title,
+            "history": history,
+        })
+
+    async def _start_new_conversation(self, extra_ctx: dict):
+        from .services_conversation import ConversationService
+
+        session = await sync_to_async(ConversationService.start_new)(self.user, extra_ctx)
+        self.session = session
+        await self._join_conversation_group(session.id)
+        await self.send_json({
+            "type": "session",
+            "session_id": session.id,
+            "context_type": session.context_type,
+            "context_id": session.context_id,
+            "title": session.title,
+            "history": [],
+        })
+
     @sync_to_async
-    def _close_and_create_session(self):
-        """Ferme toutes les sessions actives de l'utilisateur et en crée une nouvelle."""
-        from .models import AssistantSession
-        AssistantSession.objects.filter(user=self.user, is_active=True).update(is_active=False)
-        self.session = None  # forcera get_or_create à créer une nouvelle session
+    def _get_owned_conversation(self, conversation_id: int):
+        from .services_conversation import ConversationService
+        return ConversationService.get_owned(self.user, conversation_id)
 
     @sync_to_async
     def _get_or_create_session(self, page: str | None = None, meta: dict | None = None):
-        from .models import AssistantSession
-        from portfolio.models import Portfolio
+        from .services_conversation import ConversationService
 
-        portfolio = (
-            Portfolio.objects
-            .filter(user=self.user, is_active=True)
-            .order_by("-is_default")
-            .first()
-        )
-
-        session, created = AssistantSession.objects.get_or_create(
-            user=self.user,
-            is_active=True,
-            defaults={
-                "portfolio": portfolio,
-                "page_context": page or "dashboard",
-                "meta": meta or {},
-            },
-        )
-
-        if not created and page and session.page_context != page:
-            session.page_context = page
-            session.meta = {**(session.meta or {}), **(meta or {})}
-            session.save(update_fields=["page_context", "meta", "updated_at"])
-
+        ctx = dict(meta or {})
+        if page:
+            ctx.setdefault("page", page)
+        session = ConversationService.get_or_create_for_context(self.user, ctx)
         self.session = session
         return session
+
+    @sync_to_async
+    def _ensure_title(self, session, first_message: str):
+        session.ensure_title(first_message)
 
     @sync_to_async
     def _load_history(self, session) -> list[dict]:
@@ -379,6 +370,7 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
                 "id": m.id,
                 "role": m.role,
                 "content": m.content,
+                "status": m.status,
                 "created_at": m.created_at.isoformat(),
             }
             if m.role == "ASSISTANT":
@@ -399,79 +391,16 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         return result
 
     @sync_to_async
-    def _save_message(self, session, role: str, content: str, ctx: dict):
+    def _save_message(self, session, role: str, content: str, ctx: dict,
+                      status: str = "SAVED"):
         from .models import AssistantMessage
         return AssistantMessage.objects.create(
-            session=session,
+            conversation=session,
             role=role,
             content=content,
             context_snapshot=ctx,
+            status=status,
         )
-
-    @sync_to_async
-    def _build_lm_messages(self, session, current_user_text: str, context_text: str) -> list[dict]:
-        """
-        Construit la liste de messages à envoyer au LLM.
-        Format : [{"role": "user"|"assistant", "content": "..."}]
-        On injecte le contexte live dans le premier message utilisateur.
-        """
-        history_msgs = list(
-            session.messages
-            .filter(role__in=["USER", "ASSISTANT"])
-            .exclude(content="")
-            .order_by("-created_at")
-            [:(MAX_HISTORY_TURNS * 2)]
-        )
-        history_msgs = list(reversed(history_msgs))
-
-        lm = []
-        for m in history_msgs:
-            role = "user" if m.role == "USER" else "assistant"
-            lm.append({"role": role, "content": m.content})
-
-        # Message utilisateur courant avec contexte live
-        lm.append({
-            "role": "user",
-            "content": f"{context_text}\n\nMESSAGE UTILISATEUR : {current_user_text}",
-        })
-        return lm
-
-    @sync_to_async
-    def _finalize_assistant_message(
-        self,
-        msg,
-        content: str,
-        context_snapshot: dict,
-        latency_ms: int,
-        raw_actions: list[dict],
-    ) -> list[dict]:
-        from .models import AssistantAction
-
-        msg.content = content
-        msg.context_snapshot = context_snapshot
-        msg.latency_ms = latency_ms
-        msg.save(update_fields=["content", "context_snapshot", "latency_ms", "updated_at"])
-
-        saved = []
-        for action_data in raw_actions:
-            action_type = action_data.get("type", "INFO")
-            if action_type not in dict(AssistantAction.ACTION_TYPE_CHOICES):
-                action_type = AssistantAction.TYPE_INFO
-            action = AssistantAction.objects.create(
-                message=msg,
-                action_type=action_type,
-                parameters={k: v for k, v in action_data.items() if k != "type"},
-                rationale=action_data.get("rationale", ""),
-                status=AssistantAction.STATUS_PROPOSED,
-            )
-            saved.append({
-                "id": action.id,
-                "type": action.action_type,
-                "params": action.parameters,
-                "status": action.status,
-                "rationale": action.rationale,
-            })
-        return saved
 
     @sync_to_async
     def _confirm_action(self, action_id: int) -> dict:

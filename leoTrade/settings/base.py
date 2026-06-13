@@ -392,6 +392,12 @@ CELERY_BEAT_SCHEDULE = {
         "task": "notifications.tasks.cleanup_old_notifications_task",
         "schedule": crontab(hour=3, minute=0),
     },
+    # Chat persistant : bascule en FAILED les générations interrompues par
+    # un redémarrage serveur (contenu partiel conservé).
+    "assistant-mark-stale-partials-every-10-minutes": {
+        "task": "ai_assistant.tasks.mark_stale_partials_task",
+        "schedule": crontab(minute="*/10"),
+    },
     # Kill switch intelligent : coupe les stratégies dégradées (win rate
     # effondré / expectancy négative sur échantillon suffisant).
     "evaluate-strategy-circuit-breakers-every-15-minutes": {

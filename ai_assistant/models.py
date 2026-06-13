@@ -4,7 +4,7 @@ ai_assistant/models.py
 
 Modèles de données pour le panel IA conversationnel.
 
-• AssistantSession  — session de conversation par user + contexte page
+• AssistantConversation — conversation persistante par contexte métier
 • AssistantMessage  — message (user ou assistant) avec snapshot de contexte
 • AssistantAction   — action proposée par l'IA, en attente de confirmation
 """
@@ -17,11 +17,37 @@ from django.db import models
 from django.utils import timezone
 
 
-class AssistantSession(models.Model):
+class AssistantConversation(models.Model):
     """
-    Une session de conversation. Une session par user est ouverte à la fois ;
-    un nouveau contexte de page crée un nouveau thread dans la même session.
+    Une conversation persistante, attachée à un contexte métier.
+
+    Chaque contexte (trade idea #145, position #25, portefeuille, assistant
+    général…) possède son historique indépendant. Aucune conversation n'est
+    perdue : refresh, reconnexion WS et redémarrage serveur rechargent
+    l'historique depuis PostgreSQL.
     """
+
+    CONTEXT_GENERAL = "GENERAL"
+    CONTEXT_DASHBOARD = "DASHBOARD"
+    CONTEXT_TRADE_IDEA = "TRADE_IDEA"
+    CONTEXT_POSITION = "POSITION"
+    CONTEXT_ORDER = "ORDER"
+    CONTEXT_PORTFOLIO = "PORTFOLIO"
+    CONTEXT_BROKER = "BROKER"
+    CONTEXT_SIGNAL = "SIGNAL"
+    CONTEXT_OPPORTUNITY = "OPPORTUNITY"
+    CONTEXT_CHOICES = [
+        (CONTEXT_GENERAL, "Assistant général"),
+        (CONTEXT_DASHBOARD, "Dashboard"),
+        (CONTEXT_TRADE_IDEA, "Trade Idea"),
+        (CONTEXT_POSITION, "Position"),
+        (CONTEXT_ORDER, "Ordre"),
+        (CONTEXT_PORTFOLIO, "Portefeuille"),
+        (CONTEXT_BROKER, "Broker"),
+        (CONTEXT_SIGNAL, "Signal"),
+        (CONTEXT_OPPORTUNITY, "Opportunité IA"),
+    ]
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -33,6 +59,20 @@ class AssistantSession(models.Model):
         null=True, blank=True,
         related_name="assistant_sessions",
     )
+
+    title = models.CharField(
+        max_length=200, blank=True,
+        help_text="Auto-généré depuis le premier message si vide.",
+    )
+    context_type = models.CharField(
+        max_length=20, choices=CONTEXT_CHOICES,
+        default=CONTEXT_GENERAL, db_index=True,
+    )
+    context_id = models.PositiveIntegerField(
+        null=True, blank=True, db_index=True,
+        help_text="ID de l'objet métier (trade idea, position…).",
+    )
+
     page_context = models.CharField(
         max_length=100, default="dashboard", db_index=True,
         help_text="Page d'origine : dashboard, opportunities, positions…",
@@ -42,6 +82,7 @@ class AssistantSession(models.Model):
         help_text="Contexte arbitraire : opportunity_id, position_id, etc.",
     )
     is_active = models.BooleanField(default=True, db_index=True)
+    archived = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -49,10 +90,24 @@ class AssistantSession(models.Model):
         ordering = ["-updated_at"]
         indexes = [
             models.Index(fields=["user", "is_active"]),
+            models.Index(fields=["user", "context_type", "context_id"]),
+            models.Index(fields=["user", "archived", "-updated_at"]),
         ]
 
     def __str__(self):
-        return f"Session#{self.pk} {self.user} [{self.page_context}]"
+        return f"Conversation#{self.pk} {self.user} [{self.context_label}]"
+
+    @property
+    def context_label(self) -> str:
+        label = self.get_context_type_display()
+        return f"{label} #{self.context_id}" if self.context_id else label
+
+    def ensure_title(self, first_message: str = ""):
+        if self.title:
+            return
+        base = (first_message or "").strip().replace("\n", " ")
+        self.title = (base[:80] + "…") if len(base) > 80 else (base or self.context_label)
+        self.save(update_fields=["title", "updated_at"])
 
 
 class AssistantMessage(models.Model):
@@ -69,13 +124,27 @@ class AssistantMessage(models.Model):
         (ROLE_SYSTEM, "Système"),
     ]
 
-    session = models.ForeignKey(
-        AssistantSession,
+    STATUS_SAVED = "SAVED"
+    STATUS_PARTIAL = "PARTIAL"     # génération en cours ou interrompue — contenu conservé
+    STATUS_FAILED = "FAILED"       # le moteur IA a échoué — contenu partiel conservé
+    STATUS_CHOICES = [
+        (STATUS_SAVED, "Sauvegardé"),
+        (STATUS_PARTIAL, "Partiel"),
+        (STATUS_FAILED, "Échec"),
+    ]
+
+    conversation = models.ForeignKey(
+        AssistantConversation,
         on_delete=models.CASCADE,
         related_name="messages",
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, db_index=True)
-    content = models.TextField()
+    content = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES,
+        default=STATUS_SAVED, db_index=True,
+    )
+    error_message = models.TextField(blank=True)
 
     # Snapshot live au moment du message (portefeuille, risque, marché)
     context_snapshot = models.JSONField(
@@ -92,12 +161,77 @@ class AssistantMessage(models.Model):
     latency_ms = models.IntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["conversation", "created_at"]),
+            models.Index(fields=["status"]),
+        ]
 
     def __str__(self):
         return f"[{self.role}] {self.content[:60]}"
+
+
+class AssistantConversationParticipant(models.Model):
+    """Participant d'une conversation — prépare le futur mode équipe.
+
+    Aujourd'hui chaque conversation n'a que son propriétaire ; ce modèle
+    permettra d'inviter des membres (lecture seule ou contribution).
+    """
+
+    ROLE_OWNER = "OWNER"
+    ROLE_MEMBER = "MEMBER"
+    ROLE_VIEWER = "VIEWER"
+    ROLE_CHOICES = [
+        (ROLE_OWNER, "Propriétaire"),
+        (ROLE_MEMBER, "Membre"),
+        (ROLE_VIEWER, "Lecture seule"),
+    ]
+
+    conversation = models.ForeignKey(
+        AssistantConversation, on_delete=models.CASCADE, related_name="participants",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="assistant_participations",
+    )
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=ROLE_OWNER)
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("conversation", "user")]
+
+    def __str__(self):
+        return f"{self.user} → conv#{self.conversation_id} [{self.role}]"
+
+
+class AssistantAttachment(models.Model):
+    """Pièce jointe de conversation — prépare l'upload de documents."""
+
+    conversation = models.ForeignKey(
+        AssistantConversation, on_delete=models.CASCADE, related_name="attachments",
+    )
+    message = models.ForeignKey(
+        "AssistantMessage", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="attachments",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="assistant_attachments",
+    )
+    file = models.FileField(upload_to="assistant/attachments/%Y/%m/")
+    filename = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=100, blank=True)
+    size_bytes = models.PositiveBigIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.filename} (conv#{self.conversation_id})"
 
 
 class AssistantAction(models.Model):

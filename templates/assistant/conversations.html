@@ -1,0 +1,142 @@
+{% extends "layout/base.html" %}
+{% block title %}LeoTrade — Conversations LeoAI{% endblock %}
+{% block page_title %}Assistant — Conversations{% endblock %}
+
+{% block content %}
+<div class="space-y-4" x-data="conversationCenter()" x-init="load()">
+
+  {# ── Barre de recherche / filtres ── #}
+  <section class="card p-4 flex flex-wrap items-center gap-3">
+    <input type="search" x-model.debounce.400ms="q" @input="load()"
+           placeholder="Rechercher dans les conversations…"
+           class="flex-1 min-w-[220px] rounded-lg text-sm bg-white/5 border border-white/10 text-white px-3 py-2">
+    <select x-model="contextType" @change="load()"
+            class="rounded-lg text-xs mono bg-white/5 border border-white/10 text-white px-2 py-2">
+      <option value="">Contexte — tous</option>
+      <option value="GENERAL">Assistant général</option>
+      <option value="DASHBOARD">Dashboard</option>
+      <option value="TRADE_IDEA">Trade Idea</option>
+      <option value="POSITION">Position</option>
+      <option value="ORDER">Ordre</option>
+      <option value="PORTFOLIO">Portefeuille</option>
+      <option value="BROKER">Broker</option>
+      <option value="SIGNAL">Signal</option>
+      <option value="OPPORTUNITY">Opportunité IA</option>
+    </select>
+    <label class="flex items-center gap-1.5 text-xs text-gray-400">
+      <input type="checkbox" x-model="showArchived" @change="load()" class="rounded"> Archivées
+    </label>
+    <span class="text-xs mono text-gray-600" x-text="`${count} conversation(s)`"></span>
+  </section>
+
+  {# ── Liste type ChatGPT ── #}
+  <section class="card divide-y divide-white/5">
+    <template x-for="c in conversations" :key="c.id">
+      <article class="p-4 flex items-start gap-3 hover:bg-white/[0.02] transition">
+        <div class="mt-0.5 px-2 py-1 rounded-lg text-[10px] mono bg-white/5 text-gray-400 border border-white/10 flex-shrink-0"
+             x-text="c.context_label"></div>
+        <div class="min-w-0 flex-1 cursor-pointer" @click="resume(c)">
+          <h3 class="text-sm text-white font-medium truncate" x-text="c.title || c.context_label"></h3>
+          <p class="mt-1 text-xs text-gray-500 truncate" x-text="c.last_message_preview || 'Conversation vide'"></p>
+          <div class="mt-1 text-[10px] mono text-gray-600">
+            <span x-text="`${c.message_count} message(s)`"></span> ·
+            <span x-text="new Date(c.updated_at).toLocaleString('fr-FR')"></span>
+            <span x-show="c.archived" class="text-amber-400/70 ml-2">archivée</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button @click="resume(c)"
+                  class="px-3 py-1.5 rounded-lg text-xs mono bg-emerald-500/10 text-emerald-300 border border-emerald-400/20 hover:bg-emerald-500/15 transition">
+            Reprendre
+          </button>
+          <button @click="archive(c)"
+                  class="px-2 py-1.5 rounded-lg text-xs mono bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 transition"
+                  :title="c.archived ? 'Désarchiver' : 'Archiver'">
+            <span x-text="c.archived ? '📤' : '📥'"></span>
+          </button>
+          <button @click="destroy(c)"
+                  class="px-2 py-1.5 rounded-lg text-xs mono bg-red-500/5 text-red-400/70 border border-red-400/10 hover:bg-red-500/15 transition"
+                  title="Supprimer définitivement">✕</button>
+        </div>
+      </article>
+    </template>
+
+    {# État vide professionnel #}
+    <div x-show="loaded && conversations.length === 0" x-cloak class="p-12 text-center">
+      <div class="text-3xl mb-3">💬</div>
+      <h3 class="text-white text-sm font-semibold">Aucune conversation</h3>
+      <p class="mt-2 text-xs text-gray-500 max-w-md mx-auto">
+        Ouvre le panneau LeoAI (bouton en bas à droite) pour démarrer une
+        conversation. Chaque trade idea, position ou portefeuille possède son
+        propre fil, conservé définitivement.
+      </p>
+    </div>
+  </section>
+
+  {# ── Pagination ── #}
+  <div class="flex items-center justify-between text-xs mono text-gray-500" x-show="next || prev" x-cloak>
+    <button x-show="prev" @click="load(prev)" class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition">← Précédent</button>
+    <span></span>
+    <button x-show="next" @click="load(next)" class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition">Suivant →</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function conversationCenter() {
+  return {
+    conversations: [], count: 0, next: null, prev: null,
+    q: "", contextType: "", showArchived: false, loaded: false,
+
+    async load(url) {
+      const params = new URLSearchParams();
+      if (this.q) params.set("q", this.q);
+      if (this.contextType) params.set("context_type", this.contextType);
+      params.set("archived", this.showArchived ? "true" : "false");
+      const target = url || `/assistant/api/conversations/?${params}`;
+      try {
+        const res = await fetch(target, {headers: {"X-Requested-With": "XMLHttpRequest"}});
+        const json = await res.json();
+        this.conversations = json.results || [];
+        this.count = json.count || 0;
+        this.next = json.next; this.prev = json.previous;
+      } catch (e) {
+        this.conversations = [];
+      } finally {
+        this.loaded = true;
+      }
+    },
+
+    resume(c) {
+      // Ouvre le panneau LeoAI sur cette conversation
+      if (window.LeoAssistant && typeof LeoAssistant.openConversation === "function") {
+        LeoAssistant.openConversation(c.id);
+      } else {
+        window.location.href = `/dashboard/?assistant_conversation=${c.id}`;
+      }
+    },
+
+    async archive(c) {
+      await fetch(`/assistant/api/conversations/${c.id}/archive/`, {
+        method: "POST", headers: {"X-CSRFToken": this.csrf()},
+      });
+      this.load();
+    },
+
+    async destroy(c) {
+      if (!confirm(`Supprimer définitivement « ${c.title || c.context_label} » ?`)) return;
+      await fetch(`/assistant/api/conversations/${c.id}/`, {
+        method: "DELETE", headers: {"X-CSRFToken": this.csrf()},
+      });
+      this.load();
+    },
+
+    csrf() {
+      const m = document.cookie.match(/csrftoken=([^;]+)/);
+      return m ? m[1] : "";
+    },
+  };
+}
+</script>
+{% endblock %}
