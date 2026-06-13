@@ -1,0 +1,96 @@
+{% extends "layout/base.html" %}
+{% block title %}LeoTrade — Kill switch{% endblock %}
+{% block page_title %}Risk Control — Kill switch{% endblock %}
+
+{% block content %}
+{% include "risk/_nav.html" %}
+
+<div x-data="killSwitch()" x-init="load()" class="space-y-4 max-w-3xl">
+  <div x-show="!loaded" class="card p-8 text-center text-gray-500 text-sm">Chargement…</div>
+
+  <template x-if="loaded">
+    <div class="space-y-4">
+      <section class="card p-6 text-center"
+               :class="state.active ? 'border-red-400/40' : ''">
+        <div class="text-5xl mb-3" x-text="state.active ? '🛑' : '🟢'"></div>
+        <div class="text-lg font-semibold" :class="state.active ? 'text-red-400' : 'text-emerald-400'"
+             x-text="state.active ? 'Kill switch ACTIF' : 'Kill switch inactif'"></div>
+        <p class="text-xs text-gray-500 mt-2 max-w-md mx-auto">
+          <span x-show="state.active">Aucune nouvelle entrée n'est exécutée. Les positions ouvertes ne sont pas fermées automatiquement — utilise les actions d'urgence si besoin.</span>
+          <span x-show="!state.active">Le trading suit les règles du Risk Engine. Active le kill switch pour bloquer toute nouvelle entrée.</span>
+        </p>
+
+        <div class="mt-4 flex items-center justify-center gap-3">
+          <input x-model="reason" placeholder="Raison (optionnelle)"
+                 class="rounded-lg text-xs bg-white/5 border border-white/10 text-white px-3 py-2 w-64">
+          <button x-show="!state.active" @click="activate()" :disabled="busy"
+                  class="px-4 py-2 rounded-lg text-xs mono bg-red-500/15 text-red-300 border border-red-400/30 hover:bg-red-500/20 transition disabled:opacity-50">
+            Activer le kill switch
+          </button>
+          <button x-show="state.active" @click="deactivate()" :disabled="busy"
+                  class="px-4 py-2 rounded-lg text-xs mono bg-emerald-500/15 text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500/20 transition disabled:opacity-50">
+            Désactiver le kill switch
+          </button>
+        </div>
+        <p x-show="message" x-text="message" :class="ok ? 'text-emerald-400' : 'text-red-400'" class="text-xs mt-3"></p>
+      </section>
+
+      <section class="card p-5">
+        <div class="text-[10px] mono uppercase tracking-wider text-gray-600 mb-3">Historique des déclenchements</div>
+        <div x-show="events.length === 0" class="text-xs text-gray-600">Aucun événement.</div>
+        <table x-show="events.length" class="w-full text-xs">
+          <thead><tr class="text-gray-600 text-left mono">
+            <th class="py-1">Raison</th><th>Déclenché</th><th>Résolu</th><th>État</th>
+          </tr></thead>
+          <tbody>
+            <template x-for="e in events" :key="e.id">
+              <tr class="border-t border-white/5">
+                <td class="py-1.5 text-gray-300" x-text="e.reason_code"></td>
+                <td class="text-gray-500" x-text="fmt(e.triggered_at)"></td>
+                <td class="text-gray-500" x-text="e.resolved_at ? fmt(e.resolved_at) : '—'"></td>
+                <td><span :class="e.is_active ? 'text-red-400' : 'text-gray-500'" x-text="e.is_active ? 'actif' : 'résolu'"></span></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </section>
+    </div>
+  </template>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function killSwitch() {
+  return {
+    loaded: false, busy: false, ok: false, message: "", reason: "",
+    state: {active: false}, events: [],
+    async load() {
+      const res = await fetch("{% url 'risk:api-kill-switch' %}", {headers: {"X-Requested-With": "XMLHttpRequest"}});
+      const d = await res.json();
+      this.state = d.kill_switch || {active: false};
+      this.events = d.events || [];
+      this.loaded = true;
+    },
+    async _post(url) {
+      this.busy = true; this.message = "";
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {"Content-Type": "application/json", "X-CSRFToken": window.riskCsrf()},
+          body: JSON.stringify({reason: this.reason}),
+        });
+        const d = await res.json();
+        this.ok = res.ok && d.ok;
+        this.message = d.message || "";
+        await this.load();
+      } catch (e) { this.ok = false; this.message = "Erreur réseau."; }
+      finally { this.busy = false; }
+    },
+    activate() { this._post("{% url 'risk:api-kill-switch-activate' %}"); },
+    deactivate() { this._post("{% url 'risk:api-kill-switch-deactivate' %}"); },
+    fmt(s) { return s ? new Date(s).toLocaleString("fr-FR") : "—"; },
+  };
+}
+</script>
+{% endblock %}

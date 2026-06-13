@@ -1,0 +1,98 @@
+{% extends "layout/base.html" %}
+{% block title %}LeoTrade — Risk Control{% endblock %}
+{% block page_title %}Risk Control{% endblock %}
+
+{% block content %}
+{% include "risk/_nav.html" %}
+
+<div x-data="riskHome()" x-init="load()" class="space-y-4">
+  <div x-show="!loaded" class="card p-8 text-center text-gray-500 text-sm">Chargement…</div>
+
+  <template x-if="loaded && !portfolio">
+    <div class="card p-8 text-center">
+      <div class="text-3xl mb-2">📭</div>
+      <h3 class="text-white text-sm font-semibold">Aucun portefeuille actif</h3>
+      <p class="mt-2 text-xs text-gray-500">Crée un portefeuille pour activer le contrôle du risque.</p>
+    </div>
+  </template>
+
+  <template x-if="loaded && portfolio">
+    <div class="space-y-4">
+      <section class="card p-5">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <div class="text-xs mono uppercase tracking-wider text-gray-600">Portefeuille</div>
+            <div class="text-lg text-white font-semibold mt-1" x-text="portfolio.name"></div>
+          </div>
+          <div x-html="window.riskBadgeMode(portfolio.mode)"></div>
+        </div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+          <div class="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+            <div class="text-[10px] mono uppercase text-gray-600">Équité</div>
+            <div class="text-base text-white font-semibold mono mt-1" x-text="portfolio.equity"></div>
+          </div>
+          <div class="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+            <div class="text-[10px] mono uppercase text-gray-600">Cash dispo</div>
+            <div class="text-base text-white font-semibold mono mt-1" x-text="portfolio.available_cash"></div>
+          </div>
+          <div class="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+            <div class="text-[10px] mono uppercase text-gray-600">Drawdown courant</div>
+            <div class="text-base font-semibold mono mt-1"
+                 :class="drawdown.current_percent >= profile_block ? 'text-red-400' : 'text-white'"
+                 x-text="drawdown.current_percent.toFixed(2) + '%'"></div>
+          </div>
+          <div class="rounded-xl border p-3"
+               :class="kill_switch.active ? 'border-red-400/40 bg-red-500/10' : 'border-white/10 bg-white/[0.02]'">
+            <div class="text-[10px] mono uppercase text-gray-600">Kill switch</div>
+            <div class="text-base font-semibold mono mt-1"
+                 :class="kill_switch.active ? 'text-red-400' : 'text-emerald-400'"
+                 x-text="kill_switch.active ? '🛑 ACTIF' : '✅ inactif'"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card p-5">
+        <div class="text-[10px] mono uppercase tracking-wider text-gray-600 mb-3">Limites de perte</div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+          <div><span class="text-gray-500 text-xs">Jour</span><div class="mono text-white">
+            <span x-text="drawdown.daily_loss_percent"></span>% / <span class="text-gray-500" x-text="profile.max_daily_loss"></span>%</div></div>
+          <div><span class="text-gray-500 text-xs">Semaine</span><div class="mono text-white">
+            <span x-text="drawdown.weekly_loss_percent"></span>% / <span class="text-gray-500" x-text="profile.max_weekly_loss"></span>%</div></div>
+          <div><span class="text-gray-500 text-xs">Mois</span><div class="mono text-white">
+            <span x-text="drawdown.monthly_loss_percent"></span>% / <span class="text-gray-500" x-text="profile.max_monthly_loss"></span>%</div></div>
+          <div><span class="text-gray-500 text-xs">Max drawdown</span><div class="mono text-white">
+            <span x-text="drawdown.max_percent.toFixed(2)"></span>% / <span class="text-gray-500" x-text="profile.max_drawdown"></span>%</div></div>
+        </div>
+        <div class="flex flex-wrap gap-2 mt-4">
+          <a href="{% url 'risk:profile' %}" class="px-3 py-1.5 rounded-lg text-xs mono bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">Ajuster les limites →</a>
+          <a href="{% url 'risk:kill-switch' %}" class="px-3 py-1.5 rounded-lg text-xs mono bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 transition">Gérer le kill switch →</a>
+          <a href="{% url 'risk:emergency-actions' %}" class="px-3 py-1.5 rounded-lg text-xs mono bg-red-500/10 text-red-300 border border-red-400/20 hover:bg-red-500/15 transition">Actions d'urgence →</a>
+        </div>
+      </section>
+    </div>
+  </template>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function riskHome() {
+  return {
+    loaded: false, portfolio: null, profile: {}, drawdown: {}, kill_switch: {},
+    profile_block: 10,
+    async load() {
+      try {
+        const res = await fetch("{% url 'risk:api-profile' %}", {headers: {"X-Requested-With": "XMLHttpRequest"}});
+        const d = await res.json();
+        this.portfolio = d.portfolio || null;
+        this.profile = d.profile || {};
+        this.drawdown = d.drawdown || {};
+        this.kill_switch = d.kill_switch || {};
+        this.profile_block = parseFloat(this.profile.max_drawdown || 10);
+      } catch (e) { this.portfolio = null; }
+      finally { this.loaded = true; }
+    },
+  };
+}
+</script>
+{% endblock %}

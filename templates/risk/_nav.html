@@ -1,0 +1,24 @@
+{# Sous-navigation du module Risk Control — onglets réels uniquement #}
+<nav class="card p-2 flex flex-wrap gap-1 mb-4">
+  {% with p=risk_page %}
+  <a href="{% url 'risk:home' %}" class="px-3 py-1.5 rounded-lg text-xs mono transition {% if p == 'home' %}bg-emerald-500/15 text-emerald-300 border border-emerald-400/25{% else %}text-gray-400 hover:bg-white/5{% endif %}">Vue d'ensemble</a>
+  <a href="{% url 'risk:profile' %}" class="px-3 py-1.5 rounded-lg text-xs mono transition {% if p == 'profile' %}bg-emerald-500/15 text-emerald-300 border border-emerald-400/25{% else %}text-gray-400 hover:bg-white/5{% endif %}">Profil &amp; limites</a>
+  <a href="{% url 'risk:kill-switch' %}" class="px-3 py-1.5 rounded-lg text-xs mono transition {% if p == 'kill_switch' %}bg-emerald-500/15 text-emerald-300 border border-emerald-400/25{% else %}text-gray-400 hover:bg-white/5{% endif %}">Kill switch</a>
+  <a href="{% url 'risk:states' %}" class="px-3 py-1.5 rounded-lg text-xs mono transition {% if p == 'states' %}bg-emerald-500/15 text-emerald-300 border border-emerald-400/25{% else %}text-gray-400 hover:bg-white/5{% endif %}">États</a>
+  <a href="{% url 'risk:decisions' %}" class="px-3 py-1.5 rounded-lg text-xs mono transition {% if p == 'decisions' %}bg-emerald-500/15 text-emerald-300 border border-emerald-400/25{% else %}text-gray-400 hover:bg-white/5{% endif %}">Décisions IA</a>
+  <a href="{% url 'risk:emergency-actions' %}" class="px-3 py-1.5 rounded-lg text-xs mono transition {% if p == 'emergency' %}bg-red-500/15 text-red-300 border border-red-400/25{% else %}text-red-400/70 hover:bg-red-500/10{% endif %}">⚠ Actions d'urgence</a>
+  {% endwith %}
+</nav>
+
+{# Helper CSRF partagé (Alpine) #}
+<script>
+  window.riskCsrf = function () {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : "";
+  };
+  window.riskBadgeMode = function (mode) {
+    return mode === "LIVE"
+      ? '<span class="px-2 py-0.5 rounded text-[10px] mono bg-red-500/15 text-red-300 border border-red-400/30">LIVE — ARGENT RÉEL</span>'
+      : '<span class="px-2 py-0.5 rounded text-[10px] mono bg-amber-500/15 text-amber-300 border border-amber-400/25">PAPER</span>';
+  };
+</script>

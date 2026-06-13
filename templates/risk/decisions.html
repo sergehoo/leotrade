@@ -1,0 +1,61 @@
+{% extends "layout/base.html" %}
+{% block title %}LeoTrade — Décisions Risk Engine{% endblock %}
+{% block page_title %}Risk Control — Décisions IA{% endblock %}
+
+{% block content %}
+{% include "risk/_nav.html" %}
+
+<div x-data="riskDecisions()" x-init="load()" class="space-y-4">
+  <div x-show="!loaded" class="card p-8 text-center text-gray-500 text-sm">Chargement…</div>
+
+  <section class="card p-0 overflow-hidden" x-show="loaded">
+    <div x-show="decisions.length === 0" class="p-8 text-center text-xs text-gray-600">
+      Aucune décision du Risk Engine enregistrée pour ce portefeuille.
+    </div>
+    <table x-show="decisions.length" class="w-full text-xs">
+      <thead><tr class="text-gray-600 text-left mono bg-white/[0.02]">
+        <th class="py-2 px-3">Date</th><th>Actif</th><th>Sens</th><th>Décision</th>
+        <th>Stake dem.</th><th>Stake appr.</th><th>R/R</th><th>Motif blocage</th>
+      </tr></thead>
+      <tbody>
+        <template x-for="d in decisions" :key="d.id">
+          <tr class="border-t border-white/5">
+            <td class="py-2 px-3 text-gray-500 mono" x-text="fmt(d.created_at)"></td>
+            <td class="text-gray-300 mono" x-text="d.symbol"></td>
+            <td class="mono" x-text="d.side"></td>
+            <td><span class="px-1.5 py-0.5 rounded text-[10px] mono"
+                      :class="{
+                        'bg-emerald-500/10 text-emerald-300': d.decision === 'APPROVE',
+                        'bg-red-500/10 text-red-300': d.decision === 'BLOCK' || d.decision === 'REJECT',
+                        'bg-amber-500/10 text-amber-300': d.decision === 'REDUCE',
+                      }" x-text="d.decision"></span></td>
+            <td class="text-gray-500 mono" x-text="d.requested_stake"></td>
+            <td class="text-gray-500 mono" x-text="d.approved_stake"></td>
+            <td class="text-gray-500 mono" x-text="d.risk_reward_ratio"></td>
+            <td class="text-gray-500" x-text="d.blocking_reason || '—'"></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function riskDecisions() {
+  return {
+    loaded: false, decisions: [],
+    async load() {
+      try {
+        const res = await fetch("{% url 'risk:api-decisions' %}", {headers: {"X-Requested-With": "XMLHttpRequest"}});
+        const d = await res.json();
+        this.decisions = d.decisions || [];
+      } catch (e) { this.decisions = []; }
+      finally { this.loaded = true; }
+    },
+    fmt(s) { return s ? new Date(s).toLocaleString("fr-FR") : "—"; },
+  };
+}
+</script>
+{% endblock %}

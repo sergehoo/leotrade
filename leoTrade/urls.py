@@ -34,7 +34,7 @@ path("api/v1/", include("api.urls")),
     path("wallet/", include("wallet.urls")),
     path("trading/", include("trading.urls",namespace="trading")),
     path("backtests/", include("leo_backtesting.urls")),
-    path("risk/", include("risk.urls")),
+    path("risk/", include("risk.urls", namespace="risk")),
     path("portfolio/", include("portfolio.urls")),
     # Alias rétrocompatibilité : ancienne URL avec typo. À supprimer après migration des liens.
     path("portofolio/", include("portfolio.urls")),

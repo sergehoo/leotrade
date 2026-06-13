@@ -480,6 +480,15 @@
             Risk Monitor
         </a>
 
+        <a href="{% url 'risk:home' %}"
+           class="nav-link {% if request.resolver_match.namespace == 'risk' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                      d="M9 12l2 2 4-4m5.6 1.6A9 9 0 113 12a9 9 0 0118 0z"/>
+            </svg>
+            Risk Control
+        </a>
+
         <a href="{% url 'trading:learning-monitor' %}"
            class="nav-link {% if request.resolver_match.url_name == 'learning-monitor' %}active{% endif %} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm pl-4">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">

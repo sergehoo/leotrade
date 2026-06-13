@@ -232,3 +232,32 @@ class RiskOverrideAuditAdmin(admin.ModelAdmin):
         if not obj.reason:
             return "—"
         return obj.reason[:60] + ("…" if len(obj.reason) > 60 else "")
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  RiskAuditLog — journal du module Risk Control (lecture seule)
+# ─────────────────────────────────────────────────────────────────────────────
+
+from .models import RiskAuditLog  # noqa: E402
+
+
+@admin.register(RiskAuditLog)
+class RiskAuditLogAdmin(admin.ModelAdmin):
+    list_display = (
+        "id", "created_at", "user", "portfolio", "action", "mode",
+        "success", "summary_short",
+    )
+    list_filter = ("action", "mode", "success", "created_at")
+    search_fields = ("user__email", "portfolio__name", "summary", "error_message")
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    readonly_fields = [f.name for f in RiskAuditLog._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description="Résumé")
+    def summary_short(self, obj):
+        return (obj.summary or "")[:80]

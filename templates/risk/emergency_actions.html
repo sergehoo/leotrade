@@ -1,0 +1,131 @@
+{% extends "layout/base.html" %}
+{% block title %}LeoTrade — Actions d'urgence{% endblock %}
+{% block page_title %}Risk Control — Actions d'urgence{% endblock %}
+
+{% block content %}
+{% include "risk/_nav.html" %}
+
+<div x-data="emergencyActions()" x-init="load()" class="space-y-4 max-w-3xl">
+  <div x-show="!loaded" class="card p-8 text-center text-gray-500 text-sm">Chargement…</div>
+
+  <template x-if="loaded && portfolio">
+    <div class="space-y-4">
+      <div class="card p-4 flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <div class="text-xs mono uppercase text-gray-600">Portefeuille</div>
+          <div class="text-white font-semibold" x-text="portfolio.name"></div>
+        </div>
+        <div x-html="window.riskBadgeMode(portfolio.mode)"></div>
+      </div>
+
+      <p class="text-xs text-gray-500">
+        Toutes les fermetures passent par le service d'exécution Django (ordre opposé soumis au broker),
+        sont <strong>journalisées</strong> et <strong>notifiées</strong>. Aucune action broker directe.
+        <span class="text-amber-400" x-show="portfolio.mode === 'LIVE'">En mode LIVE, une double confirmation est exigée.</span>
+      </p>
+
+      {# Fermer une position #}
+      <section class="card p-5">
+        <div class="text-sm text-white font-semibold mb-2">Fermer une position</div>
+        <div class="flex items-center gap-2">
+          <input type="number" x-model="positionId" placeholder="ID de position"
+                 class="rounded-lg text-sm mono bg-white/5 border border-white/10 text-white px-3 py-2 w-48">
+          <button @click="closePosition()" :disabled="busy"
+                  class="px-3 py-2 rounded-lg text-xs mono bg-amber-500/10 text-amber-300 border border-amber-400/20 hover:bg-amber-500/15 transition disabled:opacity-50">
+            Fermer (confirmation)
+          </button>
+        </div>
+      </section>
+
+      {# Fermer les perdantes #}
+      <section class="card p-5">
+        <div class="text-sm text-white font-semibold mb-1">Fermer toutes les positions perdantes</div>
+        <p class="text-xs text-gray-500 mb-2">Ferme uniquement les positions en PnL latent négatif.</p>
+        <button @click="closeLosing()" :disabled="busy"
+                class="px-3 py-2 rounded-lg text-xs mono bg-red-500/10 text-red-300 border border-red-400/20 hover:bg-red-500/15 transition disabled:opacity-50">
+          Fermer les perdantes (confirmation forte)
+        </button>
+      </section>
+
+      {# Fermer tout #}
+      <section class="card p-5 border-red-400/30">
+        <div class="text-sm text-red-300 font-semibold mb-1">⚠ Fermer TOUTES les positions</div>
+        <p class="text-xs text-gray-500 mb-2">Action maximale — double confirmation obligatoire.</p>
+        <button @click="closeAll()" :disabled="busy"
+                class="px-3 py-2 rounded-lg text-xs mono bg-red-500/15 text-red-200 border border-red-400/40 hover:bg-red-500/25 transition disabled:opacity-50">
+          Tout fermer (double confirmation)
+        </button>
+      </section>
+
+      <p x-show="message" x-text="message" :class="ok ? 'text-emerald-400' : 'text-red-400'" class="text-sm"></p>
+    </div>
+  </template>
+
+  <template x-if="loaded && !portfolio">
+    <div class="card p-8 text-center text-sm text-gray-500">Aucun portefeuille actif.</div>
+  </template>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function emergencyActions() {
+  return {
+    loaded: false, busy: false, ok: false, message: "",
+    portfolio: null, positionId: "",
+    async load() {
+      try {
+        const res = await fetch("{% url 'risk:api-profile' %}", {headers: {"X-Requested-With": "XMLHttpRequest"}});
+        const d = await res.json();
+        this.portfolio = d.portfolio || null;
+      } catch (e) { this.portfolio = null; }
+      finally { this.loaded = true; }
+    },
+    _live() { return this.portfolio && this.portfolio.mode === "LIVE"; },
+    async _post(url, body) {
+      this.busy = true; this.message = "";
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {"Content-Type": "application/json", "X-CSRFToken": window.riskCsrf()},
+          body: JSON.stringify(body),
+        });
+        const d = await res.json();
+        this.ok = res.ok && d.ok;
+        this.message = d.message || (this.ok ? "OK." : "Échec.");
+      } catch (e) { this.ok = false; this.message = "Erreur réseau."; }
+      finally { this.busy = false; }
+    },
+    closePosition() {
+      if (!this.positionId) { this.message = "Saisis un ID de position."; this.ok = false; return; }
+      if (!confirm("Fermer cette position ?")) return;
+      const body = {position_id: this.positionId, confirm: true};
+      if (this._live()) {
+        if (!confirm("⚠ MODE LIVE — argent réel. Confirmer une SECONDE fois ?")) return;
+        body.confirm_live = true;
+      }
+      this._post("{% url 'risk:api-emergency-close-position' %}", body);
+    },
+    closeLosing() {
+      if (!confirm("Fermer TOUTES les positions perdantes ?")) return;
+      const body = {confirm: true};
+      if (this._live()) {
+        if (!confirm("⚠ MODE LIVE — argent réel. Confirmer une SECONDE fois ?")) return;
+        body.confirm_live = true;
+      }
+      this._post("{% url 'risk:api-emergency-close-all-losing' %}", body);
+    },
+    closeAll() {
+      if (!confirm("Fermer TOUTES les positions ouvertes ?")) return;
+      if (!confirm("Confirmation finale : fermer absolument TOUT ?")) return;
+      const body = {confirm: true, confirm_double: true};
+      if (this._live()) {
+        if (!confirm("⚠ MODE LIVE — argent réel. Dernière confirmation ?")) return;
+        body.confirm_live = true;
+      }
+      this._post("{% url 'risk:api-emergency-close-all' %}", body);
+    },
+  };
+}
+</script>
+{% endblock %}

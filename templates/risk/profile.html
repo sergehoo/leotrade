@@ -1,0 +1,84 @@
+{% extends "layout/base.html" %}
+{% block title %}LeoTrade — Profil de risque{% endblock %}
+{% block page_title %}Risk Control — Profil &amp; limites{% endblock %}
+
+{% block content %}
+{% include "risk/_nav.html" %}
+
+<div x-data="riskProfile()" x-init="load()" class="space-y-4 max-w-3xl">
+  <div x-show="!loaded" class="card p-8 text-center text-gray-500 text-sm">Chargement…</div>
+
+  <template x-if="loaded && profile.id">
+    <form @submit.prevent="save()" class="card p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="text-sm text-white font-semibold" x-text="'Profil : ' + profile.name"></div>
+        <div x-html="window.riskBadgeMode(mode)"></div>
+      </div>
+      <p class="text-xs text-gray-500">
+        Toute modification est <strong>auditée</strong> (RiskAuditLog) et notifiée.
+        Les limites s'appliquent au Risk Engine pour chaque trade.
+      </p>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <template x-for="f in fields" :key="f.key">
+          <label class="block">
+            <span class="text-[10px] mono uppercase tracking-wider text-gray-600" x-text="f.label"></span>
+            <input :type="f.type" step="0.01" min="0" x-model="form[f.key]"
+                   class="w-full mt-1 rounded-lg text-sm mono bg-white/5 border border-white/10 text-white px-3 py-2">
+          </label>
+        </template>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button type="submit" :disabled="saving"
+                class="px-4 py-2 rounded-lg text-xs mono bg-emerald-500/15 text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500/20 transition disabled:opacity-50">
+          <span x-text="saving ? 'Enregistrement…' : 'Enregistrer les limites'"></span>
+        </button>
+        <span x-show="message" x-text="message" :class="ok ? 'text-emerald-400' : 'text-red-400'" class="text-xs"></span>
+      </div>
+    </form>
+  </template>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function riskProfile() {
+  return {
+    loaded: false, saving: false, ok: false, message: "",
+    profile: {}, mode: "PAPER", form: {},
+    fields: [
+      {key: "max_risk_per_trade", label: "Risque max / trade (%)", type: "number"},
+      {key: "max_daily_loss", label: "Perte max / jour (%)", type: "number"},
+      {key: "max_weekly_loss", label: "Perte max / semaine (%)", type: "number"},
+      {key: "max_monthly_loss", label: "Perte max / mois (%)", type: "number"},
+      {key: "max_drawdown", label: "Drawdown max (%)", type: "number"},
+      {key: "max_open_positions", label: "Positions ouvertes max", type: "number"},
+    ],
+    async load() {
+      const res = await fetch("{% url 'risk:api-profile' %}", {headers: {"X-Requested-With": "XMLHttpRequest"}});
+      const d = await res.json();
+      this.profile = d.profile || {};
+      this.mode = (d.portfolio || {}).mode || "PAPER";
+      this.fields.forEach(f => this.form[f.key] = this.profile[f.key]);
+      this.loaded = true;
+    },
+    async save() {
+      this.saving = true; this.message = "";
+      try {
+        const res = await fetch("{% url 'risk:api-profile' %}", {
+          method: "PATCH",
+          headers: {"Content-Type": "application/json", "X-CSRFToken": window.riskCsrf()},
+          body: JSON.stringify({changes: this.form}),
+        });
+        const d = await res.json();
+        this.ok = res.ok && d.ok;
+        this.message = d.message || (this.ok ? "Enregistré." : "Erreur.");
+      } catch (e) {
+        this.ok = false; this.message = "Erreur réseau.";
+      } finally { this.saving = false; }
+    },
+  };
+}
+</script>
+{% endblock %}

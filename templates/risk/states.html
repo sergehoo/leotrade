@@ -1,0 +1,56 @@
+{% extends "layout/base.html" %}
+{% block title %}LeoTrade — États de risque{% endblock %}
+{% block page_title %}Risk Control — États{% endblock %}
+
+{% block content %}
+{% include "risk/_nav.html" %}
+
+<div x-data="riskStates()" x-init="load()" class="space-y-4">
+  <div x-show="!loaded" class="card p-8 text-center text-gray-500 text-sm">Chargement…</div>
+
+  <template x-for="bucket in buckets" :key="bucket.key">
+    <section class="card p-5" x-show="loaded">
+      <div class="text-[10px] mono uppercase tracking-wider text-gray-600 mb-3" x-text="bucket.label"></div>
+      <div x-show="(data[bucket.key] || []).length === 0" class="text-xs text-gray-600">Aucun état enregistré.</div>
+      <table x-show="(data[bucket.key] || []).length" class="w-full text-xs">
+        <thead><tr class="text-gray-600 text-left mono">
+          <th class="py-1">Période</th><th>Perte %</th><th>Équité ouv.</th><th>Équité act.</th><th>Kill switch</th>
+        </tr></thead>
+        <tbody>
+          <template x-for="(row, i) in data[bucket.key]" :key="i">
+            <tr class="border-t border-white/5">
+              <td class="py-1.5 text-gray-300 mono" x-text="row[bucket.dateKey]"></td>
+              <td class="mono" :class="parseFloat(row.total_loss_percent) > 0 ? 'text-red-400' : 'text-gray-300'" x-text="row.total_loss_percent + '%'"></td>
+              <td class="text-gray-500 mono" x-text="row.equity_open"></td>
+              <td class="text-gray-500 mono" x-text="row.equity_current"></td>
+              <td><span :class="row.kill_switch_triggered ? 'text-red-400' : 'text-gray-600'" x-text="row.kill_switch_triggered ? '🛑' : '—'"></span></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </section>
+  </template>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function riskStates() {
+  return {
+    loaded: false, data: {},
+    buckets: [
+      {key: "daily", label: "Journalier", dateKey: "day"},
+      {key: "weekly", label: "Hebdomadaire", dateKey: "week_start"},
+      {key: "monthly", label: "Mensuel", dateKey: "month_start"},
+    ],
+    async load() {
+      try {
+        const res = await fetch("{% url 'risk:api-states' %}", {headers: {"X-Requested-With": "XMLHttpRequest"}});
+        this.data = await res.json();
+      } catch (e) { this.data = {}; }
+      finally { this.loaded = true; }
+    },
+  };
+}
+</script>
+{% endblock %}

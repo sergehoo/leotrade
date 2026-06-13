@@ -522,3 +522,57 @@ class RiskOverrideAudit(models.Model):
 #
 #     def __str__(self) -> str:
 #         return f"RiskDecision::{self.recommendation_id}::{self.decision}"
+
+class RiskAuditLog(TimeStampedModel):
+    """
+    Journal d'audit des actions de contrôle du risque (module Risk Control).
+
+    Trace toute action sensible : activation/désactivation du kill switch,
+    modification des limites de risque, fermetures d'urgence de positions.
+    Immuable côté admin (readonly). Aucune clé API n'y transite.
+    """
+
+    ACTION_CHOICES = [
+        ("KILL_SWITCH_ACTIVATE", "Activation kill switch"),
+        ("KILL_SWITCH_DEACTIVATE", "Désactivation kill switch"),
+        ("RISK_SETTINGS_UPDATE", "Modification des limites de risque"),
+        ("EMERGENCY_CLOSE_POSITION", "Fermeture d'urgence d'une position"),
+        ("EMERGENCY_CLOSE_LOSING", "Fermeture des positions perdantes"),
+        ("EMERGENCY_CLOSE_ALL", "Fermeture de toutes les positions"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="risk_audit_logs",
+    )
+    portfolio = models.ForeignKey(
+        "portfolio.Portfolio",
+        on_delete=models.CASCADE,
+        related_name="risk_audit_logs",
+    )
+    action = models.CharField(max_length=40, choices=ACTION_CHOICES, db_index=True)
+    mode = models.CharField(max_length=10, default="PAPER", db_index=True)
+    summary = models.TextField(blank=True)
+
+    # Avant / après pour les modifications de limites
+    before = models.JSONField(default=dict, blank=True)
+    after = models.JSONField(default=dict, blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+
+    success = models.BooleanField(default=True)
+    error_message = models.TextField(blank=True)
+
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["portfolio", "action"]),
+            models.Index(fields=["user", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"RiskAudit[{self.action}] pf={self.portfolio_id} ({'ok' if self.success else 'ko'})"
