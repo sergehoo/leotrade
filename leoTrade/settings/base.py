@@ -543,7 +543,7 @@ POSITION_PROTECTION_MAX_PRICE_AGE_SECONDS = env(
     int,
 )
 
-SENTRY_DSN = env("SENTRY_DSN", "")
+SENTRY_DSN = str(env("SENTRY_DSN", "") or "").strip()
 SENTRY_TRACES_SAMPLE_RATE = env("SENTRY_TRACES_SAMPLE_RATE", 0.0, float)
 SENTRY_PROFILES_SAMPLE_RATE = env("SENTRY_PROFILES_SAMPLE_RATE", 0.0, float)
 
@@ -632,7 +632,6 @@ BACKTEST_EXECUTION_COSTS = {
 }
 
 LOG_LEVEL = env("LOG_LEVEL", "INFO")
-SENTRY_DSN = env("SENTRY_DSN", "")
 
 LOGGING = {
     "version": 1,
@@ -701,7 +700,14 @@ LOGGING = {
     },
 }
 
-if SENTRY_DSN:
+SENTRY_DSN_IS_VALID = SENTRY_DSN.startswith(("https://", "http://"))
+
+if SENTRY_DSN and not SENTRY_DSN_IS_VALID:
+    logging.getLogger(__name__).warning(
+        "SENTRY_DSN ignoré car son URL est invalide."
+    )
+
+if SENTRY_DSN_IS_VALID:
     import sentry_sdk
     from sentry_sdk.integrations.django import DjangoIntegration
     from sentry_sdk.integrations.celery import CeleryIntegration

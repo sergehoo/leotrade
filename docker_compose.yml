@@ -105,7 +105,7 @@ services:
       - proxy
       - internal
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health/ready/ || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS -H \"Host: $$TRAEFIK_APP_HOST\" -H \"X-Forwarded-Proto: https\" http://127.0.0.1:8000/health/ready/ || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10

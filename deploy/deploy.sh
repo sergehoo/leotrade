@@ -27,7 +27,9 @@ fi
 "${COMPOSE[@]}" up -d --remove-orphans lyneci-web lyneci-worker lyneci-beat lyneci-flower
 
 for attempt in $(seq 1 30); do
-  if "${COMPOSE[@]}" exec -T lyneci-web curl -fsS http://127.0.0.1:8000/health/ready/ >/dev/null; then
+  if "${COMPOSE[@]}" exec -T lyneci-web \
+    sh -c 'curl -fsS -H "Host: $TRAEFIK_APP_HOST" -H "X-Forwarded-Proto: https" http://127.0.0.1:8000/health/ready/' \
+    >/dev/null; then
     "${COMPOSE[@]}" ps
     echo "Déploiement Lyneci terminé. Le trading live reste piloté par FEATURE_TRADING_ENABLED."
     exit 0

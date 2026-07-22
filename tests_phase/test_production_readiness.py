@@ -145,6 +145,14 @@ def test_compose_uses_shared_external_traefik():
     web_labels = services["lyneci-web"]["labels"]
     assert "traefik.docker.network=${TRAEFIK_NETWORK:-proxy}" in web_labels
     assert any("tls.certresolver=${TRAEFIK_CERT_RESOLVER:-lets}" in label for label in web_labels)
+    assert "Host: $$TRAEFIK_APP_HOST" in services["lyneci-web"]["healthcheck"]["test"][1]
+    assert "X-Forwarded-Proto: https" in services["lyneci-web"]["healthcheck"]["test"][1]
+
+
+def test_optional_sentry_dsn_is_empty_by_default():
+    environment = (PROJECT_ROOT / ".env.prod.example").read_text().splitlines()
+    assert "SENTRY_DSN=" in environment
+    assert not any(line.startswith("SENTRY_DSN=REPLACE_") for line in environment)
 
 
 @pytest.mark.django_db
