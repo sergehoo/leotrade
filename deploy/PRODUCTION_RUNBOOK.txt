@@ -7,6 +7,8 @@ LYNECI — PROCÉDURE DE MISE EN PRODUCTION
 - DNS de TRAEFIK_APP_HOST et TRAEFIK_FLOWER_HOST pointant vers le serveur.
 - Ports entrants 80/443 uniquement; SSH limité aux administrateurs.
 - Sauvegarde externe chiffrée du volume PostgreSQL et des fichiers KYC.
+- Traefik v3 déjà actif sur le réseau Docker externe "proxy", avec le resolver
+  ACME "lets" et les middlewares sec-headers, compress et ratelimit.
 
 2. CONFIGURATION
 ----------------
@@ -28,9 +30,11 @@ https://lyneci.com/wallet/webhooks/paystack/
 Le script vérifie la configuration, sauvegarde la base existante, construit
 l'image, attend PostgreSQL/Redis, exécute les contrôles Django et migrations,
 puis démarre l'application. FEATURE_TRADING_ENABLED doit rester à False.
+Le script ne crée ni ne redémarre Traefik : il vérifie seulement que le réseau
+externe "proxy" existe avant de publier lyneci-web et lyneci-flower.
 
 Créer le premier administrateur :
-docker compose -f docker_compose.yml --env-file .env.prod exec web python manage.py createsuperuser
+docker compose -f docker_compose.yml --env-file .env.prod exec lyneci-web python manage.py createsuperuser
 
 4. RECETTE AVANT TRADING LIVE
 -----------------------------
@@ -40,15 +44,15 @@ docker compose -f docker_compose.yml --env-file .env.prod exec web python manage
 - Vérifier /health/live/, /health/ready/, Sentry, métriques et alertes.
 - Laisser tourner le paper trading au moins 24 h avec réconciliation sans écart.
 - Activer FEATURE_TRADING_ENABLED=True seulement après cette recette et avec
-  des plafonds de risque faibles; redémarrer web, worker et beat.
+  des plafonds de risque faibles; redémarrer lyneci-web, lyneci-worker et lyneci-beat.
 
 5. SAUVEGARDE ET RESTAURATION
 -----------------------------
 Sauvegarde manuelle : ./deploy/backup.sh
 
 Tester régulièrement la restauration sur une base isolée :
-docker compose -f docker_compose.yml --env-file .env.prod exec -T db createdb -U "$POSTGRES_USER" lyneci_restore
-cat backups/lyneci-YYYYMMDDTHHMMSSZ.dump | docker compose -f docker_compose.yml --env-file .env.prod exec -T db pg_restore -U "$POSTGRES_USER" -d lyneci_restore --clean --if-exists
+docker compose -f docker_compose.yml --env-file .env.prod exec -T lyneci-db createdb -U "$POSTGRES_USER" lyneci_restore
+cat backups/lyneci-YYYYMMDDTHHMMSSZ.dump | docker compose -f docker_compose.yml --env-file .env.prod exec -T lyneci-db pg_restore -U "$POSTGRES_USER" -d lyneci_restore --clean --if-exists
 
 Les fichiers KYC du volume media_volume doivent être sauvegardés séparément,
 chiffrés, avec accès strictement limité et politique de rétention conforme.

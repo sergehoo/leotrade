@@ -16,7 +16,7 @@ COMPOSE=(docker compose -f "$ROOT_DIR/docker_compose.yml" --env-file "$ENV_FILE"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 destination="$BACKUP_DIR/lyneci-$timestamp.dump"
 
-"${COMPOSE[@]}" exec -T db \
+"${COMPOSE[@]}" exec -T lyneci-db \
   sh -c 'pg_dump --format=custom --no-owner --no-privileges -U "$POSTGRES_USER" "$POSTGRES_DB"' \
   > "$destination"
 

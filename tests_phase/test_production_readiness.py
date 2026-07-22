@@ -1,6 +1,8 @@
 from datetime import date
+from pathlib import Path
 
 import pytest
+import yaml
 from django.contrib.sites.models import Site
 from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -10,6 +12,9 @@ from django.urls import reverse
 
 from dashboard.form import KYCSubmissionForm
 from dashboard.models import KYCProfile
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _kyc_payload():
@@ -119,6 +124,27 @@ def test_public_home_uses_lyneci_identity(client):
     assert response.status_code == 200
     assert "Lyneci — Intelligent Trading" in response.content.decode()
     assert "LeoTrade" not in response.content.decode()
+
+
+def test_compose_uses_shared_external_traefik():
+    compose = yaml.safe_load((PROJECT_ROOT / "docker_compose.yml").read_text())
+    services = compose["services"]
+
+    assert "traefik" not in services
+    assert set(services) == {
+        "lyneci-db",
+        "lyneci-redis",
+        "lyneci-release",
+        "lyneci-web",
+        "lyneci-worker",
+        "lyneci-beat",
+        "lyneci-flower",
+    }
+    assert compose["networks"]["proxy"]["external"] is True
+
+    web_labels = services["lyneci-web"]["labels"]
+    assert "traefik.docker.network=${TRAEFIK_NETWORK:-proxy}" in web_labels
+    assert any("tls.certresolver=${TRAEFIK_CERT_RESOLVER:-lets}" in label for label in web_labels)
 
 
 @pytest.mark.django_db
