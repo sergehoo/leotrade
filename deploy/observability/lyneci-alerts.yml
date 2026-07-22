@@ -1,0 +1,83 @@
+groups:
+  - name: lyneci-operational
+    rules:
+      - alert: LyneciOperationalSnapshotMissing
+        expr: lyneci_operational_snapshot_available == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Lyneci ne publie plus son état opérationnel"
+          description: "Le heartbeat Beat/worker est absent depuis plus de deux minutes."
+
+      - alert: LyneciOperationalSnapshotStale
+        expr: lyneci_operational_snapshot_age_seconds > 120
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Le heartbeat Lyneci est périmé"
+          description: "Beat ou les workers ne traitent plus le collecteur opérationnel."
+
+      - alert: LyneciUnknownLiveOrder
+        expr: lyneci_live_orders_unknown_beyond_slo > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ordre Live non résolu"
+          description: "Un ordre Live reste dans un état broker inconnu au-delà du SLO."
+
+      - alert: LyneciStaleSubmittingOrder
+        expr: lyneci_live_orders_stale_submitting > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Soumission Live bloquée"
+          description: "Un ordre Live reste bloqué dans SUBMITTING."
+
+      - alert: LyneciOutboxDeadLetter
+        expr: lyneci_outbox_events{status="dead"} > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Événement Outbox en dead-letter"
+          description: "Une commande durable a épuisé toutes ses tentatives."
+
+      - alert: LyneciOutboxLag
+        expr: lyneci_outbox_oldest_pending_age_seconds > 60
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Publication Outbox en retard"
+          description: "La plus ancienne commande durable attend depuis plus de 60 secondes."
+
+      - alert: LyneciReconciliationStale
+        expr: lyneci_live_portfolios_reconciliation_stale > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Réconciliation Live en retard"
+          description: "Un portefeuille Live dépasse le délai maximal de réconciliation."
+
+      - alert: LyneciBrokerUnhealthy
+        expr: lyneci_live_brokers_unhealthy > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Broker Live indisponible"
+          description: "Un contrôle de santé broker est en erreur ou périmé."
+
+      - alert: LyneciKillSwitchActive
+        expr: lyneci_active_kill_switches > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kill switch Lyneci actif"
+          description: "Au moins un portefeuille bloque les nouvelles entrées."

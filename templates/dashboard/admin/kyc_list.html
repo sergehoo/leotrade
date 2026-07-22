@@ -1,0 +1,35 @@
+{% extends "layout/base.html" %}
+{% block title %}Revue KYC — Lyneci{% endblock %}
+{% block page_title %}Revue KYC{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  <section class="card p-6">
+    <form method="get" class="flex flex-wrap gap-3">
+      <input name="q" value="{{ q }}" placeholder="Email, nom ou pièce" class="min-w-72 flex-1 rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white">
+      <select name="status" class="rounded-lg bg-slate-900 border border-white/10 px-3 py-2 text-white">
+        <option value="">Tous les statuts</option>
+        {% for value, label in profiles.paginator.object_list.model.STATUS_CHOICES %}
+          <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">Filtrer</button>
+    </form>
+  </section>
+
+  <section class="card overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="text-left text-gray-500 mono text-xs uppercase"><tr><th class="p-4">Client</th><th>Statut</th><th>Document</th><th>Mise à jour</th><th></th></tr></thead>
+        <tbody>
+        {% for profile in profiles %}
+          <tr class="table-row"><td class="p-4"><div class="text-white">{{ profile.full_name|default:profile.user.email }}</div><div class="text-xs text-gray-500">{{ profile.user.email }}</div></td><td>{{ profile.get_status_display }}</td><td>{{ profile.get_id_document_type_display|default:"—" }}</td><td>{{ profile.updated_at|date:"d/m/Y H:i" }}</td><td class="pr-4 text-right"><a class="text-emerald-300" href="{% url 'admin-kyc-detail' profile.pk %}">Examiner</a></td></tr>
+        {% empty %}
+          <tr><td colspan="5" class="p-8 text-center text-gray-500">Aucun dossier.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% include "partials/pagination.html" with page_obj=page_obj %}
+</div>
+{% endblock %}

@@ -45,6 +45,7 @@ class OrderIntent:
     asset_id: int | None = None
     signal_id: int | None = None
     trade_idea_id: int | None = None
+    strategy_deployment_id: int | None = None
 
     idempotency_key: str = field(default_factory=lambda: str(uuid.uuid4()))
     metadata: dict = field(default_factory=dict)

@@ -1,5 +1,5 @@
 {% extends "layout/base.html" %}
-{% block title %}{{ intent.title }} — LeoTrade{% endblock %}
+{% block title %}{{ intent.title }} — Lyneci{% endblock %}
 {% block page_title %}Détail mission IA{% endblock %}
 
 {% block content %}
@@ -145,8 +145,8 @@
                 <span class="px-2 py-1 rounded text-xs mono pill-sell">SELL</span>
               {% endif %}
             </td>
-            <td class="px-4 py-4 text-white mono">{{ order.quantity }}</td>
-            <td class="px-4 py-4 text-white mono">{{ order.price|default:"—" }}</td>
+            <td class="px-4 py-4 text-white mono">{{ order.approved_quantity }}</td>
+            <td class="px-4 py-4 text-white mono">{{ order.requested_price|default:"—" }}</td>
             <td class="px-4 py-4"><span class="px-2 py-1 rounded text-xs mono bg-white/5 text-gray-300 border border-white/10">{{ order.status }}</span></td>
             <td class="px-4 py-4 text-right">
               <a href="{% url 'order-detail' order.pk %}" class="px-3 py-1.5 rounded-lg bg-white/5 text-gray-300 border border-white/10 text-xs mono">

@@ -1,0 +1,34 @@
+{% extends "layout/base.html" %}
+{% block title %}Dossier KYC — Lyneci{% endblock %}
+{% block page_title %}Dossier KYC{% endblock %}
+{% block content %}
+<div class="max-w-6xl space-y-6">
+  <section class="card p-6 flex flex-wrap justify-between gap-4">
+    <div><h2 class="text-xl text-white font-semibold">{{ kyc.full_name|default:kyc.user.email }}</h2><p class="text-gray-500 mt-1">{{ kyc.user.email }} · {{ kyc.get_status_display }}</p></div>
+    <a href="{% url 'admin-kyc-list' %}" class="text-gray-300">Retour à la file</a>
+  </section>
+  <div class="grid lg:grid-cols-2 gap-6">
+    <section class="card p-6 space-y-3 text-sm">
+      <h3 class="text-white font-semibold mb-4">Identité déclarée</h3>
+      <p><span class="text-gray-500">Naissance :</span> <span class="text-white">{{ kyc.date_of_birth|date:"d/m/Y"|default:"—" }}</span></p>
+      <p><span class="text-gray-500">Nationalité :</span> <span class="text-white">{{ kyc.nationality|default:"—" }}</span></p>
+      <p><span class="text-gray-500">Téléphone :</span> <span class="text-white">{{ kyc.phone|default:"—" }}</span></p>
+      <p><span class="text-gray-500">Adresse :</span> <span class="text-white">{{ kyc.address|default:"—" }}</span></p>
+      <p><span class="text-gray-500">Pièce :</span> <span class="text-white">{{ kyc.get_id_document_type_display }} · {{ kyc.id_document_number }}</span></p>
+    </section>
+    <section class="card p-6">
+      <h3 class="text-white font-semibold mb-4">Documents confidentiels</h3>
+      <div class="grid sm:grid-cols-2 gap-3 text-sm">
+        {% if kyc.id_document_front %}<a class="p-3 rounded-lg bg-white/5 text-emerald-300" target="_blank" rel="noopener" href="{% url 'admin-kyc-document' kyc.pk 'id_document_front' %}">Recto de la pièce</a>{% endif %}
+        {% if kyc.id_document_back %}<a class="p-3 rounded-lg bg-white/5 text-emerald-300" target="_blank" rel="noopener" href="{% url 'admin-kyc-document' kyc.pk 'id_document_back' %}">Verso de la pièce</a>{% endif %}
+        {% if kyc.selfie_photo %}<a class="p-3 rounded-lg bg-white/5 text-emerald-300" target="_blank" rel="noopener" href="{% url 'admin-kyc-document' kyc.pk 'selfie_photo' %}">Photo de contrôle</a>{% endif %}
+        {% if kyc.proof_of_address %}<a class="p-3 rounded-lg bg-white/5 text-emerald-300" target="_blank" rel="noopener" href="{% url 'admin-kyc-document' kyc.pk 'proof_of_address' %}">Justificatif de domicile</a>{% endif %}
+      </div>
+    </section>
+  </div>
+  <div class="grid lg:grid-cols-2 gap-6">
+    <form method="post" action="{% url 'admin-kyc-approve' kyc.pk %}" class="card p-6 space-y-4">{% csrf_token %}<h3 class="text-emerald-300 font-semibold">Approuver</h3><textarea name="admin_note" rows="3" placeholder="Note interne" class="w-full rounded-lg bg-white/5 border border-white/10 p-3 text-white"></textarea><button class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">Valider le dossier</button></form>
+    <form method="post" action="{% url 'admin-kyc-reject' kyc.pk %}" class="card p-6 space-y-4">{% csrf_token %}<h3 class="text-red-300 font-semibold">Rejeter</h3><textarea name="rejection_reason" required rows="2" placeholder="Motif communiqué au client" class="w-full rounded-lg bg-white/5 border border-white/10 p-3 text-white"></textarea><textarea name="admin_note" rows="2" placeholder="Note interne" class="w-full rounded-lg bg-white/5 border border-white/10 p-3 text-white"></textarea><button class="px-4 py-2 rounded-lg bg-red-500/10 text-red-300 border border-red-400/20">Rejeter le dossier</button></form>
+  </div>
+</div>
+{% endblock %}

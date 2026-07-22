@@ -1,0 +1,7 @@
+{% extends "layout/base.html" %}
+{% block title %}Ordres — Lyneci{% endblock %}
+{% block page_title %}Mes ordres{% endblock %}
+{% block content %}
+<section class="card overflow-x-auto"><table class="w-full text-sm"><thead class="text-left text-xs mono uppercase text-gray-500"><tr><th class="p-4">Date</th><th>Marché</th><th>Sens</th><th>Mode</th><th>Quantité</th><th>Prix moyen</th><th>Statut</th><th></th></tr></thead><tbody>{% for order in orders %}<tr class="table-row"><td class="p-4">{{ order.created_at|date:"d/m/Y H:i" }}</td><td class="text-white mono">{{ order.symbol }}</td><td class="{% if order.side == 'BUY' %}text-emerald-300{% else %}text-red-300{% endif %}">{{ order.side }}</td><td>{{ order.mode }}</td><td class="mono">{{ order.approved_quantity }}</td><td class="mono">{{ order.average_fill_price }}</td><td>{{ order.get_status_display }}</td><td class="pr-4 text-right"><a class="text-emerald-300" href="{% url 'execution:order_detail' order.pk %}">Détails</a></td></tr>{% empty %}<tr><td colspan="8" class="p-8 text-center text-gray-500">Aucun ordre.</td></tr>{% endfor %}</tbody></table></section>
+{% include "partials/pagination.html" with page_obj=page_obj %}
+{% endblock %}

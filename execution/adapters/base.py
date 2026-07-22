@@ -17,7 +17,15 @@ class BaseBrokerAdapter(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def close_position(self, position, order):
+        raise NotImplementedError
+
+    @abstractmethod
     def fetch_open_orders(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def fetch_order(self, order):
         raise NotImplementedError
 
     @abstractmethod

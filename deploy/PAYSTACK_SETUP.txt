@@ -1,0 +1,28 @@
+Lyneci - Activation Paystack
+==============================
+
+Variables d'environnement de production :
+
+PAYMENT_DEFAULT_PROVIDER=PAYSTACK
+PAYSTACK_SECRET_KEY=sk_live_xxx
+PAYSTACK_PUBLIC_KEY=pk_live_xxx
+PAYSTACK_SUPPORTED_CURRENCIES=XOF
+PAYSTACK_TIMEOUT_SECONDS=10
+WALLET_DEFAULT_CURRENCY=XOF
+SITE_BASE_URL=https://lyneci.com
+
+Webhook à déclarer dans le dashboard Paystack :
+
+https://lyneci.com/wallet/webhooks/paystack/
+
+Déploiement :
+
+python manage.py migrate
+
+La clé secrète reste exclusivement côté serveur. Le wallet n'est crédité
+qu'après validation de la signature HMAC-SHA512, du montant, de la devise et de
+la référence Paystack.
+
+La devise d'un dépôt doit correspondre à celle du wallet. Pour un compte
+Paystack Côte d'Ivoire, utiliser XOF et migrer explicitement les anciens wallets
+vides encore configurés en USD avant leur premier dépôt.

@@ -1,0 +1,10 @@
+{% extends "layout/base.html" %}
+{% block title %}Retraits — Lyneci{% endblock %}
+{% block page_title %}File des retraits{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  <section class="card p-5"><form method="get" class="flex gap-3"><select name="status" class="rounded-lg bg-slate-900 border border-white/10 px-3 py-2 text-white"><option value="">Tous les statuts</option><option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>En attente</option><option value="UNDER_REVIEW" {% if status_filter == 'UNDER_REVIEW' %}selected{% endif %}>En revue</option><option value="APPROVED" {% if status_filter == 'APPROVED' %}selected{% endif %}>Approuvé</option><option value="PAID" {% if status_filter == 'PAID' %}selected{% endif %}>Payé</option></select><button class="px-4 py-2 rounded-lg bg-white/5 text-white">Filtrer</button></form></section>
+  <section class="card overflow-x-auto"><table class="w-full text-sm"><thead class="text-left text-xs mono uppercase text-gray-500"><tr><th class="p-4">Client</th><th>Montant</th><th>Destination</th><th>Statut</th><th>Date</th><th></th></tr></thead><tbody>{% for withdrawal in withdrawals %}<tr class="table-row"><td class="p-4 text-white">{{ withdrawal.wallet.user.email }}</td><td class="mono text-white">{{ withdrawal.amount }} {{ withdrawal.currency }}</td><td>{{ withdrawal.destination_masked|default:withdrawal.destination_type }}</td><td>{{ withdrawal.get_status_display }}</td><td>{{ withdrawal.created_at|date:"d/m/Y H:i" }}</td><td class="pr-4 text-right"><a class="text-emerald-300" href="{% url 'admin-withdrawal-detail' withdrawal.pk %}">Examiner</a></td></tr>{% empty %}<tr><td colspan="6" class="p-8 text-center text-gray-500">Aucune demande.</td></tr>{% endfor %}</tbody></table></section>
+  {% include "partials/pagination.html" with page_obj=page_obj %}
+</div>
+{% endblock %}

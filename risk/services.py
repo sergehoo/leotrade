@@ -520,6 +520,16 @@ class RiskGuardService:
     @transaction.atomic
     def trigger_kill_switch(cls, portfolio, risk_profile: RiskProfile, reason_code: str, reason: str,
                             payload: dict | None = None):
+        existing = (
+            KillSwitchEvent.objects
+            .select_for_update()
+            .filter(portfolio=portfolio, is_active=True)
+            .order_by("-triggered_at")
+            .first()
+        )
+        if existing is not None:
+            return existing
+
         event = KillSwitchEvent.objects.create(
             portfolio=portfolio,
             risk_profile=risk_profile,
@@ -1286,7 +1296,7 @@ class RiskGuardService:
                 )
             except Exception as _audit_exc:
                 import logging as _log
-                _log.getLogger("leotrade.risk.audit").error(
+                _log.getLogger("lyneci.risk.audit").error(
                     "risk_override_audit.hook_failed symbol=%s err=%s",
                     symbol, _audit_exc,
                 )

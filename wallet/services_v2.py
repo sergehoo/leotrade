@@ -26,7 +26,7 @@ from django.db.models import F
 from .models import Wallet, WalletLedgerEntry, WalletTransaction
 
 
-log = logging.getLogger("leotrade.wallet.ledger")
+log = logging.getLogger("lyneci.wallet.ledger")
 
 MONEY = Decimal("0.01")
 

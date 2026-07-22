@@ -2,7 +2,7 @@
 core/concurrency.py
 -------------------
 
-Outils de concurrence pour LeoTrade.
+Outils de concurrence pour Lyneci.
 
 Fournit :
 
@@ -127,14 +127,14 @@ class RedisLock:
     après expiration tardive (cas classique de double-release).
 
     Args:
-        name: nom logique du verrou (sera préfixé ``leotrade:lock:``).
+        name: nom logique du verrou (sera préfixé ``lyneci:lock:``).
         timeout: TTL du verrou en secondes (auto-release si crash).
         blocking: si True, attend ``blocking_timeout`` secondes max.
         blocking_timeout: temps max d'attente.
         sleep: temps entre tentatives quand blocking.
     """
 
-    PREFIX = "leotrade:lock:"
+    PREFIX = "lyneci:lock:"
 
     def __init__(
         self,

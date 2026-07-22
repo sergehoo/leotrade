@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import json
 from decimal import Decimal
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
 from django.utils import timezone
 
-from infrastructure.broker_clients import BrokerClientFactory
+from infrastructure.broker_clients.gateway import BrokerGateway
 from portfolio.services import PortfolioService
 from portfolio.broker_import import BrokerImportService
 from .models import BrokerSyncLog, Order
 from .services import FillProcessingService, ExecutionEventService, OrderLifecycleService
+from .notifications import TradingNotificationService
 from core.logging import get_logger, log_event
 logger = get_logger("execution")
 
@@ -21,9 +24,13 @@ def _d(value, default="0"):
         return Decimal(default)
 
 
+def _json_safe(value):
+    return json.loads(json.dumps(value, cls=DjangoJSONEncoder))
+
+
 class BrokerReconciliationService:
     """
-    Réconciliation broker -> LeoTrade
+    Réconciliation broker -> Lyneci
     - ordres ouverts / partiellement exécutés
     - fills manquants
     - positions broker
@@ -79,6 +86,7 @@ class BrokerReconciliationService:
         )
 
         updates = []
+        status_changed = False
         if remote.get("broker_order_id") and order.broker_order_id != str(remote.get("broker_order_id")):
             order.broker_order_id = str(remote.get("broker_order_id"))
             updates.append("broker_order_id")
@@ -88,6 +96,7 @@ class BrokerReconciliationService:
             updates.append("broker_client_order_id")
 
         if order.status != remote_status:
+            status_changed = True
             order.status = remote_status
             updates.append("status")
 
@@ -116,11 +125,56 @@ class BrokerReconciliationService:
             updates.append("updated_at")
             order.save(update_fields=updates)
 
+        if remote_status in {"CANCELLED", "REJECTED", "EXPIRED", "FAILED"}:
+            BrokerReconciliationService._release_terminal_cash(order, remote_status)
+            if status_changed:
+                OrderLifecycleService._sync_signal(order, remote_status)
+                if remote_status == "CANCELLED":
+                    TradingNotificationService.notify_order_cancelled(order)
+                else:
+                    TradingNotificationService.notify_error(
+                        user_id=order.user_id,
+                        message=(
+                            f"Ordre {order.symbol} terminé côté broker: "
+                            f"{remote_status}."
+                        ),
+                        payload={
+                            "order_id": order.id,
+                            "symbol": order.symbol,
+                            "status": remote_status,
+                        },
+                    )
+
         ExecutionEventService.log(
             order,
             "RECONCILIATION_UPDATE",
             f"Réconciliation ordre: {remote_status}",
             remote,
+        )
+
+    @staticmethod
+    def _release_terminal_cash(order: Order, remote_status: str) -> None:
+        is_reduce_only = bool(
+            order.closes_position_id
+            or (order.metadata or {}).get("reduce_only") is True
+        )
+        remaining_notional = max(
+            Decimal("0.00"),
+            _d(order.approved_notional) - _d(order.filled_notional),
+        )
+        if order.mode != "LIVE" or is_reduce_only or remaining_notional <= 0:
+            return
+
+        from portfolio.services import PortfolioAccountingService
+
+        PortfolioAccountingService.release_cash_from_order(
+            portfolio=order.portfolio,
+            amount=remaining_notional,
+            reference_type="ORDER",
+            reference_id=str(order.id),
+            metadata={
+                "reconciliation_terminal_status": remote_status,
+            },
         )
 
     @staticmethod
@@ -150,6 +204,31 @@ class BrokerReconciliationService:
         }
 
         for fill_payload in remote_fills:
+            if (fill_payload.get("metadata") or {}).get(
+                "reconciliation_cumulative"
+            ):
+                target_quantity = _d(fill_payload.get("quantity"))
+                delta_quantity = target_quantity - _d(order.filled_quantity)
+                if delta_quantity <= 0:
+                    continue
+                target_notional = _d(fill_payload.get("notional"))
+                delta_notional = max(
+                    Decimal("0.00"),
+                    target_notional - _d(order.filled_notional),
+                )
+                price = _d(fill_payload.get("price"))
+                if delta_notional <= 0 and price > 0:
+                    delta_notional = delta_quantity * price
+                fill_payload = {
+                    **fill_payload,
+                    "broker_fill_id": (
+                        f"cumulative:{order.broker_order_id or order.id}:"
+                        f"{target_quantity}"
+                    ),
+                    "quantity": delta_quantity,
+                    "notional": delta_notional,
+                }
+
             broker_fill_id = fill_payload.get("broker_fill_id")
             if broker_fill_id:
                 bid = str(broker_fill_id)
@@ -176,7 +255,6 @@ class BrokerReconciliationService:
         return created_count
 
     @staticmethod
-    @transaction.atomic
     def reconcile_orders(portfolio):
         broker_account = portfolio.broker_account
         sync_log = BrokerSyncLog.objects.create(
@@ -190,10 +268,12 @@ class BrokerReconciliationService:
         processed = 0
         fills_created = 0
         unmatched_remote_orders = []
+        unmatched_local_orders = []
         remote_snapshot = []
+        matched_local_order_ids = set()
 
         try:
-            client = BrokerClientFactory.build(broker_account)
+            client = BrokerGateway(broker_account)
             remote_open_orders = client.fetch_open_orders() or []
 
             for remote in remote_open_orders:
@@ -204,22 +284,66 @@ class BrokerReconciliationService:
                     unmatched_remote_orders.append(remote)
                     continue
 
+                if (
+                    BrokerReconciliationService._normalize_remote_status(
+                        remote.get("status")
+                    ) == "PARTIALLY_FILLED"
+                    and not (remote.get("fills") or [])
+                ):
+                    remote = client.fetch_order(local_order) or remote
+
                 BrokerReconciliationService._apply_remote_order_state(local_order, remote)
                 fills_created += BrokerReconciliationService._sync_remote_fills(local_order, remote)
+                matched_local_order_ids.add(local_order.id)
+                processed += 1
+
+            local_recovery_candidates = Order.objects.filter(
+                portfolio=portfolio,
+                status__in=[
+                    "SUBMITTING",
+                    "UNKNOWN_BROKER_STATE",
+                    "SUBMITTED",
+                    "PARTIALLY_FILLED",
+                ],
+            ).exclude(pk__in=matched_local_order_ids)
+
+            for local_order in local_recovery_candidates:
+                remote = client.fetch_order(local_order)
+                if not remote:
+                    unmatched_local_orders.append({
+                        "order_id": local_order.id,
+                        "status": local_order.status,
+                        "symbol": local_order.symbol,
+                        "broker_order_id": local_order.broker_order_id,
+                    })
+                    continue
+
+                remote_snapshot.append(remote)
+                BrokerReconciliationService._apply_remote_order_state(
+                    local_order,
+                    remote,
+                )
+                fills_created += BrokerReconciliationService._sync_remote_fills(
+                    local_order,
+                    remote,
+                )
+                matched_local_order_ids.add(local_order.id)
                 processed += 1
 
             sync_log.status = "SUCCESS"
             sync_log.processed_count = processed
             sync_log.error_count = 0
             sync_log.message = "Réconciliation ordres terminée."
-            sync_log.payload = {
+            sync_log.payload = _json_safe({
                 "remote_count": len(remote_open_orders),
                 "processed_local_matches": processed,
                 "fills_created": fills_created,
                 "unmatched_remote_orders_count": len(unmatched_remote_orders),
                 "unmatched_remote_orders": unmatched_remote_orders[:20],
+                "unmatched_local_orders_count": len(unmatched_local_orders),
+                "unmatched_local_orders": unmatched_local_orders[:20],
                 "remote_snapshot_sample": remote_snapshot[:20],
-            }
+            })
             sync_log.finished_at = timezone.now()
             sync_log.save(update_fields=[
                 "status",
@@ -236,11 +360,12 @@ class BrokerReconciliationService:
             sync_log.status = "FAILED"
             sync_log.error_count = 1
             sync_log.message = str(exc)
-            sync_log.payload = {
+            sync_log.payload = _json_safe({
                 "processed_local_matches": processed,
                 "fills_created": fills_created,
                 "unmatched_remote_orders_count": len(unmatched_remote_orders),
-            }
+                "unmatched_local_orders_count": len(unmatched_local_orders),
+            })
             sync_log.finished_at = timezone.now()
             sync_log.save(update_fields=[
                 "status",
@@ -253,7 +378,6 @@ class BrokerReconciliationService:
             raise
 
     @staticmethod
-    @transaction.atomic
     def reconcile_positions(portfolio):
         broker_account = portfolio.broker_account
         sync_log = BrokerSyncLog.objects.create(
@@ -301,7 +425,6 @@ class BrokerReconciliationService:
             raise
 
     @staticmethod
-    @transaction.atomic
     def reconcile_balance(portfolio):
         broker_account = portfolio.broker_account
         sync_log = BrokerSyncLog.objects.create(
@@ -313,7 +436,7 @@ class BrokerReconciliationService:
         )
 
         try:
-            client = BrokerClientFactory.build(broker_account)
+            client = BrokerGateway(broker_account)
             balances = client.fetch_balances() or []
 
             preferred_currency = broker_account.deriv_currency or portfolio.base_currency or "USD"

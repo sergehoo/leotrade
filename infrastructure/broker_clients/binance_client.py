@@ -157,6 +157,76 @@ class BinanceBrokerClient(BaseBrokerClient):
             })
         return payload
 
+    def fetch_order(self, order):
+        params = {"symbol": order.symbol}
+        if order.broker_order_id:
+            params["orderId"] = int(order.broker_order_id)
+        else:
+            params["origClientOrderId"] = _safe_client_order_id(
+                order.idempotency_key
+            )
+
+        try:
+            row = self.client.get_order(**params)
+        except Exception as exc:
+            if getattr(exc, "code", None) == -2013:
+                return None
+            raise
+
+        executed_quantity = _d(row.get("executedQty"))
+        fills = []
+        if executed_quantity > 0:
+            trades = self.client.get_my_trades(
+                symbol=order.symbol,
+                orderId=int(row.get("orderId")),
+            )
+            for trade in trades or []:
+                quantity = _d(trade.get("qty"))
+                price = _d(trade.get("price"))
+                fills.append({
+                    "broker_fill_id": str(trade.get("id")),
+                    "quantity": quantity,
+                    "price": price,
+                    "notional": _d(trade.get("quoteQty"))
+                    or (quantity * price).quantize(Decimal("0.01")),
+                    "fee": _d(trade.get("commission")),
+                    "fee_currency": trade.get("commissionAsset")
+                    or order.portfolio.base_currency,
+                    "fill_time": _ms_to_dt(trade.get("time")),
+                    "liquidity_type": "MAKER" if trade.get("isMaker") else "TAKER",
+                    "metadata": trade,
+                })
+
+            if not fills:
+                cumulative_quote = _d(row.get("cummulativeQuoteQty"))
+                average_price = (
+                    cumulative_quote / executed_quantity
+                    if executed_quantity > 0 and cumulative_quote > 0
+                    else _d(row.get("price"))
+                )
+                fills.append({
+                    "broker_fill_id": None,
+                    "quantity": executed_quantity,
+                    "price": average_price,
+                    "notional": cumulative_quote,
+                    "fee": Decimal("0"),
+                    "fee_currency": order.portfolio.base_currency,
+                    "fill_time": _ms_to_dt(row.get("updateTime") or row.get("time")),
+                    "metadata": {
+                        "reconciliation_cumulative": True,
+                        "broker_order_id": str(row.get("orderId")),
+                    },
+                })
+
+        return {
+            "broker_order_id": str(row.get("orderId")),
+            "broker_client_order_id": row.get("clientOrderId"),
+            "symbol": row.get("symbol"),
+            "status": str(row.get("status") or "").upper(),
+            "fills": fills,
+            "raw": row,
+        }
+
     def submit_order(self, order):
         constraint = self._fetch_local_constraint(order.symbol)
 
@@ -192,13 +262,10 @@ class BinanceBrokerClient(BaseBrokerClient):
                 f"Order type non supporté Binance: {order.order_type}"
             )
 
-        response = retry_call(
-            self.client.create_order,
-            attempts=3,
-            base_sleep=0.5,
-            max_sleep=4.0,
-            **params,
-        )
+        # A create-order call is not safely retryable: the broker may have
+        # accepted the order even when the response is lost. The stable
+        # newClientOrderId lets reconciliation recover that ambiguous state.
+        response = self.client.create_order(**params)
 
         fills = []
         for fill in response.get("fills", []):
@@ -253,18 +320,12 @@ class BinanceBrokerClient(BaseBrokerClient):
     def cancel_order(self, order):
         if not order.broker_order_id:
             # Use clientOrderId to cancel an order we never received broker_order_id for
-            response = retry_call(
-                self.client.cancel_order,
-                attempts=3,
-                base_sleep=0.5,
+            response = self.client.cancel_order(
                 symbol=order.symbol,
                 origClientOrderId=_safe_client_order_id(order.idempotency_key),
             )
         else:
-            response = retry_call(
-                self.client.cancel_order,
-                attempts=3,
-                base_sleep=0.5,
+            response = self.client.cancel_order(
                 symbol=order.symbol,
                 orderId=int(order.broker_order_id),
             )
@@ -274,6 +335,17 @@ class BinanceBrokerClient(BaseBrokerClient):
             "cancelled_at": _ms_to_dt(response.get("transactTime")),
             "raw": response,
         }
+
+    def close_position(self, position, order):
+        if position.side != "LONG" or order.side != "SELL":
+            raise NotImplementedError(
+                "Binance Spot ne peut réduire automatiquement qu'une position LONG via SELL."
+            )
+        if order.symbol != position.symbol:
+            raise ValueError("Binance close symbol does not match the target position.")
+        if order.approved_quantity > position.quantity:
+            raise ValueError("Binance close quantity exceeds the target position.")
+        return self.submit_order(order)
 
     def fetch_symbol_constraints(self, symbol: str):
         exchange_info = self.client.get_symbol_info(symbol)

@@ -13,7 +13,7 @@ from django.views.generic import DeleteView, UpdateView, CreateView, DetailView,
 from brokers.forms import BrokerAccountForm
 from brokers.models import BrokerAccount
 
-log = logging.getLogger("leotrade.brokers.views")
+log = logging.getLogger("lyneci.brokers.views")
 
 
 class BrokerAccountListView(LoginRequiredMixin, ListView):

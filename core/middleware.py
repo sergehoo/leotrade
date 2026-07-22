@@ -1,9 +1,37 @@
 from __future__ import annotations
 
+import hmac
 import uuid
+
+from django.conf import settings
+from django.http import JsonResponse
 from django.utils.deprecation import MiddlewareMixin
 
 from core.logging import set_request_context, clear_request_context
+
+
+class MetricsAccessMiddleware:
+    """Protège l'endpoint Prometheus avec un bearer token en production."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.path.rstrip("/") == "/metrics":
+            expected = getattr(settings, "METRICS_AUTH_TOKEN", "") or ""
+            if expected:
+                authorization = request.headers.get("Authorization", "")
+                scheme, _, received = authorization.partition(" ")
+                valid = scheme.lower() == "bearer" and hmac.compare_digest(
+                    received,
+                    expected,
+                )
+                if not valid:
+                    return JsonResponse({"detail": "Accès refusé."}, status=403)
+            elif not settings.DEBUG:
+                return JsonResponse({"detail": "Métriques indisponibles."}, status=503)
+        return self.get_response(request)
+
 
 class RequestIDMiddleware(MiddlewareMixin):
     HEADER_NAME = "HTTP_X_REQUEST_ID"

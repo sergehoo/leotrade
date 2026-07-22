@@ -7,7 +7,7 @@ from dashboard.services import DashboardPremiumService
 
 
 class AIPartialView(LoginRequiredMixin, View):
-    template_name = "dashboard/premium/partials/_ai_radar.html"
+    template_name = "dashboard/partials/_ai_radar.html"
 
     def get(self, request, *args, **kwargs):
         portfolio_id = request.GET.get("portfolio")

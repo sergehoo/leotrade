@@ -1,0 +1,6 @@
+{% extends "layout/base.html" %}
+{% block title %}Wallet client — Lyneci{% endblock %}
+{% block page_title %}Wallet client{% endblock %}
+{% block content %}
+<div class="space-y-6"><section class="card p-6 flex justify-between gap-4"><div><h2 class="text-xl text-white">{{ wallet.user.email }}</h2><p class="text-gray-500 mt-1">Disponible {{ wallet.available_balance }} · Bloqué {{ wallet.locked_balance }} {{ wallet.currency }}</p></div><a href="{% url 'admin-wallet-list' %}" class="text-gray-300">Retour</a></section><section class="card overflow-x-auto"><div class="p-5 text-white font-semibold">Dernières transactions</div><table class="w-full text-sm"><thead class="text-left text-xs mono uppercase text-gray-500"><tr><th class="p-4">Date</th><th>Type</th><th>Montant</th><th>Provider</th><th>Statut</th></tr></thead><tbody>{% for transaction in transactions %}<tr class="table-row"><td class="p-4">{{ transaction.created_at|date:"d/m/Y H:i" }}</td><td>{{ transaction.get_tx_type_display }}</td><td class="mono text-white">{{ transaction.amount }} {{ transaction.currency }}</td><td>{{ transaction.provider|default:"—" }}</td><td>{{ transaction.get_status_display }}</td></tr>{% empty %}<tr><td colspan="5" class="p-8 text-center text-gray-500">Aucune transaction.</td></tr>{% endfor %}</tbody></table></section></div>
+{% endblock %}

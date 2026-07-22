@@ -25,13 +25,20 @@ import time
 
 from django.core.cache import cache
 
+from core.retry import is_retryable_exception
 from infrastructure.broker_clients import BrokerClientFactory
 
-log = logging.getLogger("leotrade.brokers.gateway")
+log = logging.getLogger("lyneci.brokers.gateway")
 
 
 class CircuitOpenError(Exception):
     """Le circuit breaker du compte broker est ouvert — appel refusé."""
+
+
+class CircuitStateUnavailableError(RuntimeError):
+    """L'état Redis du circuit est indisponible avant une mutation broker."""
+
+    retryable = False
 
 
 class BrokerGateway:
@@ -41,10 +48,11 @@ class BrokerGateway:
         "fetch_balances",
         "fetch_positions",
         "fetch_open_orders",
+        "fetch_order",
         "fetch_symbol_constraints",
     })
     # Mutations → jamais de retry automatique (risque de duplication d'ordre)
-    MUTATING_METHODS = frozenset({"submit_order", "cancel_order"})
+    MUTATING_METHODS = frozenset({"submit_order", "cancel_order", "close_position"})
 
     MAX_RETRIES = 3
     BASE_BACKOFF_SECONDS = 0.5
@@ -55,7 +63,12 @@ class BrokerGateway:
 
     def __init__(self, broker_account, client=None):
         self.broker_account = broker_account
-        self._client = client or BrokerClientFactory.build(broker_account)
+        self._client = client
+
+    def _get_client(self):
+        if self._client is None:
+            self._client = BrokerClientFactory.build(self.broker_account)
+        return self._client
 
     # ------------------------------------------------------------------
     # Circuit breaker (état partagé entre workers via le cache Redis)
@@ -69,13 +82,21 @@ class BrokerGateway:
         return f"broker:cb:open:{self.broker_account.pk}"
 
     def circuit_state(self) -> str:
-        """CLOSED (normal) | OPEN (bloqué) | HALF_OPEN (réessai prudent)."""
-        if cache.get(self._open_key):
-            return "OPEN"
-        failures = cache.get(self._failures_key) or 0
-        if failures >= self.FAILURE_THRESHOLD:
-            return "HALF_OPEN"
-        return "CLOSED"
+        """CLOSED | OPEN | HALF_OPEN | UNAVAILABLE."""
+        try:
+            if cache.get(self._open_key):
+                return "OPEN"
+            failures = cache.get(self._failures_key) or 0
+            if failures >= self.FAILURE_THRESHOLD:
+                return "HALF_OPEN"
+            return "CLOSED"
+        except Exception as exc:
+            log.error(
+                "gateway.circuit_state_unavailable broker_account_id=%s error=%s",
+                self.broker_account.pk,
+                exc,
+            )
+            return "UNAVAILABLE"
 
     def _record_failure(self, method: str, exc: Exception) -> None:
         try:
@@ -122,8 +143,26 @@ class BrokerGateway:
         except Exception:
             pass
 
-    def _check_circuit(self) -> None:
-        if cache.get(self._open_key):
+    def _is_circuit_open(self, *, fail_closed: bool) -> bool:
+        try:
+            return bool(cache.get(self._open_key))
+        except Exception as exc:
+            log.error(
+                "gateway.circuit_cache_unavailable broker_account_id=%s "
+                "broker=%s fail_closed=%s error=%s",
+                self.broker_account.pk,
+                self.broker_account.broker,
+                fail_closed,
+                exc,
+            )
+            if fail_closed:
+                raise CircuitStateUnavailableError(
+                    "État du circuit broker indisponible; mutation refusée avant envoi."
+                ) from exc
+            return False
+
+    def _check_circuit(self, *, fail_closed: bool) -> None:
+        if self._is_circuit_open(fail_closed=fail_closed):
             raise CircuitOpenError(
                 f"Circuit breaker ouvert pour le compte broker "
                 f"#{self.broker_account.pk} ({self.broker_account.broker}) — "
@@ -141,9 +180,12 @@ class BrokerGateway:
         raise AttributeError(f"Méthode broker inconnue: {method}")
 
     def _call_once(self, method: str, *args, **kwargs):
-        self._check_circuit()
+        # Une mutation ne part jamais si l'état partagé du circuit est
+        # indisponible. L'exception est levée AVANT l'appel broker, ce qui
+        # permet à l'OMS de libérer le cash sans classer l'état comme ambigu.
+        self._check_circuit(fail_closed=True)
         try:
-            result = getattr(self._client, method)(*args, **kwargs)
+            result = getattr(self._get_client(), method)(*args, **kwargs)
         except Exception as exc:
             self._record_failure(method, exc)
             raise
@@ -151,15 +193,21 @@ class BrokerGateway:
         return result
 
     def _call_with_retry(self, method: str, *args, **kwargs):
-        self._check_circuit()
+        # Une lecture reste autorisée pendant une panne Redis : elle ne peut
+        # pas dupliquer un ordre et aide justement la réconciliation.
+        self._check_circuit(fail_closed=False)
         last_exc: Exception | None = None
         for attempt in range(1, self.MAX_RETRIES + 1):
             try:
-                result = getattr(self._client, method)(*args, **kwargs)
+                result = getattr(self._get_client(), method)(*args, **kwargs)
             except Exception as exc:
                 last_exc = exc
                 self._record_failure(method, exc)
-                if cache.get(self._open_key) or attempt == self.MAX_RETRIES:
+                if (
+                    not is_retryable_exception(exc)
+                    or self._is_circuit_open(fail_closed=False)
+                    or attempt == self.MAX_RETRIES
+                ):
                     break
                 time.sleep(self.BASE_BACKOFF_SECONDS * (2 ** (attempt - 1)))
                 continue
@@ -182,6 +230,9 @@ class BrokerGateway:
     def fetch_open_orders(self):
         return self.call("fetch_open_orders")
 
+    def fetch_order(self, order):
+        return self.call("fetch_order", order)
+
     def fetch_symbol_constraints(self, symbol: str):
         return self.call("fetch_symbol_constraints", symbol)
 
@@ -190,3 +241,6 @@ class BrokerGateway:
 
     def cancel_order(self, order):
         return self.call("cancel_order", order)
+
+    def close_position(self, position, order):
+        return self.call("close_position", position, order)

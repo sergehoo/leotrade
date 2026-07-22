@@ -1,0 +1,7 @@
+ORDER_EVENT = "execution.order.event.v1"
+ORDER_UPDATE = "execution.order.update.v1"
+DASHBOARD_UPDATE = "execution.dashboard.update.v1"
+PORTFOLIO_UPDATE = "execution.portfolio.update.v1"
+NOTIFICATION_UPDATE = "execution.notification.update.v1"
+ORDER_SUBMIT_REQUESTED = "execution.order.submit.requested.v1"
+PORTFOLIO_RECONCILE_REQUESTED = "execution.portfolio.reconcile.requested.v1"

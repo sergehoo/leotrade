@@ -9,13 +9,7 @@ from decimal import Decimal
 
 from django import forms
 
-from .models import Order, TradingIntent
-
-
-class OrderForm(forms.ModelForm):
-    class Meta:
-        model = Order
-        fields = "__all__"
+from .models import TradingIntent
 
 
 class TradingIntentForm(forms.ModelForm):

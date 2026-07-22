@@ -109,6 +109,7 @@ class WalletTransaction(models.Model):
         ("CANCELLED", "Cancelled"),
     ]
     PROVIDER_CHOICES = [
+        ("PAYSTACK", "Paystack"),
         ("STRIPE", "Stripe"),
         ("ADYEN", "Adyen"),
         ("MANUAL", "Manual"),

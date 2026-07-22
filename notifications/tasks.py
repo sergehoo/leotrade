@@ -17,7 +17,7 @@ from decimal import Decimal
 from celery import shared_task
 from django.utils import timezone
 
-log = logging.getLogger("leotrade.notifications.tasks")
+log = logging.getLogger("lyneci.notifications.tasks")
 
 MAX_DELIVERY_RETRIES = 3
 CLEANUP_READ_AFTER_DAYS = 60

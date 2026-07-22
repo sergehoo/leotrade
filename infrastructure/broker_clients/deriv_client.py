@@ -24,7 +24,7 @@ from infrastructure.broker_clients.dto import (
 )
 
 
-log = logging.getLogger("leotrade.deriv.client")
+log = logging.getLogger("lyneci.deriv.client")
 logger = logging.getLogger(__name__)
 
 def _d(value, default: str = "0") -> Decimal:
@@ -36,7 +36,7 @@ def _d(value, default: str = "0") -> Decimal:
         return Decimal(default)
 
 
-# Mapping côté LeoTrade ↔ Deriv pour les options binaires
+# Mapping côté Lyneci ↔ Deriv pour les options binaires
 SIDE_TO_CONTRACT_TYPE = {
     "BUY": "CALL",
     "SELL": "PUT",
@@ -197,7 +197,7 @@ class DerivBrokerClient(BaseBrokerClient):
                 "deriv.fetch_balances.failed broker_account_id=%s err=%s",
                 self.broker_account.id, exc,
             )
-            return []
+            raise
 
         payload = (resp or {}).get("balance") or {}
         total = _d(payload.get("balance"))
@@ -233,11 +233,14 @@ class DerivBrokerClient(BaseBrokerClient):
                             symbol=str(c.get("symbol") or "DERIV"),
                             side=side,
                             quantity=Decimal("1"),
-                            avg_price=buy_price,
+                            entry_price=buy_price,
                             current_price=_d(c.get("current_spot") or buy_price),
-                            notional=buy_price,
+                            average_entry_price=buy_price,
+                            leverage=Decimal("1"),
+                            margin_used=buy_price,
                             broker_position_id=str(contract_id),
-                            raw_payload=c,
+                            cost_basis_status="KNOWN" if buy_price > 0 else "UNKNOWN",
+                            metadata=c,
                         )
                     )
             finally:
@@ -247,13 +250,77 @@ class DerivBrokerClient(BaseBrokerClient):
                 "deriv.fetch_positions.failed broker_account_id=%s err=%s",
                 self.broker_account.id, exc,
             )
-            return []
+            raise
 
         return positions
 
     def fetch_open_orders(self):
         # Deriv : pas d'order book, les "ordres" actifs sont les contrats.
         return []
+
+    def fetch_order(self, order):
+        from brokers.models_external_ref import BrokerExternalRef
+
+        contract_id = order.broker_order_id
+        if not contract_id:
+            ref = BrokerExternalRef.objects.filter(
+                broker="DERIV",
+                broker_account=self.broker_account,
+                internal_kind="ORDER",
+                internal_id=str(order.id),
+                kind="CONTRACT",
+            ).first()
+            contract_id = ref.external_id if ref else None
+        if not contract_id:
+            return None
+
+        ws_client = self._open_authenticated_ws()
+        try:
+            response = ws_client.proposal_open_contract(contract_id=contract_id)
+        finally:
+            ws_client.close()
+
+        contract = (response or {}).get("proposal_open_contract") or {}
+        if not contract:
+            return None
+
+        buy_price = _d(contract.get("buy_price"))
+        transaction_ids = contract.get("transaction_ids") or {}
+        buy_transaction_id = transaction_ids.get("buy")
+        fill_id = str(buy_transaction_id or f"buy:{contract_id}")
+
+        BrokerExternalRef.upsert(
+            broker="DERIV",
+            broker_account=self.broker_account,
+            kind="CONTRACT",
+            external_id=str(contract_id),
+            internal_kind="ORDER",
+            internal_id=str(order.id),
+            last_status=str(contract.get("status") or "open"),
+            last_payload=contract,
+        )
+
+        return {
+            # L'achat du contrat est un fill terminal de l'ordre d'ouverture;
+            # le cycle de vie du contrat continue ensuite via BrokerExternalRef.
+            "broker_order_id": str(contract_id),
+            "broker_client_order_id": str(buy_transaction_id or ""),
+            "symbol": contract.get("underlying") or contract.get("symbol") or order.symbol,
+            "status": "FILLED",
+            "fills": [{
+                "broker_fill_id": fill_id,
+                "quantity": Decimal("1"),
+                "price": buy_price,
+                "notional": buy_price,
+                "fee": Decimal("0"),
+                "fee_currency": order.portfolio.base_currency,
+                "metadata": {
+                    "deriv_contract_id": str(contract_id),
+                    "recovered_by_reconciliation": True,
+                },
+            }],
+            "raw": contract,
+        }
 
     # ------------------------------------------------------------------
     # SUBMIT ORDER — envoi réel d'un ordre vers Deriv
@@ -424,6 +491,45 @@ class DerivBrokerClient(BaseBrokerClient):
             }
         finally:
             ws_client.close()
+
+    def close_position(self, position, order):
+        contract_id = position.broker_position_id or position.broker_order_id
+        if not contract_id:
+            raise ValueError(
+                "Deriv contract_id manquant; fermeture automatique refusée."
+            )
+        if order.approved_quantity > position.quantity:
+            raise ValueError("Deriv close quantity exceeds the target position.")
+
+        ws_client = self._open_authenticated_ws()
+        try:
+            response = ws_client._send({
+                "sell": int(contract_id),
+                "price": 0,
+            })
+        finally:
+            ws_client.close()
+
+        sold = (response or {}).get("sell") or {}
+        sold_for = _d(sold.get("sold_for"))
+        transaction_id = sold.get("transaction_id") or sold.get("reference_id")
+        quantity = _d(order.approved_quantity)
+        fill_price = sold_for / quantity if quantity > 0 else Decimal("0")
+        return {
+            "broker_order_id": str(contract_id),
+            "broker_client_order_id": str(transaction_id or ""),
+            "status": "FILLED",
+            "fills": [{
+                "broker_fill_id": str(transaction_id or f"sell:{contract_id}"),
+                "quantity": quantity,
+                "price": fill_price,
+                "notional": sold_for,
+                "fee": Decimal("0"),
+                "fee_currency": order.portfolio.base_currency,
+                "metadata": {"deriv_contract_id": str(contract_id), **sold},
+            }],
+            "raw": response,
+        }
 
     def cancel_order(self, order):
         """

@@ -94,6 +94,20 @@ def _is_http_retryable(exc: BaseException) -> bool:
     return False
 
 
+def is_retryable_exception(exc: BaseException) -> bool:
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        explicit = getattr(current, "retryable", None)
+        if explicit is not None:
+            return bool(explicit)
+        if isinstance(current, _default_transient_excs()) or _is_http_retryable(current):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
 def retry_call(
     fn: Callable,
     *args,

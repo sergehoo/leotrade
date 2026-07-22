@@ -27,7 +27,7 @@ from django.utils import timezone
 
 from .models import RiskAuditLog
 
-log = logging.getLogger("leotrade.risk.control")
+log = logging.getLogger("lyneci.risk.control")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -318,6 +318,7 @@ class EmergencyPositionService:
             user=position.portfolio.user,
             portfolio=position.portfolio,
             broker_account=broker,
+            closes_position=position,
             symbol=position.symbol,
             side=side,
             approved_quantity=qty,
@@ -326,7 +327,8 @@ class EmergencyPositionService:
             requested_price=price,
             asset=position.asset,
             source="AI_ASSISTED",
-            metadata={"closes_position_id": position.id,
+            metadata={"reduce_only": True,
+                      "closes_position_id": position.id,
                       "close_fraction": str(fraction),
                       "emergency_action": source_action},
         )
@@ -336,7 +338,6 @@ class EmergencyPositionService:
                 "quantity": str(qty)}
 
     @classmethod
-    @transaction.atomic
     def close_position(cls, *, user, portfolio, position_id: int, request=None) -> dict:
         position = cls._open_positions(portfolio).filter(pk=position_id).first()
         if position is None:
@@ -358,7 +359,6 @@ class EmergencyPositionService:
                 "results": [result]}
 
     @classmethod
-    @transaction.atomic
     def close_all_losing(cls, *, user, portfolio, request=None) -> dict:
         losing = [p for p in cls._open_positions(portfolio) if _d(p.unrealized_pnl) < 0]
         return cls._close_batch(
@@ -368,7 +368,6 @@ class EmergencyPositionService:
         )
 
     @classmethod
-    @transaction.atomic
     def close_all(cls, *, user, portfolio, request=None) -> dict:
         positions = list(cls._open_positions(portfolio))
         return cls._close_batch(

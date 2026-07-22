@@ -582,6 +582,7 @@ class AssetQuickTradeView(LoginRequiredMixin, View):
 
             # Stratégie synthétique liée à cet asset + broker
             strategy, _ = Strategy.objects.get_or_create(
+                owner=None,
                 slug=slugify(f"quick-trade-{asset.symbol}-{broker.broker}-{broker.mode}"),
                 defaults={
                     "name": f"Quick Trade {asset.symbol} ({broker.broker}/{broker.mode})",
@@ -602,12 +603,22 @@ class AssetQuickTradeView(LoginRequiredMixin, View):
 
             signal = Signal.objects.create(
                 strategy=strategy,
+                user=request.user,
                 candle_time=timezone.now(),
                 side=side,
                 confidence=0.99,
                 price=Decimal("0"),
                 status="APPROVED",
                 reason=f"Quick trade depuis fiche actif — {asset.symbol} {side}",
+            )
+
+            from strategies.services.deployment import StrategyDeploymentService
+
+            strategy_deployment = StrategyDeploymentService.activate(
+                strategy=strategy,
+                user=request.user,
+                portfolio=portfolio,
+                auto_execute=False,
             )
 
             # ── Exécution via ExecutionOrchestrator (chemin unifié) ──────
@@ -645,6 +656,7 @@ class AssetQuickTradeView(LoginRequiredMixin, View):
                 requested_price=Decimal("0"),
                 signal=signal,
                 trade_idea=None,
+                strategy_deployment=strategy_deployment,
                 asset=asset,
                 order_type="MARKET",
                 source="AI_ASSISTED",              # valeur dans SOURCE_CHOICES

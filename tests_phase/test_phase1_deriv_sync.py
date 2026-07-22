@@ -17,7 +17,7 @@ from brokers.services.deriv_sync import (
     on_open_contract_update,
 )
 from execution.models import ExecutionFill, Order
-from portfolio.models import CashLedgerEntry, Portfolio
+from portfolio.models import CashLedgerEntry, Portfolio, Position
 from portfolio.models_trade import Trade
 
 
@@ -116,4 +116,83 @@ def test_closed_contract_creates_fill_and_trade(setup):
     on_open_contract_update(broker_account_id=broker.id, payload=payload)
     assert ExecutionFill.objects.filter(
         order=order, broker_fill_id="tx_close_1",
+    ).count() == 1
+
+
+@pytest.mark.django_db
+def test_closed_contract_closes_opening_position_and_books_pnl(setup):
+    user, broker, portfolio = setup
+    order = Order.objects.create(
+        user=user,
+        portfolio=portfolio,
+        broker_account=broker,
+        symbol="R_100",
+        side="BUY",
+        order_type="MARKET",
+        requested_quantity=Decimal("1"),
+        approved_quantity=Decimal("1"),
+        approved_notional=Decimal("10.00"),
+        filled_quantity=Decimal("1"),
+        filled_notional=Decimal("10.00"),
+        average_fill_price=Decimal("10.00"),
+        broker_order_id="contract_position_1",
+        status="FILLED",
+        idempotency_key="deriv-position-close-1",
+        mode="LIVE",
+    )
+    position = Position.objects.create(
+        portfolio=portfolio,
+        broker_account=broker,
+        symbol="R_100",
+        side="LONG",
+        quantity=Decimal("1"),
+        entry_price=Decimal("10.00"),
+        average_entry_price=Decimal("10.00"),
+        current_price=Decimal("10.00"),
+        margin_used=Decimal("10.00"),
+        notional_value=Decimal("10.00"),
+        exposure_value=Decimal("10.00"),
+        broker_order_id=order.broker_order_id,
+        status="OPEN",
+        metadata={"origin_order_id": order.id},
+    )
+    BrokerExternalRef.upsert(
+        broker="DERIV",
+        broker_account=broker,
+        kind="CONTRACT",
+        external_id=order.broker_order_id,
+        internal_kind="ORDER",
+        internal_id=order.id,
+        last_status="open",
+    )
+
+    payload = {
+        "contract_id": order.broker_order_id,
+        "is_sold": 1,
+        "status": "won",
+        "buy_price": "10.00",
+        "sell_price": "12.50",
+        "profit": "2.50",
+        "currency": "USD",
+        "transaction_ids": {"sell": "tx_position_close_1"},
+    }
+    on_open_contract_update(broker_account_id=broker.id, payload=payload)
+
+    position.refresh_from_db()
+    trade = Trade.objects.get(opening_order=order)
+    assert position.status == "CLOSED"
+    assert position.quantity == Decimal("0")
+    assert trade.realized_pnl == Decimal("2.50")
+    assert trade.cash_returned == Decimal("12.50")
+    assert CashLedgerEntry.objects.filter(
+        portfolio=portfolio,
+        reference_type="TRADE",
+        reference_id=str(trade.id),
+        amount=Decimal("12.50"),
+    ).exists()
+
+    # Le règlement canonique est idempotent lui aussi.
+    on_open_contract_update(broker_account_id=broker.id, payload=payload)
+    assert ExecutionFill.objects.filter(
+        order=order, broker_fill_id="tx_position_close_1",
     ).count() == 1

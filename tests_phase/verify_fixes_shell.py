@@ -19,7 +19,7 @@ from decimal import Decimal
 from django.db import transaction
 
 print("\n" + "=" * 60)
-print("  VÉRIFICATION DES CORRECTIFS — LeoTrade")
+print("  VÉRIFICATION DES CORRECTIFS — Lyneci")
 print("=" * 60 + "\n")
 
 PASS = "  ✅ PASS"

@@ -1,0 +1,64 @@
+name: Production readiness
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FERNET_SECRET_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      SECRET_KEY: test-secret-key-not-for-production-lyneci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Validate Django and migrations
+        run: |
+          python manage.py check --settings=leoTrade.settings.test
+          python manage.py makemigrations --check --dry-run --settings=leoTrade.settings.test
+
+      - name: Validate production safeguards
+        env:
+          DJANGO_ENV: prod
+          DEBUG: "False"
+          SECRET_KEY: production-check-secret-key-abcdefghijklmnopqrstuvwxyz-0123456789
+          ALLOWED_HOSTS: trade.example.com
+          SITE_URL: https://trade.example.com
+          SITE_BASE_URL: https://trade.example.com
+          CSRF_TRUSTED_ORIGINS: https://trade.example.com
+          CORS_ALLOWED_ORIGINS: https://trade.example.com
+          EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+          EMAIL_HOST: smtp.example.com
+          REDIS_URL: redis://:ci-password@127.0.0.1:6379/1
+          CHANNELS_REDIS_URL: redis://:ci-password@127.0.0.1:6379/2
+          CELERY_BROKER_URL: redis://:ci-password@127.0.0.1:6379/0
+          CELERY_RESULT_BACKEND: redis://:ci-password@127.0.0.1:6379/0
+          METRICS_AUTH_TOKEN: ci-metrics-token
+          PAYSTACK_PUBLIC_KEY: pk_test_ci
+          PAYSTACK_SECRET_KEY: sk_test_ci
+          AI_PRIMARY_PROVIDER: HEURISTIC
+        run: python manage.py check --deploy --fail-level ERROR
+
+      - name: Run test suite
+        run: pytest tests_phase -q
+
+      - name: Validate Compose configuration
+        env:
+          APP_ENV_FILE: .env.prod.example
+        run: docker compose -f docker_compose.yml --env-file .env.prod.example config --quiet
+
+      - name: Build production image
+        run: docker build --tag lyneci:ci .

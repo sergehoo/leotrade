@@ -1,5 +1,5 @@
 """
-Chat persistant LeoAI — tests essentiels.
+Chat persistant Lyneci AI — tests essentiels.
 
 Couverture :
   1. Résolution de contexte : chaque objet métier a sa conversation

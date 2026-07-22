@@ -13,7 +13,7 @@ import logging
 
 from core.realtime import RealtimeBroadcastService
 
-log = logging.getLogger("leotrade.notifications.in_app")
+log = logging.getLogger("lyneci.notifications.in_app")
 
 
 class InAppNotificationService:

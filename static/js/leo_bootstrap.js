@@ -1,5 +1,5 @@
 /* =============================================================================
- * leo_bootstrap.js — initialisation globale LeoTrade côté front
+ * leo_bootstrap.js — initialisation globale Lyneci côté front
  * =============================================================================
  *
  * À charger APRÈS leo_websocket.js et leo_animations.js, AVANT les scripts

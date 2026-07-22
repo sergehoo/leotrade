@@ -5,7 +5,7 @@ from .models import Strategy
 class StrategyForm(forms.ModelForm):
     class Meta:
         model = Strategy
-        fields = "__all__"
+        exclude = ("owner",)
         widgets = {
             "description": forms.Textarea(attrs={"rows": 4}),
             "entry_rules": forms.Textarea(attrs={"rows": 5}),

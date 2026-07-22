@@ -95,13 +95,20 @@ class SignalEngineService:
         }
 
     @classmethod
-    def create_signal(cls, strategy: Strategy, prediction_payload: dict) -> Signal:
+    def create_signal(
+        cls,
+        strategy: Strategy,
+        prediction_payload: dict,
+        *,
+        user=None,
+    ) -> Signal:
         feature_obj = prediction_payload["feature_obj"]
         features = prediction_payload["features"]
         prediction = prediction_payload["prediction"]
 
         side = prediction["side"]
         confidence = prediction["confidence"]
+        signal_user = user or strategy.owner
 
         ok, reason = StrategyRiskGuard.can_emit_signal(strategy)
         if not ok:
@@ -111,7 +118,10 @@ class SignalEngineService:
         if not ok:
             raise ValueError(reason)
 
-        ok, reason = StrategyRiskGuard.daily_signal_limit_ok(strategy)
+        ok, reason = StrategyRiskGuard.daily_signal_limit_ok(
+            strategy,
+            user=signal_user,
+        )
         if not ok:
             raise ValueError(reason)
 
@@ -124,6 +134,7 @@ class SignalEngineService:
 
         signal = Signal.objects.create(
             strategy=strategy,
+            user=signal_user,
             candle_time=feature_obj.candle_time,
             side=side,
             confidence=confidence,
@@ -139,8 +150,12 @@ class SignalEngineService:
         return signal
 
     @classmethod
-    def evaluate_and_route(cls, strategy: Strategy) -> Signal:
+    def evaluate_and_route(cls, strategy: Strategy, *, deployment=None) -> Signal:
         payload = cls.predict_signal(strategy)
-        signal = cls.create_signal(strategy, payload)
-        StrategyExecutionRouter.route(signal)
+        signal = cls.create_signal(
+            strategy,
+            payload,
+            user=getattr(deployment, "user", None),
+        )
+        StrategyExecutionRouter.route(signal, deployment=deployment)
         return signal

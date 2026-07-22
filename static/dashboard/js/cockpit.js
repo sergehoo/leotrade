@@ -1,5 +1,5 @@
 /* =============================================================================
- * cockpit.js — Cockpit Premium LeoTrade
+ * cockpit.js — Cockpit Premium Lyneci
  *
  * v2 — Graphiques temps réel, animations, WebSocket multi-flux.
  *
@@ -15,7 +15,7 @@
 (function () {
   "use strict";
 
-  const cfg = window.LEOTRADE_COCKPIT;
+  const cfg = window.LYNECI_COCKPIT;
   if (!cfg) return;
   if (!window.LeoWS) {
     console.error("[cockpit] LeoWS manquant.");

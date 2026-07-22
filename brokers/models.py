@@ -11,7 +11,7 @@ User = get_user_model()
 
 # Audit des accès aux secrets : chaque décryptage est journalisé (qui/quoi/quand
 # via le contexte de requête structuré — jamais la valeur elle-même).
-secret_access_log = logging.getLogger("leotrade.brokers.secret_access")
+secret_access_log = logging.getLogger("lyneci.brokers.secret_access")
 
 
 class BrokerAccount(TimeStampedModel):

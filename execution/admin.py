@@ -2,7 +2,13 @@ from django.contrib import admin
 
 # Register your models here.
 from django.contrib import admin
-from .models import Order, ExecutionFill, ExecutionEvent, BrokerSyncLog
+from .models import (
+    BrokerSyncLog,
+    ExecutionEvent,
+    ExecutionFill,
+    Order,
+    PositionProtection,
+)
 
 
 class ExecutionFillInline(admin.TabularInline):
@@ -20,7 +26,7 @@ class ExecutionEventInline(admin.TabularInline):
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = (
-        "id", "user", "portfolio", "broker_account", "symbol",
+        "id", "user", "portfolio", "broker_account", "strategy_deployment", "symbol",
         "side", "order_type", "mode", "status",
         "approved_quantity", "filled_quantity", "broker_order_id",
         "submitted_at", "filled_at",
@@ -50,3 +56,27 @@ class BrokerSyncLogAdmin(admin.ModelAdmin):
     list_display = ("id", "broker_account", "portfolio", "sync_type", "status", "processed_count", "error_count", "started_at", "finished_at")
     list_filter = ("sync_type", "status", "broker_account__broker")
     search_fields = ("broker_account__name", "portfolio__name", "message")
+
+
+@admin.register(PositionProtection)
+class PositionProtectionAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "position",
+        "mode",
+        "status",
+        "stop_loss",
+        "take_profit",
+        "trailing_enabled",
+        "trigger_reason",
+        "last_evaluated_at",
+    )
+    list_filter = ("mode", "status", "trailing_enabled", "trigger_reason")
+    search_fields = ("position__symbol", "position__portfolio__name", "last_error")
+    readonly_fields = (
+        "triggered_at",
+        "completed_at",
+        "last_evaluated_at",
+        "created_at",
+        "updated_at",
+    )

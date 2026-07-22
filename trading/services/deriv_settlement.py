@@ -6,7 +6,7 @@ DerivSettlementService : règlement complet d'un contrat Deriv à sa clôture.
 
 FLUX APPLIQUÉ
 =============
-1. LeoTrade achète le contrat  → DerivContract(status=OPEN) créé,
+1. Lyneci achète le contrat  → DerivContract(status=OPEN) créé,
                                   Position ouverte,
                                   -buy_price débité du Portfolio (TRADE_EXECUTION)
 
@@ -24,7 +24,7 @@ FLUX APPLIQUÉ
 
 COMPTABILITÉ DE TRÉSORERIE
 ==========================
-Ouverture :  TRADE_EXECUTION  –buy_price    (fait par DerivExecutor)
+Ouverture :  TRADE_EXECUTION  –buy_price    (écriture OMS canonique)
 Clôture WON: TRADE_EXECUTION  +sell_price   (sell_price > buy_price → profit)
 Clôture LOST: rien            (sell_price=0, balance déjà correcte)
 Clôture SOLD: TRADE_EXECUTION +sell_price   (vente anticipée, peut être < buy_price)
@@ -57,7 +57,7 @@ from portfolio.services import PortfolioAccountingService, PortfolioService
 from trading.models import DerivContract
 
 
-log = logging.getLogger("leotrade.trading.settlement")
+log = logging.getLogger("lyneci.trading.settlement")
 
 
 def _d(value, default: str = "0") -> Decimal:
@@ -258,7 +258,7 @@ class DerivSettlementService:
         # --- 5. Écriture ledger : créditer le payout reçu ---------------
         #
         # COMPTABILITÉ :
-        #   Ouverture → TRADE_EXECUTION -buy_price   (fait par DerivExecutor)
+        #   Ouverture → TRADE_EXECUTION -buy_price   (écriture OMS canonique)
         #   Clôture WON/SOLD → TRADE_EXECUTION +sell_price
         #   Clôture LOST/EXPIRED → sell_price = 0, pas d'écriture
         #   Solde net = -buy_price + sell_price = profit  ✓

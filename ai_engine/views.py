@@ -28,7 +28,7 @@ from .integrations import advise_for_trade_idea
 from .models import AIDecisionLog
 
 
-log = logging.getLogger("leotrade.ai_engine.views")
+log = logging.getLogger("lyneci.ai_engine.views")
 
 
 # Cap par utilisateur — modifiable via settings.AI_RATE_LIMIT_PER_HOUR

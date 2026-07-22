@@ -348,7 +348,7 @@ def get_landing_market_data() -> list[dict]:
     try:
         from django.core.cache import cache as django_cache
 
-        cached = django_cache.get("leotrade:market:landing")
+        cached = django_cache.get("lyneci:market:landing")
         if cached is not None:
             return cached
     except Exception:
@@ -364,7 +364,7 @@ def get_landing_market_data() -> list[dict]:
 
     if django_cache is not None and data:
         try:
-            django_cache.set("leotrade:market:landing", data, timeout=60)
+            django_cache.set("lyneci:market:landing", data, timeout=60)
         except Exception:
             pass
 

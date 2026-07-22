@@ -1,4 +1,4 @@
-LEOTRADE{% if severity == "CRITICAL" %} — NOTIFICATION CRITIQUE{% elif severity == "WARNING" %} — ATTENTION{% endif %}
+LYNECI — INTELLIGENT TRADING{% if severity == "CRITICAL" %} — NOTIFICATION CRITIQUE{% elif severity == "WARNING" %} — ATTENTION{% endif %}
 
 {{ subject }}
 
@@ -7,5 +7,5 @@ LEOTRADE{% if severity == "CRITICAL" %} — NOTIFICATION CRITIQUE{% elif severit
 Centre de notifications : {{ site_url }}/notifications/
 {% endif %}
 --
-Vous recevez cet email car les notifications LeoTrade sont activées sur votre compte.
+Vous recevez cet email car les notifications Lyneci sont activées sur votre compte.
 Gérez vos préférences depuis votre centre de notifications.

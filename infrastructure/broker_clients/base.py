@@ -24,11 +24,20 @@ class BaseBrokerClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def fetch_order(self, order):
+        """Retourne l'état broker d'un ordre précis, ou ``None`` s'il est absent."""
+        raise NotImplementedError
+
+    @abstractmethod
     def submit_order(self, order):
         raise NotImplementedError
 
     @abstractmethod
     def cancel_order(self, order):
+        raise NotImplementedError
+
+    @abstractmethod
+    def close_position(self, position, order):
         raise NotImplementedError
 
     @abstractmethod

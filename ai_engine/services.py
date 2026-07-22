@@ -39,7 +39,7 @@ from .providers.base import AIDecision, MarketContext, ProviderUnavailable
 from .providers.heuristic import HeuristicProvider
 
 
-log = logging.getLogger("leotrade.ai_engine.advisor")
+log = logging.getLogger("lyneci.ai_engine.advisor")
 
 
 def _get_provider_instance(name: str):

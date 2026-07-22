@@ -1,4 +1,6 @@
+import mimetypes
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -7,7 +9,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
 from django.db import connection
 from django.db.utils import OperationalError, ProgrammingError
-from django.http import JsonResponse
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import redirect, get_object_or_404, render
 from django.utils import timezone
 from django.views import View
@@ -251,7 +253,7 @@ class HedgeFundDashboardView(LoginRequiredMixin, TemplateView):
         # Signaux filtrés sur les stratégies actives ; si un portfolio est
         # sélectionné, on affine par l'asset du portfolio (sinon plateforme).
         signals_qs = (
-            Signal.objects
+            Signal.objects.visible_to(self.request.user)
             .select_related("strategy", "strategy__asset")
             .filter(strategy__is_active=True)
             .order_by("-created_at")
@@ -272,7 +274,7 @@ class HedgeFundDashboardView(LoginRequiredMixin, TemplateView):
         backtests_qs = (
             BacktestRun.objects
             .select_related("strategy")
-            .filter(strategy__is_active=True)
+            .filter(strategy__is_active=True, requested_by=self.request.user)
             .order_by("-created_at")
         )
         if portfolio:
@@ -733,7 +735,7 @@ def trading_mode_toggle(request):
     import logging
     from brokers.models import BrokerAccount
 
-    log = logging.getLogger("leotrade.dashboard.mode_toggle")
+    log = logging.getLogger("lyneci.dashboard.mode_toggle")
 
     mode = (request.POST.get("mode") or "").strip().upper()
     if mode not in ("PAPER", "LIVE"):
@@ -892,6 +894,35 @@ def admin_kyc_detail(request, pk):
     return render(request, "dashboard/admin/kyc_detail.html", {
         "kyc": profile,
     })
+
+
+@staff_member_required
+def admin_kyc_document(request, pk, field_name):
+    allowed_fields = {
+        "id_document_front",
+        "id_document_back",
+        "selfie_photo",
+        "proof_of_address",
+    }
+    if field_name not in allowed_fields:
+        raise Http404("Document introuvable.")
+
+    profile = get_object_or_404(KYCProfile, pk=pk)
+    document = getattr(profile, field_name, None)
+    if not document:
+        raise Http404("Document introuvable.")
+
+    try:
+        file_handle = document.open("rb")
+    except (FileNotFoundError, OSError):
+        raise Http404("Document introuvable.")
+
+    filename = Path(document.name).name
+    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    response = FileResponse(file_handle, content_type=content_type, filename=filename)
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @staff_member_required

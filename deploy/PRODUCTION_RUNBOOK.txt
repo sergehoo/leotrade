@@ -1,0 +1,61 @@
+LYNECI — PROCÉDURE DE MISE EN PRODUCTION
+==========================================
+
+1. PRÉREQUIS
+-------------
+- Serveur Linux maintenu, Docker Engine + Compose v2, 4 CPU / 8 Go RAM minimum.
+- DNS de TRAEFIK_APP_HOST et TRAEFIK_FLOWER_HOST pointant vers le serveur.
+- Ports entrants 80/443 uniquement; SSH limité aux administrateurs.
+- Sauvegarde externe chiffrée du volume PostgreSQL et des fichiers KYC.
+
+2. CONFIGURATION
+----------------
+cp .env.prod.example .env.prod
+chmod 600 .env.prod
+
+Générer les secrets sans les réutiliser ailleurs :
+python -c 'import secrets; print(secrets.token_urlsafe(64))'     # SECRET_KEY
+python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+python -c 'import secrets; print(secrets.token_urlsafe(48))'     # tokens/mots de passe
+
+Configurer le webhook Paystack :
+https://lyneci.com/wallet/webhooks/paystack/
+
+3. DÉPLOIEMENT
+--------------
+./deploy/deploy.sh
+
+Le script vérifie la configuration, sauvegarde la base existante, construit
+l'image, attend PostgreSQL/Redis, exécute les contrôles Django et migrations,
+puis démarre l'application. FEATURE_TRADING_ENABLED doit rester à False.
+
+Créer le premier administrateur :
+docker compose -f docker_compose.yml --env-file .env.prod exec web python manage.py createsuperuser
+
+4. RECETTE AVANT TRADING LIVE
+-----------------------------
+- Vérifier inscription, validation email, MFA administrateur et récupération.
+- Tester un dépôt Paystack en environnement de test puis son webhook signé.
+- Valider KYC, retrait, paper trading, stop loss et synchronisation broker.
+- Vérifier /health/live/, /health/ready/, Sentry, métriques et alertes.
+- Laisser tourner le paper trading au moins 24 h avec réconciliation sans écart.
+- Activer FEATURE_TRADING_ENABLED=True seulement après cette recette et avec
+  des plafonds de risque faibles; redémarrer web, worker et beat.
+
+5. SAUVEGARDE ET RESTAURATION
+-----------------------------
+Sauvegarde manuelle : ./deploy/backup.sh
+
+Tester régulièrement la restauration sur une base isolée :
+docker compose -f docker_compose.yml --env-file .env.prod exec -T db createdb -U "$POSTGRES_USER" lyneci_restore
+cat backups/lyneci-YYYYMMDDTHHMMSSZ.dump | docker compose -f docker_compose.yml --env-file .env.prod exec -T db pg_restore -U "$POSTGRES_USER" -d lyneci_restore --clean --if-exists
+
+Les fichiers KYC du volume media_volume doivent être sauvegardés séparément,
+chiffrés, avec accès strictement limité et politique de rétention conforme.
+
+6. RETOUR ARRIÈRE
+-----------------
+- Désactiver immédiatement le trading via le kill switch applicatif.
+- Remettre APP_IMAGE sur l'image précédente et relancer les services.
+- Restaurer la base uniquement si la migration exige réellement un rollback;
+  conserver auparavant une copie de l'état incident pour investigation.

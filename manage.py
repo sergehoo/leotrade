@@ -6,7 +6,12 @@ import sys
 
 def main():
     """Run administrative tasks."""
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'leoTrade.settings')
+    default_settings = (
+        "leoTrade.settings.prod"
+        if os.environ.get("DJANGO_ENV") == "prod"
+        else "leoTrade.settings.dev"
+    )
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", default_settings)
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

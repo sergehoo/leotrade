@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Count, Avg, Q
 from django.http import JsonResponse
 from django.shortcuts import redirect
@@ -20,12 +21,16 @@ from django.views.generic import (
 
 from .models import (
     Strategy,
+    StrategyDeployment,
     Signal,
     StrategyRun,
     StrategyVersion,
     StrategyPrediction,
     StrategyPerformanceSnapshot,
 )
+from portfolio.models import Portfolio
+from .services.deployment import StrategyDeploymentError, StrategyDeploymentService
+from .services.signal_review import SignalReviewError, SignalReviewService
 
 
 class StrategyListView(LoginRequiredMixin, ListView):
@@ -35,7 +40,11 @@ class StrategyListView(LoginRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        qs = Strategy.objects.select_related("asset", "timeframe").order_by("name")
+        qs = (
+            Strategy.objects.visible_to(self.request.user)
+            .select_related("asset", "timeframe", "owner")
+            .order_by("name")
+        )
 
         status = self.request.GET.get("status")
         strategy_type = self.request.GET.get("strategy_type")
@@ -78,7 +87,9 @@ class StrategyDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "strategy"
 
     def get_queryset(self):
-        return Strategy.objects.select_related("asset", "timeframe")
+        return Strategy.objects.visible_to(self.request.user).select_related(
+            "asset", "timeframe", "owner"
+        )
 
     # ------------------------------------------------------------------ helpers
     @staticmethod
@@ -120,7 +131,10 @@ class StrategyDetailView(LoginRequiredMixin, DetailView):
         now = timezone.now()
 
         # ── Signaux ──────────────────────────────────────────────────────────
-        all_signals_agg = Signal.objects.filter(strategy=strategy).aggregate(
+        visible_signals = Signal.objects.visible_to(self.request.user).filter(
+            strategy=strategy
+        )
+        all_signals_agg = visible_signals.aggregate(
             total=Count("id"),
             avg_confidence=Avg("confidence"),
             executed=Count("id", filter=Q(status="EXECUTED")),
@@ -131,14 +145,14 @@ class StrategyDetailView(LoginRequiredMixin, DetailView):
             buy=Count("id", filter=Q(side="BUY")),
             sell=Count("id", filter=Q(side="SELL")),
         )
-        signals_24h = Signal.objects.filter(
-            strategy=strategy, created_at__gte=now - timedelta(hours=24)
+        signals_24h = visible_signals.filter(
+            created_at__gte=now - timedelta(hours=24)
         ).count()
-        signals_7d = Signal.objects.filter(
-            strategy=strategy, created_at__gte=now - timedelta(days=7)
+        signals_7d = visible_signals.filter(
+            created_at__gte=now - timedelta(days=7)
         ).count()
 
-        recent_signals = Signal.objects.filter(strategy=strategy).order_by("-created_at")[:30]
+        recent_signals = visible_signals.order_by("-created_at")[:30]
 
         # ── Runs ─────────────────────────────────────────────────────────────
         runs = StrategyRun.objects.filter(strategy=strategy).order_by("-run_started_at")[:30]
@@ -252,10 +266,10 @@ class StrategyDetailView(LoginRequiredMixin, DetailView):
         # ── Backtest le plus récent ───────────────────────────────────────────
         try:
             from leo_backtesting.models import BacktestRun
-            latest_backtest = (
-                BacktestRun.objects.filter(strategy=strategy)
-                .order_by("-created_at").first()
-            )
+            backtests = BacktestRun.objects.filter(strategy=strategy)
+            if not self.request.user.is_staff:
+                backtests = backtests.filter(requested_by=self.request.user)
+            latest_backtest = backtests.order_by("-created_at").first()
         except Exception:
             latest_backtest = None
 
@@ -290,6 +304,22 @@ class StrategyDetailView(LoginRequiredMixin, DetailView):
             # JSON pour les charts
             "perf_chart_json": perf_chart_json,
             "signal_breakdown_json": signal_breakdown_json,
+            "can_manage_strategy": Strategy.objects.mutable_by(self.request.user)
+            .filter(pk=strategy.pk)
+            .exists(),
+            "can_deploy_strategy": (
+                strategy.owner_id is None or strategy.owner_id == self.request.user.id
+            ),
+            "deployments": (
+                StrategyDeployment.objects.owned_by(self.request.user)
+                .filter(strategy=strategy)
+                .select_related("portfolio", "broker_account", "activated_by")
+            ),
+            "deployment_portfolios": (
+                Portfolio.objects.filter(user=self.request.user, is_active=True)
+                .select_related("broker_account")
+                .order_by("name")
+            ),
         })
         return context
 
@@ -301,7 +331,17 @@ class SignalListView(LoginRequiredMixin, ListView):
     paginate_by = 30
 
     def get_queryset(self):
-        qs = Signal.objects.select_related("strategy", "strategy__asset", "strategy__timeframe").order_by("-candle_time")
+        qs = (
+            Signal.objects.visible_to(self.request.user)
+            .select_related(
+                "user",
+                "strategy",
+                "strategy__owner",
+                "strategy__asset",
+                "strategy__timeframe",
+            )
+            .order_by("-candle_time")
+        )
 
         status = self.request.GET.get("status")
         side = self.request.GET.get("side")
@@ -318,7 +358,7 @@ class SignalListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["strategies"] = Strategy.objects.order_by("name")
+        ctx["strategies"] = Strategy.objects.visible_to(self.request.user).order_by("name")
         ctx["filters"] = {
             "status": self.request.GET.get("status", ""),
             "side": self.request.GET.get("side", ""),
@@ -333,12 +373,22 @@ class SignalDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "signal"
 
     def get_queryset(self):
-        return Signal.objects.select_related(
+        return Signal.objects.visible_to(self.request.user).select_related(
+            "user",
+            "reviewed_by",
             "strategy",
+            "strategy__owner",
             "strategy__asset",
             "strategy__timeframe",
             "strategy_run",
         )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["can_review_signal"] = Signal.objects.reviewable_by(
+            self.request.user
+        ).filter(pk=self.object.pk).exists()
+        return context
 
 
 class StrategyRunListView(LoginRequiredMixin, ListView):
@@ -348,7 +398,10 @@ class StrategyRunListView(LoginRequiredMixin, ListView):
     paginate_by = 30
 
     def get_queryset(self):
-        qs = StrategyRun.objects.select_related("strategy", "strategy__asset").order_by("-run_started_at")
+        visible_strategies = Strategy.objects.visible_to(self.request.user)
+        qs = StrategyRun.objects.filter(strategy__in=visible_strategies).select_related(
+            "strategy", "strategy__asset", "strategy__owner"
+        ).order_by("-run_started_at")
         strategy_id = self.request.GET.get("strategy")
         status = self.request.GET.get("status")
 
@@ -366,18 +419,30 @@ class StrategyRunDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "run"
 
     def get_queryset(self):
-        return StrategyRun.objects.select_related("strategy", "strategy__asset", "strategy__timeframe")
+        visible_strategies = Strategy.objects.visible_to(self.request.user)
+        return StrategyRun.objects.filter(strategy__in=visible_strategies).select_related(
+            "strategy", "strategy__asset", "strategy__timeframe", "strategy__owner"
+        )
 
 
 class StrategyToggleActiveView(LoginRequiredMixin, View):
+    @transaction.atomic
     def post(self, request, pk):
-        strategy = Strategy.objects.filter(pk=pk).first()
+        strategy = Strategy.objects.mutable_by(request.user).filter(pk=pk).first()
         if not strategy:
             messages.error(request, "Stratégie introuvable.")
             return redirect("strategy-list")
 
         strategy.is_active = not strategy.is_active
         strategy.save(update_fields=["is_active", "updated_at"])
+        if not strategy.is_active:
+            now = timezone.now()
+            strategy.deployments.filter(status="ACTIVE").update(
+                status="PAUSED",
+                auto_execute=False,
+                paused_at=now,
+                updated_at=now,
+            )
 
         messages.success(
             request,
@@ -387,14 +452,20 @@ class StrategyToggleActiveView(LoginRequiredMixin, View):
 
 
 class StrategyToggleAutonomousView(LoginRequiredMixin, View):
+    @transaction.atomic
     def post(self, request, pk):
-        strategy = Strategy.objects.filter(pk=pk).first()
+        strategy = Strategy.objects.mutable_by(request.user).filter(pk=pk).first()
         if not strategy:
             messages.error(request, "Stratégie introuvable.")
             return redirect("strategy-list")
 
         strategy.is_autonomous = not strategy.is_autonomous
         strategy.save(update_fields=["is_autonomous", "updated_at"])
+        if not strategy.is_autonomous:
+            strategy.deployments.filter(auto_execute=True).update(
+                auto_execute=False,
+                updated_at=timezone.now(),
+            )
 
         messages.success(
             request,
@@ -405,7 +476,7 @@ class StrategyToggleAutonomousView(LoginRequiredMixin, View):
 
 class StrategySwitchStatusView(LoginRequiredMixin, View):
     def post(self, request, pk):
-        strategy = Strategy.objects.filter(pk=pk).first()
+        strategy = Strategy.objects.mutable_by(request.user).filter(pk=pk).first()
         if not strategy:
             messages.error(request, "Stratégie introuvable.")
             return redirect("strategy-list")
@@ -417,22 +488,107 @@ class StrategySwitchStatusView(LoginRequiredMixin, View):
             messages.error(request, "Statut invalide.")
             return redirect("strategy-detail", pk=strategy.pk)
 
+        live_deployments = strategy.deployments.filter(
+            status="ACTIVE",
+            execution_mode="LIVE",
+        )
+        if strategy.owner_id:
+            live_deployments = live_deployments.filter(user=strategy.owner)
+
+        if new_status == "LIVE" and (
+            not strategy.is_active
+            or not strategy.allow_live_execution
+            or not live_deployments.exists()
+        ):
+            messages.error(
+                request,
+                "Le mode LIVE exige une stratégie active, l’autorisation Live et un déploiement Live actif.",
+            )
+            return redirect("strategy-detail", pk=strategy.pk)
+
         strategy.status = new_status
         strategy.save(update_fields=["status", "updated_at"])
+        expected_mode = "LIVE" if new_status == "LIVE" else "PAPER" if new_status == "PAPER" else None
+        incompatible_deployments = strategy.deployments.filter(status="ACTIVE")
+        if expected_mode:
+            incompatible_deployments = incompatible_deployments.exclude(
+                execution_mode=expected_mode
+            )
+        now = timezone.now()
+        incompatible_deployments.update(
+            status="PAUSED",
+            auto_execute=False,
+            paused_at=now,
+            updated_at=now,
+        )
         messages.success(request, f"Statut mis à jour : {new_status}.")
+        return redirect("strategy-detail", pk=strategy.pk)
+
+
+class StrategyDeploymentActivateView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        strategy = Strategy.objects.visible_to(request.user).filter(pk=pk).first()
+        if strategy is None or (strategy.owner_id and strategy.owner_id != request.user.id):
+            messages.error(request, "Stratégie introuvable ou non déployable.")
+            return redirect("strategy-list")
+
+        portfolio = Portfolio.objects.filter(
+            pk=request.POST.get("portfolio_id"),
+            user=request.user,
+            is_active=True,
+        ).select_related("broker_account").first()
+        if portfolio is None:
+            messages.error(request, "Portefeuille introuvable ou inactif.")
+            return redirect("strategy-detail", pk=strategy.pk)
+
+        try:
+            deployment = StrategyDeploymentService.activate(
+                strategy=strategy,
+                user=request.user,
+                portfolio=portfolio,
+                auto_execute=request.POST.get("auto_execute") == "on",
+            )
+        except StrategyDeploymentError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(
+                request,
+                f"Déploiement {deployment.execution_mode} activé sur {portfolio.name}.",
+            )
+        return redirect("strategy-detail", pk=strategy.pk)
+
+
+class StrategyDeploymentPauseView(LoginRequiredMixin, View):
+    def post(self, request, pk, deployment_id):
+        strategy = Strategy.objects.visible_to(request.user).filter(pk=pk).first()
+        if strategy is None:
+            messages.error(request, "Stratégie introuvable.")
+            return redirect("strategy-list")
+        if not StrategyDeployment.objects.owned_by(request.user).filter(
+            pk=deployment_id,
+            strategy=strategy,
+        ).exists():
+            messages.error(request, "Déploiement introuvable pour cette stratégie.")
+            return redirect("strategy-detail", pk=strategy.pk)
+        try:
+            StrategyDeploymentService.pause(
+                deployment_id=deployment_id,
+                user=request.user,
+            )
+        except StrategyDeploymentError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, "Déploiement mis en pause.")
         return redirect("strategy-detail", pk=strategy.pk)
 
 
 class SignalApproveView(LoginRequiredMixin, View):
     def post(self, request, pk):
-        signal = Signal.objects.select_related("strategy").filter(pk=pk).first()
-        if not signal:
-            messages.error(request, "Signal introuvable.")
+        try:
+            signal = SignalReviewService.approve(signal_id=pk, user=request.user)
+        except SignalReviewError as exc:
+            messages.error(request, str(exc))
             return redirect("signal-list")
-
-        signal.status = "APPROVED"
-        signal.approved_at = timezone.now()
-        signal.save(update_fields=["status", "approved_at", "updated_at"])
 
         messages.success(request, "Signal approuvé.")
         return redirect("signal-detail", pk=signal.pk)
@@ -440,13 +596,11 @@ class SignalApproveView(LoginRequiredMixin, View):
 
 class SignalRejectView(LoginRequiredMixin, View):
     def post(self, request, pk):
-        signal = Signal.objects.select_related("strategy").filter(pk=pk).first()
-        if not signal:
-            messages.error(request, "Signal introuvable.")
+        try:
+            signal = SignalReviewService.reject(signal_id=pk, user=request.user)
+        except SignalReviewError as exc:
+            messages.error(request, str(exc))
             return redirect("signal-list")
-
-        signal.status = "REJECTED"
-        signal.save(update_fields=["status", "updated_at"])
 
         messages.success(request, "Signal rejeté.")
         return redirect("signal-detail", pk=signal.pk)
@@ -457,14 +611,22 @@ def strategy_list_api(request):
     """Live JSON endpoint for strategies."""
     cutoff = timezone.now() - timedelta(hours=24)
 
-    strategies = Strategy.objects.annotate(
-        signal_count=Count("signals", distinct=True),
-        recent_signals=Count(
+    visible_signals = Signal.objects.visible_to(request.user)
+    strategies = Strategy.objects.visible_to(request.user).annotate(
+        signal_count=Count(
             "signals",
-            filter=Q(signals__created_at__gte=cutoff),
+            filter=Q(signals__in=visible_signals),
             distinct=True,
         ),
-    ).select_related("asset", "timeframe").order_by("-is_active", "name")
+        recent_signals=Count(
+            "signals",
+            filter=Q(
+                signals__in=visible_signals,
+                signals__created_at__gte=cutoff,
+            ),
+            distinct=True,
+        ),
+    ).select_related("asset", "timeframe", "owner").order_by("-is_active", "name")
 
     data = []
     for s in strategies:
@@ -480,6 +642,7 @@ def strategy_list_api(request):
             "signal_count": s.signal_count,
             "recent_signals": s.recent_signals,
             "last_signal_at": s.last_signal_at.strftime("%d/%m %H:%M") if s.last_signal_at else None,
+            "can_manage": request.user.is_staff or s.owner_id == request.user.id,
         })
 
     return JsonResponse({"strategies": data, "count": len(data)})

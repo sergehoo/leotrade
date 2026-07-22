@@ -12,7 +12,7 @@ NotificationService — point d'entrée unique du module.
 Garanties :
   - Ne lève JAMAIS vers l'appelant (un trade ne doit pas échouer à cause
     d'une notification) — tout est try/except + log.
-  - L'envoi effectif part en tâche Celery après commit de la transaction.
+  - L'envoi effectif passe par l'Outbox transactionnel puis Celery.
   - Anti-spam : rate limit par (user, event_type) via le cache Redis,
     les événements critiques en sont exemptés.
   - Chaque tentative par canal est journalisée (NotificationDeliveryLog).
@@ -26,6 +26,8 @@ from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
 
+from core.outbox import OutboxService
+from notifications.event_topics import NOTIFICATION_DISPATCH_REQUESTED
 from notifications.events import Channel, get_event
 from notifications.services.email import EmailNotificationService
 from notifications.services.in_app import InAppNotificationService
@@ -33,7 +35,7 @@ from notifications.services.preferences import NotificationPreferenceService
 from notifications.services.sms import SMSNotificationService
 from notifications.services.whatsapp import WhatsAppNotificationService
 
-log = logging.getLogger("leotrade.notifications")
+log = logging.getLogger("lyneci.notifications")
 
 CHANNEL_SERVICES = {
     Channel.EMAIL: EmailNotificationService,
@@ -106,25 +108,27 @@ class NotificationService:
             user, event_type, priority, requested=channels,
         )
 
-        notification = Notification.objects.create(
-            user=user,
-            title=(title or spec.label)[:200],
-            message=message or spec.label,
-            event_type=event_type,
-            severity=severity,
-            priority=priority,
-            channels_requested=resolved,
-            payload=payload or {},
-            status="SUPPRESSED" if (suppress_reason or not resolved) else "PENDING",
-        )
-
-        if notification.status == "PENDING":
-            from notifications.tasks import send_notification_task
-
-            # Après commit : la tâche Celery doit voir la ligne en base.
-            transaction.on_commit(
-                lambda: send_notification_task.delay(notification.id)
+        with transaction.atomic():
+            notification = Notification.objects.create(
+                user=user,
+                title=(title or spec.label)[:200],
+                message=message or spec.label,
+                event_type=event_type,
+                severity=severity,
+                priority=priority,
+                channels_requested=resolved,
+                payload=payload or {},
+                status="SUPPRESSED" if (suppress_reason or not resolved) else "PENDING",
             )
+
+            if notification.status == "PENDING":
+                OutboxService.enqueue(
+                    topic=NOTIFICATION_DISPATCH_REQUESTED,
+                    aggregate_type="notifications.Notification",
+                    aggregate_id=notification.id,
+                    payload={"notification_id": notification.id},
+                    idempotency_key=f"notification:{notification.id}:dispatch",
+                )
         return notification
 
     @staticmethod

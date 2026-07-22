@@ -1,0 +1,4 @@
+-r requirements.txt
+
+# Le SDK officiel MetaTrader 5 n'est distribué que pour Windows.
+MetaTrader5==5.0.45

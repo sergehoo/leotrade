@@ -22,7 +22,7 @@ from celery import shared_task
 from core.redis_lock import single_run
 
 
-log = logging.getLogger("leotrade.portfolio.tasks")
+log = logging.getLogger("lyneci.portfolio.tasks")
 
 
 def _to_decimal(v) -> Decimal | None:

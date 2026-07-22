@@ -1,5 +1,5 @@
 """
-Registre canonique des événements de notification LeoTrade.
+Registre canonique des événements de notification Lyneci.
 
 Chaque événement déclare : catégorie (pour les préférences utilisateur),
 sévérité et priorité par défaut, et s'il est critique (un événement critique

@@ -8,13 +8,16 @@ from django.dispatch import receiver
 from .models import Wallet, WalletTransaction
 
 User = get_user_model()
-log = logging.getLogger("leotrade.wallet.signals")
+log = logging.getLogger("lyneci.wallet.signals")
 
 
 @receiver(post_save, sender=User)
 def create_user_wallet(sender, instance, created, **kwargs):
     if created:
-        Wallet.objects.get_or_create(user=instance)
+        Wallet.objects.get_or_create(
+            user=instance,
+            defaults={"currency": settings.WALLET_DEFAULT_CURRENCY},
+        )
 
 
 @receiver(post_save, sender=WalletTransaction)

@@ -24,9 +24,12 @@ class StrategyRiskGuard:
         return True, ""
 
     @staticmethod
-    def daily_signal_limit_ok(strategy: Strategy) -> tuple[bool, str]:
+    def daily_signal_limit_ok(strategy: Strategy, *, user=None) -> tuple[bool, str]:
         today = timezone.now().date()
-        count = strategy.signals.filter(created_at__date=today).count()
+        signals = strategy.signals.filter(created_at__date=today)
+        if user is not None:
+            signals = signals.filter(user=user)
+        count = signals.count()
         if strategy.max_signals_per_day and count >= strategy.max_signals_per_day:
             return False, "Limite quotidienne de signaux atteinte."
         return True, ""

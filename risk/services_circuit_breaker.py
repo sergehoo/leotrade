@@ -19,7 +19,7 @@ from django.utils import timezone
 
 from .models import StrategyCircuitBreakerEvent
 
-log = logging.getLogger("leotrade.risk.circuit_breaker")
+log = logging.getLogger("lyneci.risk.circuit_breaker")
 
 
 class StrategyCircuitBreakerService:

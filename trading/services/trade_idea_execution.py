@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 #         """
 #         Sizing pour les contrats Deriv (options binaires / multipliers).
 #
-#         Convention LeoTrade pour Deriv :
+#         Convention Lyneci pour Deriv :
 #           - 1 contrat = 1 unité de position
 #           - le ``stake_amount`` est à la fois la mise et le notional
 #           - la quantité doit donc rester à 1 (et NON pas égale au stake)
@@ -869,6 +869,13 @@ class TradeIdeaExecutionService:
                         raise ValueError(f"Exécution bloquée: {reason}")
 
                 signal = idea.signal
+                if signal.status not in {"APPROVED", "QUEUED"}:
+                    from strategies.services.signal_review import SignalReviewService
+
+                    signal = SignalReviewService.approve(
+                        signal_id=signal.id,
+                        user=idea.user,
+                    )
                 side = "BUY" if idea.direction in ["BUY", "CALL"] else "SELL"
                 risk_profile = RiskGuardService.get_default_profile(portfolio)
 

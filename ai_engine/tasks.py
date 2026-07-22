@@ -17,7 +17,7 @@ from celery import shared_task
 from core.redis_lock import single_run
 
 
-log = logging.getLogger("leotrade.ai_engine.tasks")
+log = logging.getLogger("lyneci.ai_engine.tasks")
 
 
 @shared_task(name="ai_engine.tasks.advise_open_trade_ideas_task", bind=True)

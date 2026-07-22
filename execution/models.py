@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from decimal import Decimal
 from django.conf import settings
 from django.utils import timezone
@@ -28,6 +29,8 @@ class Order(TimeStampedModel):
     STATUS_CHOICES = [
         ("PENDING_APPROVAL", "Pending Approval"),
         ("PENDING_SUBMIT", "Pending Submit"),
+        ("SUBMITTING", "Submitting"),
+        ("UNKNOWN_BROKER_STATE", "Unknown Broker State"),
         ("SUBMITTED", "Submitted"),
         ("PARTIALLY_FILLED", "Partially Filled"),
         ("FILLED", "Filled"),
@@ -59,6 +62,13 @@ class Order(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="execution_orders",
     )
+    closes_position = models.ForeignKey(
+        "portfolio.Position",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="closing_orders",
+    )
     broker_account = models.ForeignKey(
         "brokers.BrokerAccount",
         on_delete=models.CASCADE,
@@ -70,6 +80,13 @@ class Order(TimeStampedModel):
         null=True,
         blank=True,
         related_name="execution_orders",
+    )
+    strategy_deployment = models.ForeignKey(
+        "strategies.StrategyDeployment",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="orders",
     )
     trade_idea = models.ForeignKey(
         "trading.TradeIdea",
@@ -136,6 +153,22 @@ class Order(TimeStampedModel):
             models.Index(fields=["symbol", "status"]),
             models.Index(fields=["mode", "status"]),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["closes_position"],
+                condition=(
+                    Q(closes_position__isnull=False)
+                    & Q(status__in=[
+                        "PENDING_SUBMIT",
+                        "SUBMITTING",
+                        "UNKNOWN_BROKER_STATE",
+                        "SUBMITTED",
+                        "PARTIALLY_FILLED",
+                    ])
+                ),
+                name="uniq_active_close_order_position",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.symbol} {self.side} {self.approved_quantity} [{self.status}]"
@@ -146,7 +179,13 @@ class Order(TimeStampedModel):
 
     @property
     def is_open(self):
-        return self.status in {"PENDING_SUBMIT", "SUBMITTED", "PARTIALLY_FILLED"}
+        return self.status in {
+            "PENDING_SUBMIT",
+            "SUBMITTING",
+            "UNKNOWN_BROKER_STATE",
+            "SUBMITTED",
+            "PARTIALLY_FILLED",
+        }
 
 
 class ExecutionFill(TimeStampedModel):
@@ -171,6 +210,13 @@ class ExecutionFill(TimeStampedModel):
             models.Index(fields=["order", "fill_time"]),
             models.Index(fields=["broker_fill_id"]),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["order", "broker_fill_id"],
+                condition=Q(broker_fill_id__isnull=False) & ~Q(broker_fill_id=""),
+                name="uniq_order_broker_fill_id",
+            ),
+        ]
 
     def __str__(self):
         return f"Fill {self.order_id} - {self.quantity}@{self.price}"
@@ -187,6 +233,7 @@ class ExecutionEvent(TimeStampedModel):
         ("ORDER_CANCELLED", "Order Cancelled"),
         ("ORDER_REJECTED", "Order Rejected"),
         ("ORDER_FAILED", "Order Failed"),
+        ("ORDER_STATE_UNKNOWN", "Order State Unknown"),
         ("RECONCILIATION_UPDATE", "Reconciliation Update"),
     ]
 
@@ -246,6 +293,82 @@ class BrokerSyncLog(TimeStampedModel):
 
     class Meta:
         ordering = ["-started_at"]
+
+
+class PositionProtection(TimeStampedModel):
+    MODE_CHOICES = [
+        ("LOCAL_MONITORED", "Local monitored"),
+        ("NATIVE_BROKER", "Native broker"),
+        ("UNSUPPORTED", "Unsupported"),
+    ]
+
+    STATUS_CHOICES = [
+        ("ACTIVE", "Active"),
+        ("EXECUTING", "Executing"),
+        ("COMPLETED", "Completed"),
+        ("FAILED", "Failed"),
+        ("DISABLED", "Disabled"),
+    ]
+
+    position = models.OneToOneField(
+        "portfolio.Position",
+        on_delete=models.CASCADE,
+        related_name="protection",
+    )
+    close_order = models.OneToOneField(
+        Order,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="position_protection",
+    )
+    mode = models.CharField(max_length=30, choices=MODE_CHOICES, db_index=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="ACTIVE",
+        db_index=True,
+    )
+
+    stop_loss = models.DecimalField(max_digits=24, decimal_places=8, null=True, blank=True)
+    take_profit = models.DecimalField(max_digits=24, decimal_places=8, null=True, blank=True)
+    trailing_enabled = models.BooleanField(default=False)
+    trail_percent = models.DecimalField(
+        max_digits=8,
+        decimal_places=6,
+        default=Decimal("0.015000"),
+    )
+    atr = models.DecimalField(max_digits=24, decimal_places=8, null=True, blank=True)
+    atr_multiplier = models.DecimalField(
+        max_digits=8,
+        decimal_places=4,
+        default=Decimal("2.0000"),
+    )
+    break_even_after_r = models.DecimalField(
+        max_digits=8,
+        decimal_places=4,
+        default=Decimal("1.0000"),
+    )
+
+    high_watermark = models.DecimalField(max_digits=24, decimal_places=8, null=True, blank=True)
+    low_watermark = models.DecimalField(max_digits=24, decimal_places=8, null=True, blank=True)
+    last_price = models.DecimalField(max_digits=24, decimal_places=8, null=True, blank=True)
+    last_evaluated_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    triggered_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    trigger_reason = models.CharField(max_length=40, blank=True)
+    last_error = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["mode", "status"]),
+            models.Index(fields=["status", "last_evaluated_at"]),
+        ]
+
+    def __str__(self):
+        return f"Protection position {self.position_id} [{self.mode}/{self.status}]"
 
 
 from .models_idempotency import IdempotencyKey

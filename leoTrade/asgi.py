@@ -1,6 +1,11 @@
 import os
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "leoTrade.settings")
+default_settings = (
+    "leoTrade.settings.prod"
+    if os.environ.get("DJANGO_ENV") == "prod"
+    else "leoTrade.settings.dev"
+)
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", default_settings)
 
 from django.core.asgi import get_asgi_application
 django_asgi_app = get_asgi_application()

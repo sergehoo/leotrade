@@ -1,5 +1,5 @@
 """
-Technical feature engineering for LeoTrade AI scoring.
+Technical feature engineering for Lyneci AI scoring.
 
 The legacy ``MarketScannerService._extract_features`` produced fake
 indicators (``rsi_14 = 60 if close >= prev_close else 40``). This module

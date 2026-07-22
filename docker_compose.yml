@@ -1,12 +1,40 @@
-version: "3.9"
+x-app-image: &app-image
+  image: ${APP_IMAGE:-lyneci:local}
+  build:
+    context: .
+    dockerfile: Dockerfile
+
+x-app-environment: &app-environment
+  DJANGO_ENV: prod
+  POSTGRES_HOST: db
+  POSTGRES_PORT: "5432"
+  REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD manquant}@redis:6379/1
+  CHANNELS_REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD manquant}@redis:6379/2
+  CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD manquant}@redis:6379/0
+  CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD manquant}@redis:6379/0
+
+x-app-defaults: &app-defaults
+  <<: *app-image
+  env_file:
+    - ${APP_ENV_FILE:-.env.prod}
+  environment: *app-environment
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  networks:
+    - internal
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "5"
 
 services:
   traefik:
     image: traefik:v3.1
     restart: unless-stopped
     command:
-      - --api.dashboard=true
-      - --api.insecure=false
+      - --api.dashboard=false
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
@@ -15,7 +43,7 @@ services:
       - --accesslog=true
       - --log.level=INFO
       - --certificatesresolvers.le.acme.tlschallenge=true
-      - --certificatesresolvers.le.acme.email=${TRAEFIK_ACME_EMAIL}
+      - --certificatesresolvers.le.acme.email=${TRAEFIK_ACME_EMAIL:?TRAEFIK_ACME_EMAIL manquant}
       - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
     ports:
       - "80:80"
@@ -25,63 +53,87 @@ services:
       - traefik_letsencrypt:/letsencrypt
     networks:
       - proxy
-      - internal
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
 
   db:
     image: postgres:16
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB manquant}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER manquant}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
 
   redis:
     image: redis:7
     restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD manquant}
+    command: >-
+      sh -c 'exec redis-server --appendonly yes --appendfsync everysec
+      --requirepass "$$REDIS_PASSWORD"'
     volumes:
       - redis_data:/data
     networks:
       - internal
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
 
-  web:
-    build: .
-    restart: unless-stopped
-    command: >
-      gunicorn leoTrade.asgi:application
-      -k uvicorn.workers.UvicornWorker
-      -b 0.0.0.0:8000
-      --workers 2
-      --timeout 120
-      --access-logfile -
-      --error-logfile -
-    env_file:
-      - .env.prod
+  release:
+    <<: *app-defaults
+    restart: "no"
+    command: >-
+      sh -c 'python manage.py check --deploy --fail-level ERROR &&
+      python manage.py migrate --noinput &&
+      python manage.py configure_site_identity'
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  web:
+    <<: *app-defaults
+    restart: unless-stopped
+    command: >-
+      uvicorn leoTrade.asgi:application --host 0.0.0.0 --port 8000
+      --workers ${WEB_CONCURRENCY:-2} --proxy-headers --forwarded-allow-ips=*
+    depends_on:
+      release:
+        condition: service_completed_successfully
     volumes:
-      - static_volume:/app/staticfiles
       - media_volume:/app/media
     networks:
       - proxy
@@ -90,94 +142,95 @@ services:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health/ready/ || exit 1"]
       interval: 15s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 45s
+    stop_grace_period: 45s
     labels:
       - traefik.enable=true
-
-      # Router HTTP -> HTTPS
-      - traefik.http.routers.leotrade-web-http.rule=Host(`${TRAEFIK_APP_HOST}`)
-      - traefik.http.routers.leotrade-web-http.entrypoints=web
-      - traefik.http.routers.leotrade-web-http.middlewares=leotrade-https-redirect
-
-      - traefik.http.middlewares.leotrade-https-redirect.redirectscheme.scheme=https
-      - traefik.http.middlewares.leotrade-https-redirect.redirectscheme.permanent=true
-
-      # Router HTTPS
-      - traefik.http.routers.leotrade-web.rule=Host(`${TRAEFIK_APP_HOST}`)
-      - traefik.http.routers.leotrade-web.entrypoints=websecure
-      - traefik.http.routers.leotrade-web.tls=true
-      - traefik.http.routers.leotrade-web.tls.certresolver=le
-      - traefik.http.routers.leotrade-web.service=leotrade-web-svc
-
-      # Service
-      - traefik.http.services.leotrade-web-svc.loadbalancer.server.port=8000
-
-      # Security headers
-      - traefik.http.middlewares.leotrade-security.headers.stsSeconds=31536000
-      - traefik.http.middlewares.leotrade-security.headers.stsIncludeSubdomains=true
-      - traefik.http.middlewares.leotrade-security.headers.stsPreload=true
-      - traefik.http.middlewares.leotrade-security.headers.browserXssFilter=true
-      - traefik.http.middlewares.leotrade-security.headers.contentTypeNosniff=true
-      - traefik.http.middlewares.leotrade-security.headers.frameDeny=true
-      - traefik.http.middlewares.leotrade-security.headers.referrerPolicy=strict-origin-when-cross-origin
-      - traefik.http.routers.leotrade-web.middlewares=leotrade-security
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME:-lyneci}_proxy
+      - traefik.http.routers.lyneci-web-http.rule=Host(`${TRAEFIK_APP_HOST:?TRAEFIK_APP_HOST manquant}`)
+      - traefik.http.routers.lyneci-web-http.entrypoints=web
+      - traefik.http.routers.lyneci-web-http.middlewares=lyneci-https-redirect
+      - traefik.http.middlewares.lyneci-https-redirect.redirectscheme.scheme=https
+      - traefik.http.middlewares.lyneci-https-redirect.redirectscheme.permanent=true
+      - traefik.http.routers.lyneci-web.rule=Host(`${TRAEFIK_APP_HOST:?TRAEFIK_APP_HOST manquant}`)
+      - traefik.http.routers.lyneci-web.entrypoints=websecure
+      - traefik.http.routers.lyneci-web.tls=true
+      - traefik.http.routers.lyneci-web.tls.certresolver=le
+      - traefik.http.routers.lyneci-web.service=lyneci-web-svc
+      - traefik.http.services.lyneci-web-svc.loadbalancer.server.port=8000
+      - traefik.http.middlewares.lyneci-security.headers.stsSeconds=31536000
+      - traefik.http.middlewares.lyneci-security.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.lyneci-security.headers.stsPreload=true
+      - traefik.http.middlewares.lyneci-security.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.lyneci-security.headers.frameDeny=true
+      - traefik.http.middlewares.lyneci-security.headers.referrerPolicy=strict-origin-when-cross-origin
+      - traefik.http.middlewares.lyneci-compress.compress=true
+      - traefik.http.routers.lyneci-web.middlewares=lyneci-security,lyneci-compress
 
   worker:
-    build: .
+    <<: *app-defaults
     restart: unless-stopped
-    command: celery -A leoTrade worker -l info
-    env_file:
-      - .env.prod
+    command: >-
+      celery -A leoTrade worker -l info --hostname=worker@%h --events
+      --concurrency=${CELERY_WORKER_CONCURRENCY:-2}
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - internal
+      release:
+        condition: service_completed_successfully
+    volumes:
+      - media_volume:/app/media
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A leoTrade inspect ping -d worker@$$HOSTNAME --timeout=5 | grep -q pong"]
+      interval: 20s
+      timeout: 10s
+      retries: 8
+      start_period: 45s
+    stop_grace_period: 90s
 
   beat:
-    build: .
+    <<: *app-defaults
     restart: unless-stopped
-    command: celery -A leoTrade beat -l info
-    env_file:
-      - .env.prod
+    command: >-
+      celery -A leoTrade beat -l info --pidfile=/tmp/celerybeat.pid
+      --schedule=/tmp/celerybeat-schedule
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - internal
+      release:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /tmp/celerybeat.pid && kill -0 $$(cat /tmp/celerybeat.pid)"]
+      interval: 20s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+    stop_grace_period: 45s
 
   flower:
-    build: .
+    <<: *app-defaults
     restart: unless-stopped
-    command: celery -A leoTrade flower --port=5555
-    env_file:
-      - .env.prod
+    command: >-
+      sh -c 'test -n "$$FLOWER_BASIC_AUTH" &&
+      celery -A leoTrade flower --port=5555 --basic-auth="$$FLOWER_BASIC_AUTH"'
     depends_on:
-      redis:
+      worker:
         condition: service_healthy
     networks:
       - proxy
       - internal
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5555/healthcheck >/dev/null"]
+      interval: 20s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
     labels:
       - traefik.enable=true
-
-      - traefik.http.routers.leotrade-flower-http.rule=Host(`${TRAEFIK_FLOWER_HOST}`)
-      - traefik.http.routers.leotrade-flower-http.entrypoints=web
-      - traefik.http.routers.leotrade-flower-http.middlewares=leotrade-flower-https-redirect
-
-      - traefik.http.middlewares.leotrade-flower-https-redirect.redirectscheme.scheme=https
-      - traefik.http.middlewares.leotrade-flower-https-redirect.redirectscheme.permanent=true
-
-      - traefik.http.routers.leotrade-flower.rule=Host(`${TRAEFIK_FLOWER_HOST}`)
-      - traefik.http.routers.leotrade-flower.entrypoints=websecure
-      - traefik.http.routers.leotrade-flower.tls=true
-      - traefik.http.routers.leotrade-flower.tls.certresolver=le
-      - traefik.http.services.leotrade-flower-svc.loadbalancer.server.port=5555
-      - traefik.http.routers.leotrade-flower.service=leotrade-flower-svc
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME:-lyneci}_proxy
+      - traefik.http.routers.lyneci-flower.rule=Host(`${TRAEFIK_FLOWER_HOST:?TRAEFIK_FLOWER_HOST manquant}`)
+      - traefik.http.routers.lyneci-flower.entrypoints=websecure
+      - traefik.http.routers.lyneci-flower.tls=true
+      - traefik.http.routers.lyneci-flower.tls.certresolver=le
+      - traefik.http.routers.lyneci-flower.service=lyneci-flower-svc
+      - traefik.http.services.lyneci-flower-svc.loadbalancer.server.port=5555
 
 networks:
   proxy:
@@ -188,6 +241,5 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-  static_volume:
   media_volume:
   traefik_letsencrypt:

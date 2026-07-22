@@ -1,8 +1,9 @@
 import os
 
-env = os.environ.get('DJANGO_ENV')
+settings_module = os.environ.get("DJANGO_SETTINGS_MODULE")
 
-if env == 'prod':
-    from .prod import *
-else:
-    from .dev import *
+if settings_module in {None, "leoTrade.settings"}:
+    if os.environ.get("DJANGO_ENV") == "prod":
+        from .prod import *  # noqa: F401,F403
+    else:
+        from .dev import *  # noqa: F401,F403

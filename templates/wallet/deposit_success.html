@@ -1,7 +1,7 @@
 {% extends "layout/base.html" %}
 
-{% block title %}Dépôt initié — LeoTrade{% endblock %}
-{% block page_title %}Dépôt initié{% endblock %}
+{% block title %}{% if payment_status == "succeeded" %}Dépôt confirmé{% else %}Dépôt initié{% endif %} — Lyneci{% endblock %}
+{% block page_title %}{% if payment_status == "succeeded" %}Dépôt confirmé{% else %}Dépôt initié{% endif %}{% endblock %}
 
 {% block content %}
 <div class="max-w-3xl mx-auto space-y-6">
@@ -14,14 +14,25 @@
     </div>
 
     <div class="text-xs mono uppercase tracking-wider text-gray-600 mt-5">Payment Flow</div>
-    <h2 class="text-white text-2xl font-semibold mt-2">Votre dépôt a été initié</h2>
-    <p class="text-sm text-gray-400 mt-3 max-w-xl mx-auto">
-      Le paiement a bien été lancé. Le wallet sera crédité dès confirmation officielle du provider via webhook sécurisé.
-    </p>
-
-    <div class="mt-6 inline-flex px-3 py-1.5 rounded-lg text-xs mono pill-placed">
-      EN ATTENTE DE CONFIRMATION
-    </div>
+    {% if payment_status == "succeeded" %}
+      <h2 class="text-white text-2xl font-semibold mt-2">Votre dépôt est confirmé</h2>
+      <p class="text-sm text-gray-400 mt-3 max-w-xl mx-auto">
+        Paystack a confirmé le paiement et votre wallet a été crédité automatiquement.
+      </p>
+      <div class="mt-6 inline-flex px-3 py-1.5 rounded-lg text-xs mono pill-open">CONFIRMÉ</div>
+    {% elif payment_status == "failed" %}
+      <h2 class="text-white text-2xl font-semibold mt-2">Le paiement n’a pas abouti</h2>
+      <p class="text-sm text-gray-400 mt-3 max-w-xl mx-auto">
+        Aucun montant n’a été crédité. Vous pouvez relancer un nouveau dépôt.
+      </p>
+      <div class="mt-6 inline-flex px-3 py-1.5 rounded-lg text-xs mono pill-closed">ÉCHEC</div>
+    {% else %}
+      <h2 class="text-white text-2xl font-semibold mt-2">Votre dépôt a été initié</h2>
+      <p class="text-sm text-gray-400 mt-3 max-w-xl mx-auto">
+        Le wallet sera crédité dès confirmation officielle du provider via webhook sécurisé.
+      </p>
+      <div class="mt-6 inline-flex px-3 py-1.5 rounded-lg text-xs mono pill-placed">EN ATTENTE</div>
+    {% endif %}
 
     <div class="mt-8 flex flex-wrap justify-center gap-3">
       <a href="{% url 'wallet-dashboard' %}"

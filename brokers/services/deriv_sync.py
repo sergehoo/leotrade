@@ -12,20 +12,18 @@ Règles d'or :
 - aucun handler ne crée de doublon : tout est ancré sur (broker, kind, external_id)
   via brokers.BrokerExternalRef ;
 - aucun handler ne débite/crédite directement le portfolio : il délègue à
-  DerivSettlementService (pour trading.Order/DerivContract) ou à
-  PortfolioAccountingService/PositionCloseService (pour execution.Order legacy) ;
+  PortfolioAccountingService/PositionCloseService pour le chemin canonique ou
+  à DerivSettlementService pour les contrats historiques ;
 - les erreurs sont loggées avec contexte structuré (broker_account_id,
   contract_id, internal_order_id) mais ne masquent jamais une exception
   qui doit remonter à l'appelant.
 
 ARCHITECTURE DU DISPATCH on_open_contract_update
 ================================================
-Priorité 1 : trading.models.DerivContract trouvé par contract_id
-             → DerivSettlementService.handle_contract_update()  ← PATH PRINCIPAL
-             (DerivExecutor crée toujours un DerivContract)
+Priorité 1 : BrokerExternalRef → execution.models.Order         ← PATH CANONIQUE
 
-Priorité 2 : BrokerExternalRef → execution.models.Order         ← PATH LEGACY
-             (contrats créés par ExecutionOrchestrator si jamais utilisé)
+Priorité 2 : trading.models.DerivContract trouvé par contract_id
+             → DerivSettlementService.handle_contract_update()  ← HISTORIQUE
 
 Priorité 3 : Contrat inconnu → _record_external_only_position() ← IMPORT EXTERNE
              (contrat ouvert directement sur deriv.com)
@@ -47,7 +45,7 @@ from portfolio.models import CashLedgerEntry, Portfolio, Position
 from portfolio.services import PortfolioAccountingService, PortfolioService
 
 
-log = logging.getLogger("leotrade.deriv.sync")
+log = logging.getLogger("lyneci.deriv.sync")
 
 
 def _d(value, default: str = "0") -> Decimal:
@@ -196,14 +194,12 @@ def on_open_contract_update(
 
     PRIORITÉ DU DISPATCH
     --------------------
-    1. trading.models.DerivContract trouvé par contract_id  → PATH PRINCIPAL
-       (DerivExecutor crée toujours un DerivContract lors de l'achat)
+    1. BrokerExternalRef → execution.models.Order (CANONIQUE)
 
-    2. BrokerExternalRef → execution.models.Order (LEGACY)
-       (Orchestre d'exécution générique — rarement utilisé pour Deriv)
+    2. trading.models.DerivContract trouvé par contract_id (HISTORIQUE)
 
     3. Contrat inconnu → import externe
-       (contrat ouvert directement sur deriv.com sans passer par LeoTrade)
+       (contrat ouvert directement sur deriv.com sans passer par Lyneci)
     """
     broker_account = BrokerAccount.objects.filter(pk=broker_account_id).first()
     if not broker_account:
@@ -217,56 +213,7 @@ def on_open_contract_update(
     contract_id = str(contract_id)
 
     # ---------------------------------------------------------------
-    # PATH 1 : DerivContract natif LeoTrade (créé par DerivExecutor)
-    # ---------------------------------------------------------------
-    try:
-        from trading.models import DerivContract
-        deriv_contract = DerivContract.objects.filter(
-            contract_id=contract_id,
-        ).select_related(
-            "order__position", "portfolio", "broker_account",
-        ).first()
-    except Exception as exc:
-        log.warning(
-            "on_open_contract_update: erreur lookup DerivContract contract_id=%s err=%s",
-            contract_id, exc,
-        )
-        deriv_contract = None
-
-    if deriv_contract is not None:
-        try:
-            from trading.services.deriv_settlement import DerivSettlementService
-            applied_status = DerivSettlementService.handle_contract_update(
-                deriv_contract=deriv_contract,
-                payload=payload,
-            )
-            # Mettre à jour le BrokerExternalRef (traçabilité)
-            BrokerExternalRef.upsert(
-                broker="DERIV",
-                broker_account=broker_account,
-                kind="CONTRACT",
-                external_id=contract_id,
-                internal_kind="TRADING_ORDER",
-                internal_id=str(deriv_contract.order_id),
-                last_status=applied_status.lower(),
-                last_payload={k: payload.get(k) for k in (
-                    "status", "is_sold", "is_settleable",
-                    "buy_price", "sell_price", "profit",
-                )},
-            )
-            log.info(
-                "deriv.contract.native_path contract_id=%s applied_status=%s",
-                contract_id, applied_status,
-            )
-        except Exception as exc:
-            log.exception(
-                "deriv.contract.native_path.failed contract_id=%s err=%s",
-                contract_id, exc,
-            )
-        return
-
-    # ---------------------------------------------------------------
-    # PATH 2 : Legacy — BrokerExternalRef → execution.models.Order
+    # PATH 1 : Canonique — BrokerExternalRef → execution.models.Order
     # ---------------------------------------------------------------
     ref = BrokerExternalRef.resolve(
         broker="DERIV",
@@ -288,6 +235,49 @@ def on_open_contract_update(
         return
 
     # ---------------------------------------------------------------
+    # PATH 2 : Compatibilité historique — trading.DerivContract
+    # ---------------------------------------------------------------
+    try:
+        from trading.models import DerivContract
+        deriv_contract = DerivContract.objects.filter(
+            contract_id=contract_id,
+        ).select_related(
+            "order__position", "portfolio", "broker_account",
+        ).first()
+    except Exception as exc:
+        log.warning(
+            "on_open_contract_update: erreur lookup DerivContract contract_id=%s err=%s",
+            contract_id, exc,
+        )
+        deriv_contract = None
+
+    if deriv_contract is not None:
+        from trading.services.deriv_settlement import DerivSettlementService
+
+        applied_status = DerivSettlementService.handle_contract_update(
+            deriv_contract=deriv_contract,
+            payload=payload,
+        )
+        BrokerExternalRef.upsert(
+            broker="DERIV",
+            broker_account=broker_account,
+            kind="CONTRACT",
+            external_id=contract_id,
+            internal_kind="TRADING_ORDER",
+            internal_id=str(deriv_contract.order_id),
+            last_status=applied_status.lower(),
+            last_payload={k: payload.get(k) for k in (
+                "status", "is_sold", "is_settleable",
+                "buy_price", "sell_price", "profit",
+            )},
+        )
+        log.info(
+            "deriv.contract.historical_path contract_id=%s applied_status=%s",
+            contract_id, applied_status,
+        )
+        return
+
+    # ---------------------------------------------------------------
     # PATH 3 : Contrat inconnu — importé comme position externe
     # ---------------------------------------------------------------
     log.info(
@@ -305,9 +295,8 @@ def _handle_execution_order_update(
     payload: dict,
 ) -> None:
     """
-    PATH LEGACY : met à jour un execution.Order et crée un ExecutionFill
+    Met à jour un execution.Order canonique et crée un ExecutionFill
     de clôture quand Deriv signale is_sold / is_settleable.
-    (Garde la logique originale pour compatibilité ExecutionOrchestrator.)
     """
     new_status, broker_status_str = _map_deriv_status_to_execution_order(payload)
     if new_status and order.status != new_status:
@@ -316,7 +305,7 @@ def _handle_execution_order_update(
             order.filled_at = timezone.now()
         order.save(update_fields=["status", "filled_at", "updated_at"])
 
-    is_closed = bool(payload.get("is_sold") or payload.get("is_settleable"))
+    is_closed = _is_deriv_terminal(payload)
     if is_closed:
         sell_tx_id = (payload.get("transaction_ids") or {}).get("sell")
         sell_external_id = str(sell_tx_id) if sell_tx_id else f"contract_close:{contract_id}"
@@ -333,6 +322,13 @@ def _handle_execution_order_update(
                 sell_external_id=sell_external_id,
                 payload=payload,
             )
+
+    order.metadata = {
+        **(order.metadata or {}),
+        "deriv_contract_status": broker_status_str,
+        "deriv_contract_profit": str(_d(payload.get("profit"))),
+    }
+    order.save(update_fields=["metadata", "updated_at"])
 
     BrokerExternalRef.upsert(
         broker="DERIV",
@@ -357,12 +353,21 @@ def _map_deriv_status_to_execution_order(payload: dict) -> tuple[str | None, str
     is_sold = bool(payload.get("is_sold"))
     is_settleable = bool(payload.get("is_settleable"))
 
-    if is_sold or is_settleable:
+    if is_sold or is_settleable or status in ("won", "lost", "sold", "expired", "cancelled"):
         return "FILLED", status or "closed"
     if status in ("open", "running"):
         return "SUBMITTED", status
 
     return None, status or "unknown"
+
+
+def _is_deriv_terminal(payload: dict) -> bool:
+    status = str(payload.get("status") or "").lower()
+    return bool(
+        payload.get("is_sold")
+        or payload.get("is_settleable")
+        or status in {"won", "lost", "sold", "expired", "cancelled"}
+    )
 
 
 def _record_closing_fill_for_execution_order(
@@ -374,7 +379,7 @@ def _record_closing_fill_for_execution_order(
     payload: dict,
 ) -> ExecutionFill:
     """
-    PATH LEGACY : crée un ExecutionFill pour la sortie d'un contrat Deriv
+    Crée un ExecutionFill pour la sortie d'un contrat Deriv
     associé à un execution.Order (orchestre d'exécution générique).
     """
     sell_price = _d(payload.get("sell_price"))
@@ -415,15 +420,19 @@ def _record_closing_fill_for_execution_order(
 
     try:
         from execution.services_close import PositionCloseService
-        PositionCloseService.apply_closing_fill_for_order(order=order, fill=fill, profit=profit)
+        PositionCloseService.apply_deriv_contract_settlement(
+            opening_order=order,
+            fill=fill,
+            profit=profit,
+        )
     except Exception as exc:
         log.exception(
-            "deriv.legacy.close.position.failed order_id=%s contract_id=%s err=%s",
+            "deriv.close.position.failed order_id=%s contract_id=%s err=%s",
             order.id, contract_id, exc,
         )
 
     log.info(
-        "deriv.legacy.contract.closed order_id=%s contract_id=%s profit=%s",
+        "deriv.contract.closed order_id=%s contract_id=%s profit=%s",
         order.id, contract_id, profit,
     )
     return fill
@@ -434,7 +443,7 @@ def _record_external_only_position(
     payload: dict,
 ) -> None:
     """
-    Cas où un contrat est créé hors LeoTrade. On crée une Position importée
+    Cas où un contrat est créé hors Lyneci. On crée une Position importée
     pour visibilité, mais sans débit cash (ces opérations ont été faites côté broker).
     """
     portfolio = _portfolio_for_broker_account(broker_account)

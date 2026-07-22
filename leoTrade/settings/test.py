@@ -15,6 +15,8 @@ Différences avec dev :
 
 from .base import *  # noqa: F401, F403
 
+DEBUG = True
+
 # ── Base de données : SQLite en mémoire ──────────────────────────────────────
 DATABASES = {
     "default": {
@@ -51,10 +53,12 @@ CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 
 # ── Sécurité : clé statique pour les tests ──────────────────────────────────
-SECRET_KEY = "test-secret-key-not-for-production-leotrade"
+SECRET_KEY = "test-secret-key-not-for-production-lyneci"
 
 # ── Staticfiles : pas de manifest ───────────────────────────────────────────
-STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+STORAGES["staticfiles"] = {
+    "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+}
 
 # ── Logging : silencieux pendant les tests ───────────────────────────────────
 import logging
@@ -62,6 +66,7 @@ logging.disable(logging.CRITICAL)
 
 # ── Kill switch global : activé par défaut ───────────────────────────────────
 FEATURE_TRADING_ENABLED = True
+HEALTH_REQUIRE_MONITORING_HEARTBEAT = False
 
 # ── Allauth : URL de login ───────────────────────────────────────────────────
 LOGIN_URL = "/accounts/login/"

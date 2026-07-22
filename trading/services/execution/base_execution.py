@@ -1,23 +1,19 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Optional
 
 from django.db import transaction
 from django.utils import timezone
 
-from brokers.services.binance import BinanceClient
-from brokers.services.mt5 import MT5Client
 from market.models import Asset, Timeframe
 from portfolio.models import Position
 from strategies.models import Strategy, Signal
+from strategies.services.deployment import StrategyDeploymentService
 from trading.models import (
     TradingIntent,
-    Order,
-    TradeExecution,
     TradingIntentEvent,
 )
-from trading.services.execution.deriv_executor import DerivExecutor
+from trading.services.execution.canonical_signal import CanonicalSignalExecutionService
 
 
 class ExecutionService:
@@ -25,188 +21,20 @@ class ExecutionService:
         self.broker_account = broker_account
         self.portfolio = portfolio
 
-    @transaction.atomic
     def execute_signal(
         self,
         signal: Signal,
         approved_quantity: Decimal,
         intent: TradingIntent | None = None,
     ):
-        if signal.side == "HOLD" or approved_quantity <= 0:
-            raise ValueError("Signal non exécutable.")
-
-        side = "BUY" if signal.side == "BUY" else "SELL"
-
-        order = Order.objects.create(
-            broker_account=self.broker_account,
-            portfolio=self.portfolio,
-            intent=intent,
+        return CanonicalSignalExecutionService(
+            self.broker_account,
+            self.portfolio,
+        ).execute(
             signal=signal,
-            symbol=signal.strategy.asset.symbol,
-            side=side,
-            order_type="MARKET",
-            quantity=approved_quantity,
-            price=signal.price,
-            stop_loss=signal.stop_loss,
-            take_profit=signal.take_profit,
-            placed_at=timezone.now(),
-            status="PENDING",
+            approved_quantity=approved_quantity,
+            intent=intent,
         )
-
-        # -------------------------------------------------
-        # PAPER MODE
-        # -------------------------------------------------
-        if self.broker_account.mode == "PAPER":
-            order.status = "FILLED"
-            order.filled_quantity = approved_quantity
-            order.average_fill_price = signal.price
-            order.filled_at = timezone.now()
-            order.save(update_fields=[
-                "status",
-                "filled_quantity",
-                "average_fill_price",
-                "filled_at",
-                "updated_at",
-            ])
-
-            position = Position.objects.create(
-                portfolio=self.portfolio,
-                asset=signal.strategy.asset,
-                side="LONG" if side == "BUY" else "SHORT",
-                quantity=approved_quantity,
-                entry_price=signal.price,
-                current_price=signal.price,
-                stop_loss=signal.stop_loss,
-                take_profit=signal.take_profit,
-                status="OPEN",
-                opened_at=timezone.now(),
-            )
-
-            order.position = position
-            order.save(update_fields=["position", "updated_at"])
-
-            TradeExecution.objects.create(
-                order=order,
-                execution_price=signal.price,
-                execution_qty=approved_quantity,
-                fee=Decimal("0"),
-                executed_at=timezone.now(),
-                broker_payload={"mode": "PAPER"},
-            )
-
-            signal.status = "EXECUTED"
-            signal.executed_at = timezone.now()
-            signal.save(update_fields=["status", "executed_at", "updated_at"])
-
-            if intent:
-                TradingIntentEvent.objects.create(
-                    intent=intent,
-                    event_type="POSITION_OPENED",
-                    title="Position paper ouverte",
-                    message=f"{position.asset.symbol} {position.side} {position.quantity}",
-                    payload={"order_id": order.id, "position_id": position.id},
-                )
-
-            return order
-
-        # -------------------------------------------------
-        # BINANCE
-        # -------------------------------------------------
-        if self.broker_account.broker == "BINANCE":
-            client = BinanceClient(
-                self.broker_account.api_key,
-                self.broker_account.api_secret,
-            )
-            response = client.create_market_order(
-                order.symbol,
-                side,
-                float(approved_quantity),
-            )
-
-            order.external_order_id = str(response.get("orderId"))
-            order.client_order_id = str(response.get("clientOrderId", ""))
-            order.broker_payload = response
-            order.status = "PLACED"
-            order.save(update_fields=[
-                "external_order_id",
-                "client_order_id",
-                "broker_payload",
-                "status",
-                "updated_at",
-            ])
-
-            signal.status = "QUEUED"
-            signal.save(update_fields=["status", "updated_at"])
-            return order
-
-        # -------------------------------------------------
-        # DERIV
-        # -------------------------------------------------
-        if self.broker_account.broker == "DERIV":
-            executor = DerivExecutor(self.broker_account, self.portfolio)
-            result = executor.execute_signal(signal, approved_quantity)
-            return result["order"]
-
-        # -------------------------------------------------
-        # MT5
-        # -------------------------------------------------
-        if self.broker_account.broker == "MT5":
-            try:
-                import MetaTrader5 as mt5
-            except ImportError:
-                order.status = "FAILED"
-                order.error_message = "Le module MetaTrader5 n'est pas installé sur cet environnement."
-                order.save(update_fields=["status", "error_message", "updated_at"])
-                raise RuntimeError("MetaTrader5 n'est pas disponible sur cette machine.")
-
-            client = MT5Client(
-                login=int(self.broker_account.login),
-                password=self.broker_account.password,
-                server=self.broker_account.server,
-                terminal_path=self.broker_account.terminal_path,
-            )
-            client.connect()
-            try:
-                order_type = mt5.ORDER_TYPE_BUY if side == "BUY" else mt5.ORDER_TYPE_SELL
-                tick = mt5.symbol_info_tick(order.symbol)
-
-                if tick is None:
-                    raise RuntimeError(f"Aucun tick MT5 disponible pour {order.symbol}.")
-
-                request = {
-                    "action": mt5.TRADE_ACTION_DEAL,
-                    "symbol": order.symbol,
-                    "volume": float(approved_quantity),
-                    "type": order_type,
-                    "price": tick.ask if side == "BUY" else tick.bid,
-                    "deviation": 20,
-                    "magic": 20260320,
-                    "comment": "hedgeai",
-                    "type_time": mt5.ORDER_TIME_GTC,
-                    "type_filling": mt5.ORDER_FILLING_IOC,
-                }
-                response = mt5.order_send(request)
-            finally:
-                client.shutdown()
-
-            order.external_order_id = str(getattr(response, "order", None))
-            order.broker_payload = response._asdict() if response else {}
-            order.status = "PLACED"
-            order.save(update_fields=[
-                "external_order_id",
-                "broker_payload",
-                "status",
-                "updated_at",
-            ])
-
-            signal.status = "QUEUED"
-            signal.save(update_fields=["status", "updated_at"])
-            return order
-
-        order.status = "FAILED"
-        order.error_message = f"Broker non supporté: {self.broker_account.broker}"
-        order.save(update_fields=["status", "error_message", "updated_at"])
-        raise ValueError(f"Broker non supporté: {self.broker_account.broker}")
 
 
 class AIPlanningService:
@@ -342,6 +170,14 @@ class IntentExecutionService:
         if not intent.ai_plan:
             raise ValueError("Plan IA absent.")
 
+        if intent.portfolio.user_id != intent.user_id:
+            raise ValueError("Le portefeuille n'appartient pas à l'utilisateur.")
+        broker_account = intent.portfolio.broker_account
+        if intent.broker_account_id and intent.broker_account_id != broker_account.id:
+            raise ValueError("Le broker de l'intention ne correspond pas au portefeuille.")
+        if broker_account.mode != intent.execution_mode:
+            raise ValueError("Le mode de l'intention ne correspond pas au broker du portefeuille.")
+
         strategy = intent.strategy
         if not strategy:
             asset = IntentExecutionService._resolve_asset_for_intent(intent)
@@ -349,8 +185,9 @@ class IntentExecutionService:
 
             strategy = Strategy.objects.create(
                 name=f"{intent.title} Strategy",
+                owner=intent.user,
                 strategy_type=intent.ai_plan.get("strategy_type", "HYBRID"),
-                status="PAPER" if intent.execution_mode == "PAPER" else "LIVE",
+                status="PAPER",
                 asset=asset,
                 timeframe=timeframe,
                 is_active=True,
@@ -363,11 +200,34 @@ class IntentExecutionService:
             )
             intent.strategy = strategy
 
+        if strategy.owner_id != intent.user_id:
+            raise ValueError("La stratégie de l'intention n'appartient pas à l'utilisateur.")
+
+        strategy.is_active = True
+        strategy.allow_live_execution = intent.execution_mode == "LIVE"
+        strategy.save(update_fields=[
+            "is_active",
+            "allow_live_execution",
+            "updated_at",
+        ])
+        deployment = StrategyDeploymentService.activate(
+            strategy=strategy,
+            user=intent.user,
+            portfolio=intent.portfolio,
+            auto_execute=False,
+        )
+        strategy.status = intent.execution_mode
+        strategy.save(update_fields=["status", "updated_at"])
+
         intent.status = "RUNNING"
+        intent.broker_account = broker_account
+        intent.approved_by_user = True
         intent.started_at = timezone.now()
         intent.expires_at = timezone.now() + timezone.timedelta(days=intent.duration_days)
         intent.save(update_fields=[
             "strategy",
+            "broker_account",
+            "approved_by_user",
             "status",
             "started_at",
             "expires_at",
@@ -379,7 +239,10 @@ class IntentExecutionService:
             event_type="STARTED",
             title="Intent lancé",
             message="La mission de trading a démarré.",
-            payload={"strategy_id": intent.strategy_id},
+            payload={
+                "strategy_id": intent.strategy_id,
+                "strategy_deployment_id": deployment.id,
+            },
         )
         return intent
 

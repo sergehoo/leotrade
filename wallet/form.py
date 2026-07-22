@@ -8,8 +8,10 @@ Formulaires Wallet, validés strictement (montants min/max, cohérence métier).
 from decimal import Decimal
 
 from django import forms
+from django.conf import settings
 
 from .models import PayoutDestination, WithdrawalRequest
+from .services import PaymentGatewayValidationError, PaystackWalletService
 
 
 # Plafonds globaux par opération. À ajuster en config selon le KYC tier.
@@ -21,10 +23,16 @@ WITHDRAWAL_MAX = Decimal("100000.00")
 
 class DepositForm(forms.Form):
     PROVIDER_CHOICES = [
+        ("PAYSTACK", "Paystack"),
         ("STRIPE", "Stripe"),
         ("ADYEN", "Adyen"),
     ]
     CURRENCY_CHOICES = [
+        ("XOF", "XOF — Franc CFA"),
+        ("NGN", "NGN — Naira"),
+        ("GHS", "GHS — Cedi"),
+        ("KES", "KES — Shilling kényan"),
+        ("ZAR", "ZAR — Rand"),
         ("USD", "USD"),
         ("EUR", "EUR"),
     ]
@@ -38,7 +46,16 @@ class DepositForm(forms.Form):
         help_text=f"Entre {DEPOSIT_MIN} et {DEPOSIT_MAX}.",
     )
     currency = forms.ChoiceField(choices=CURRENCY_CHOICES, initial="USD", label="Devise")
-    provider = forms.ChoiceField(choices=PROVIDER_CHOICES, initial="STRIPE", label="Fournisseur")
+    provider = forms.ChoiceField(choices=PROVIDER_CHOICES, initial="PAYSTACK", label="Fournisseur")
+
+    def __init__(self, *args, wallet=None, **kwargs):
+        self.wallet = wallet
+        super().__init__(*args, **kwargs)
+        configured_default = getattr(settings, "PAYMENT_DEFAULT_PROVIDER", "PAYSTACK").upper()
+        valid_providers = {code for code, _ in self.PROVIDER_CHOICES}
+        self.fields["provider"].initial = (
+            configured_default if configured_default in valid_providers else "PAYSTACK"
+        )
 
     def clean_amount(self):
         amount = self.cleaned_data["amount"]
@@ -48,6 +65,25 @@ class DepositForm(forms.Form):
         if amount > DEPOSIT_MAX:
             raise forms.ValidationError(f"Le montant maximum par opération est {DEPOSIT_MAX}.")
         return amount
+
+    def clean(self):
+        cleaned_data = super().clean()
+        amount = cleaned_data.get("amount")
+        currency = cleaned_data.get("currency")
+        provider = cleaned_data.get("provider")
+
+        if self.wallet and currency and currency.upper() != self.wallet.currency.upper():
+            self.add_error(
+                "currency",
+                f"Ce wallet accepte uniquement les dépôts en {self.wallet.currency.upper()}.",
+            )
+
+        if provider == "PAYSTACK" and amount is not None and currency:
+            try:
+                PaystackWalletService.amount_to_subunit(amount, currency)
+            except PaymentGatewayValidationError as exc:
+                self.add_error("amount", str(exc))
+        return cleaned_data
 
 
 class WithdrawalForm(forms.ModelForm):

@@ -36,5 +36,5 @@ def require_trading_enabled():
     Lève TradingDisabled si désactivé. À appeler dans les services critiques.
     """
     if not is_trading_enabled():
-        from execution.orchestrator import TradingDisabled
+        from execution.exceptions import TradingDisabled
         raise TradingDisabled("Trading globalement désactivé (kill switch)")

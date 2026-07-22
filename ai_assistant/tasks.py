@@ -15,7 +15,7 @@ from datetime import timedelta
 from celery import shared_task
 from django.utils import timezone
 
-log = logging.getLogger("leotrade.ai_assistant.tasks")
+log = logging.getLogger("lyneci.ai_assistant.tasks")
 
 STALE_PARTIAL_MINUTES = 10
 

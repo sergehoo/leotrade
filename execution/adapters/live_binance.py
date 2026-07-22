@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from infrastructure.broker_clients import BrokerClientFactory
+from infrastructure.broker_clients.gateway import BrokerGateway
 from .base import BaseBrokerAdapter
 
 
 class LiveBinanceAdapter(BaseBrokerAdapter):
     def __init__(self, broker_account, portfolio):
         super().__init__(broker_account, portfolio)
-        self.client = BrokerClientFactory.build(broker_account)
+        self.client = BrokerGateway(broker_account)
 
     def submit_order(self, order):
         return self.client.submit_order(order)
@@ -15,8 +15,14 @@ class LiveBinanceAdapter(BaseBrokerAdapter):
     def cancel_order(self, order):
         return self.client.cancel_order(order)
 
+    def close_position(self, position, order):
+        return self.client.close_position(position, order)
+
     def fetch_open_orders(self):
         return self.client.fetch_open_orders()
+
+    def fetch_order(self, order):
+        return self.client.fetch_order(order)
 
     def fetch_positions(self):
         return self.client.fetch_positions()

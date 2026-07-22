@@ -239,7 +239,7 @@ class MT5Client:
         deviation: int = 20,
         stop_loss: Optional[float] = None,
         take_profit: Optional[float] = None,
-        comment: str = "leotrade",
+        comment: str = "lyneci",
         magic: int = 20260320,
     ):
         self._ensure_connected()
@@ -290,7 +290,7 @@ class MT5Client:
         self,
         position_ticket: int,
         deviation: int = 20,
-        comment: str = "leotrade-close",
+        comment: str = "lyneci-close",
         magic: int = 20260320,
     ):
         self._ensure_connected()

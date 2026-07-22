@@ -6,7 +6,7 @@ from django.db import transaction
 
 from brokers.models import BrokerAccount, BrokerCredential
 from brokers.models_constraints import BrokerConstraint
-from infrastructure.broker_clients import BrokerClientFactory
+from infrastructure.broker_clients.gateway import BrokerGateway
 
 
 class BrokerCredentialService:
@@ -111,7 +111,7 @@ class BrokerConstraintSyncService:
     @staticmethod
     @transaction.atomic
     def sync_symbol_constraint(broker_account: BrokerAccount, symbol: str):
-        client = BrokerClientFactory.build(broker_account)
+        client = BrokerGateway(broker_account)
         dto = client.fetch_symbol_constraints(symbol)
 
         obj, _ = BrokerConstraint.objects.update_or_create(

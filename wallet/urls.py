@@ -10,7 +10,7 @@ from .views import (
     payout_destination_delete, admin_wallet_list, admin_withdrawal_queue, admin_withdrawal_detail, admin_withdrawal_approve,
     wallet_transfer_view, transfer_history,
 )
-from .webhooks import stripe_webhook, adyen_webhook
+from .webhooks import adyen_webhook, paystack_webhook, stripe_webhook
 
 urlpatterns = [
     path("", wallet_dashboard, name="wallet-dashboard"),
@@ -19,6 +19,9 @@ urlpatterns = [
     path("deposit/success/", wallet_deposit_success, name="wallet-deposit-success"),
     path("deposit/cancel/", wallet_deposit_cancel, name="wallet-deposit-cancel"),
     path("withdraw/", wallet_withdraw, name="wallet-withdraw"),
+    path("webhooks/stripe/", stripe_webhook, name="stripe-webhook"),
+    path("webhooks/adyen/", adyen_webhook, name="adyen-webhook"),
+    path("webhooks/paystack/", paystack_webhook, name="paystack-webhook"),
 
     path("transactions/<int:pk>/", wallet_transaction_detail, name="wallet-transaction-detail"),
     path("withdrawals/<int:pk>/", wallet_withdrawal_detail, name="wallet-withdrawal-detail"),

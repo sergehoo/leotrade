@@ -1,5 +1,5 @@
 {% extends "layout/base.html" %}
-{% block title %}Stratégies — LeoTrade{% endblock %}
+{% block title %}Stratégies — Lyneci{% endblock %}
 {% block page_title %}Stratégies{% endblock %}
 
 {% block content %}
@@ -145,7 +145,7 @@
             Détail
           </a>
 
-          <form :action="'/strategies/' + s.id + '/toggle-active/'" method="post"
+          <form x-show="s.can_manage" :action="'/strategies/' + s.id + '/toggle-active/'" method="post"
                 @submit.prevent="submitForm($event)">
             <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
             <button type="submit"
@@ -157,7 +157,7 @@
             </button>
           </form>
 
-          <form :action="'/strategies/' + s.id + '/toggle-autonomous/'" method="post"
+          <form x-show="s.can_manage" :action="'/strategies/' + s.id + '/toggle-autonomous/'" method="post"
                 @submit.prevent="submitForm($event)">
             <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
             <button type="submit"

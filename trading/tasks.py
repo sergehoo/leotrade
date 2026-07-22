@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from brokers.services.deriv import DerivClient
+from brokers.models_external_ref import BrokerExternalRef
 from portfolio.models import Portfolio, Position
 from trading.models import DerivContract, TradeIdea, TradeIdeaFeedback
 from trading.services.agents.orchestrator import TradingIntelligenceOrchestrator
@@ -19,6 +20,15 @@ from trading.services.trade_idea_generation import TradeIdeaGenerationService
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
+DERIV_TERMINAL_CONTRACT_STATUSES = {
+    "won",
+    "lost",
+    "sold",
+    "expired",
+    "cancelled",
+    "closed",
+}
+
 
 def _active_users_queryset():
     return User.objects.filter(is_active=True).order_by("id")
@@ -27,12 +37,8 @@ def _active_users_queryset():
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
 def sync_open_deriv_contracts_task(self):
     """
-    Surveille les DerivContract(status=OPEN) et délègue le règlement complet à
-    on_open_contract_update → DerivSettlementService.
-
-    Ce chemin couvre les contrats créés via DerivExecutor (QuickTrade, auto-trade direct).
-    Les contrats créés via ExecutionOrchestrator (IA path) sont couverts par
-    sync_execution_deriv_contracts_task.
+    Compatibilité historique : surveille uniquement les anciens DerivContract
+    encore ouverts. Aucune nouvelle exécution ne doit écrire dans cette table.
     """
     from brokers.services.deriv_sync import on_open_contract_update
 
@@ -131,27 +137,33 @@ def sync_open_deriv_contracts_task(self):
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
 def sync_execution_deriv_contracts_task(self):
     """
-    Surveille les execution.models.Order créés par ExecutionOrchestrator (chemin IA)
-    dont le broker est DERIV et qui sont encore en statut SUBMITTED/PARTIALLY_FILLED.
+    Surveille les contrats Deriv canoniques encore ouverts via BrokerExternalRef.
 
-    Ces ordres n'ont PAS de DerivContract associé (le chemin IA ne passe pas par
-    DerivExecutor), donc sync_open_deriv_contracts_task ne les voit jamais.
-    Cette tâche comble ce manque : elle interroge Deriv via broker_order_id et
-    délègue à on_open_contract_update → PATH 2 (BrokerExternalRef) ou PATH 3 (import).
+    Le statut de l'ordre devient FILLED dès l'achat du contrat et ne permet donc
+    pas de savoir si le contrat lui-même est réglé. La référence broker, dont le
+    dernier statut reste ``open`` jusqu'au règlement, est la source de vérité.
 
     Fréquence recommandée : toutes les 30 secondes (les contrats Deriv expirent vite).
     """
     from brokers.services.deriv_sync import on_open_contract_update
     from execution.models import Order as ExecutionOrder
 
+    contract_ids = list(
+        BrokerExternalRef.objects
+        .filter(
+            broker="DERIV",
+            kind="CONTRACT",
+            internal_kind="ORDER",
+        )
+        .exclude(last_status__in=DERIV_TERMINAL_CONTRACT_STATUSES)
+        .values_list("external_id", flat=True)
+    )
     orders = (
         ExecutionOrder.objects
         .filter(
             broker_account__broker="DERIV",
-            status__in=["SUBMITTED", "PARTIALLY_FILLED"],
-            broker_order_id__isnull=False,
+            broker_order_id__in=contract_ids,
         )
-        .exclude(broker_order_id="")
         .select_related("broker_account")
     )
 

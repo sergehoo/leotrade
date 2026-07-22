@@ -20,7 +20,7 @@ from django.conf import settings
 
 from notifications.services.renderer import NotificationTemplateRenderer
 
-log = logging.getLogger("leotrade.notifications.sms")
+log = logging.getLogger("lyneci.notifications.sms")
 
 SMS_MAX_LEN = 320  # 2 segments GSM
 
@@ -56,7 +56,7 @@ def _local_ci_send(to: str, body: str) -> dict:
     """Agrégateur SMS local (Côte d'Ivoire) — POST HTTP générique."""
     url = getattr(settings, "SMS_LOCAL_CI_URL", "")
     api_key = getattr(settings, "SMS_LOCAL_CI_API_KEY", "")
-    sender = getattr(settings, "SMS_LOCAL_CI_SENDER", "LeoTrade")
+    sender = getattr(settings, "SMS_LOCAL_CI_SENDER", "Lyneci")
     if not (url and api_key):
         return {"ok": False, "skipped": True, "provider": "local_ci",
                 "response": {}, "error": "Fournisseur SMS local non configuré (SMS_LOCAL_CI_URL/API_KEY)."}
@@ -90,7 +90,7 @@ class SMSNotificationService:
                     "response": {}, "error": "Pas de numéro de téléphone configuré."}
 
         rendered = NotificationTemplateRenderer.render(notification, "SMS", language)
-        body = f"LeoTrade — {rendered['subject']}\n{rendered['body']}"[:SMS_MAX_LEN]
+        body = f"Lyneci — {rendered['subject']}\n{rendered['body']}"[:SMS_MAX_LEN]
 
         primary = getattr(settings, "NOTIFY_SMS_PRIMARY", "twilio")
         chain = [_local_ci_send, _twilio_send] if primary == "local_ci" else [_twilio_send, _local_ci_send]

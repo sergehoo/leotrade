@@ -10,7 +10,7 @@ from market.models import Asset
 from brokers.models import BrokerAccount
 from .models import Portfolio, Position
 from .services import PortfolioService, PortfolioAccountingService
-from infrastructure.broker_clients import BrokerClientFactory
+from infrastructure.broker_clients.gateway import BrokerGateway
 
 def _d(value, default="0"):
     try:
@@ -136,7 +136,7 @@ class BrokerImportService:
 
     @staticmethod
     def _fetch_remote_cash(broker_account: BrokerAccount):
-        client = BrokerClientFactory.build(broker_account)
+        client = BrokerGateway(broker_account)
         balances = client.fetch_balances()
         if not balances:
             return None
@@ -150,7 +150,7 @@ class BrokerImportService:
 
     @staticmethod
     def fetch_live_positions(broker_account: BrokerAccount) -> list[dict]:
-        client = BrokerClientFactory.build(broker_account)
+        client = BrokerGateway(broker_account)
         positions = client.fetch_positions()
 
         payloads = []

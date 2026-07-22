@@ -25,7 +25,7 @@ import time
 from asgiref.sync import sync_to_async
 from channels.layers import get_channel_layer
 
-log = logging.getLogger("leotrade.ai_assistant.generation")
+log = logging.getLogger("lyneci.ai_assistant.generation")
 
 # Fenêtre d'historique envoyée au LLM
 MAX_HISTORY_TURNS = 10

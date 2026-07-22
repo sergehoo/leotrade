@@ -17,21 +17,32 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
-from core.health import health_live, health_ready
+try:
+    from allauth.account.decorators import secure_admin_login
+except ImportError:  # django-allauth historique en environnement local
+    secure_admin_login = None
+
+if secure_admin_login is not None:
+    admin.site.login = secure_admin_login(admin.site.login)
+
+from core.health import health_diagnostics, health_live, health_ready
 from leo_backtesting.views import BacktestListView, LaunchBacktestView, BacktestDetailView
 from dashboard.views import HedgeFundDashboardView, LandingPageView
 from strategies.views import StrategyListView, StrategyDetailView
 from trading.views import SignalListView, ExecuteSignalView
 
 urlpatterns = [
+    path("health/live/", health_live, name="health_live"),
+    path("health/ready/", health_ready, name="health_ready"),
+    path("health/diagnostics/", health_diagnostics, name="health_diagnostics"),
     path("admin/", admin.site.urls),
     path("accounts/", include("allauth.urls")),
-    path("accounts/", include("allauth_2fa.urls")),
     path("dashboard/", include("dashboard.urls")),
 path("api/v1/", include("api.urls")),
     # Strategies
     path("strategies/", include("strategies.urls")),
     path("wallet/", include("wallet.urls")),
+    path("execution/", include("execution.urls", namespace="execution")),
     path("trading/", include("trading.urls",namespace="trading")),
     path("backtests/", include("leo_backtesting.urls")),
     path("risk/", include("risk.urls", namespace="risk")),
@@ -45,8 +56,6 @@ path("api/v1/", include("api.urls")),
     path("ai/", include("ai_engine.urls")),
     path("assistant/", include("ai_assistant.urls", namespace="ai_assistant")),
     path("", LandingPageView.as_view(), name="landing_page"),
-path("health/live/", health_live, name="health_live"),
-path("health/ready/", health_ready, name="health_ready"),
-path("", include("django_prometheus.urls")),
+    path("", include("django_prometheus.urls")),
 
 ]

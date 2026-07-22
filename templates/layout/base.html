@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>{% block title %}LeoTrade — Fund Dashboard{% endblock %}</title>
+    <title>{% block title %}Lyneci — Intelligent Trading{% endblock %}</title>
 
     {# Tailwind buildé statiquement (tailwind.config.js) — le CDN est déconseillé en prod #}
     <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
@@ -330,12 +330,10 @@
                 </svg>
             </div>
             <div>
-                <div class="mono text-white font-semibold text-sm tracking-wide">
-                    Leo<span style="color: var(--green)">Trade</span>
-                </div>
+                <div class="mono text-white font-semibold text-sm tracking-wide">Lyneci</div>
                 <div class="mt-1 flex items-center gap-1.5">
                     <div class="w-1.5 h-1.5 rounded-full live-dot" style="background: var(--green)"></div>
-                    <span class="text-[10px] mono" style="color: var(--green)">SYSTÈME ACTIF</span>
+                    <span class="text-[10px] mono" style="color: var(--green)">INTELLIGENT TRADING</span>
                 </div>
             </div>
         </a>
@@ -762,7 +760,7 @@
     <!-- Footer -->
     <footer class="px-6 py-3 border-t text-xs text-gray-700 mono flex items-center justify-between"
             style="border-color: var(--border)">
-        <span>LeoTrade v1.0 — Hedge Fund Dashboard</span>
+        <span>Lyneci — Intelligent Trading</span>
         <span id="footer-clock"></span>
     </footer>
 </div>
@@ -872,7 +870,7 @@
 </script>
 {% block extra_js %}{% endblock %}
 
-{# ── Panel IA LeoAI (inclus sur toutes les pages authentifiées) ── #}
+{# ── Panel IA Lyneci AI (inclus sur toutes les pages authentifiées) ── #}
 {% if request.user.is_authenticated %}
     {% include "assistant/_panel.html" %}
     <script src="{% static 'js/leo_assistant.js' %}"></script>

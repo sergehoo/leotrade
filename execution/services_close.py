@@ -35,7 +35,7 @@ from portfolio.models_trade import Trade
 from portfolio.services import PortfolioAccountingService, PortfolioService
 
 
-log = logging.getLogger("leotrade.execution.close")
+log = logging.getLogger("lyneci.execution.close")
 
 
 class PositionCloseError(Exception):
@@ -46,6 +46,48 @@ class PositionCloseService:
 
     @staticmethod
     @transaction.atomic
+    def apply_deriv_contract_settlement(
+        *,
+        opening_order: Order,
+        fill: ExecutionFill,
+        profit: Decimal,
+    ) -> Trade | None:
+        """Close the position opened by a settled Deriv contract."""
+        expected_side = "LONG" if opening_order.side == "BUY" else "SHORT"
+        positions = (
+            Position.objects
+            .select_for_update()
+            .filter(
+                portfolio=opening_order.portfolio,
+                broker_account=opening_order.broker_account,
+                symbol=opening_order.symbol,
+                side=expected_side,
+                status__in=["OPEN", "PARTIALLY_CLOSED"],
+            )
+        )
+        position = positions.filter(
+            broker_order_id=opening_order.broker_order_id,
+        ).first()
+        if position is None:
+            position = positions.order_by("opened_at").first()
+        if position is None:
+            log.warning(
+                "deriv.close.no_open_position order_id=%s symbol=%s portfolio_id=%s",
+                opening_order.id,
+                opening_order.symbol,
+                opening_order.portfolio_id,
+            )
+            return None
+
+        return PositionCloseService.apply_closing_fill(
+            position=position,
+            fill=fill,
+            opening_order=opening_order,
+            override_profit=profit,
+        )
+
+    @staticmethod
+    @transaction.atomic
     def apply_closing_fill_for_order(
         *,
         order: Order,
@@ -53,23 +95,30 @@ class PositionCloseService:
         profit: Decimal | None = None,
     ) -> Trade | None:
         """
-        Cas 1 : on a un Order interne (cycle normal LeoTrade).
+        Cas 1 : on a un Order interne (cycle normal Lyneci).
         Trouve la Position liée et applique la clôture.
 
         :param profit: pour Deriv (option binaire), profit fourni directement
                        par le payload broker. Si absent, calculé.
         """
-        position = (
+        target_position_id = (
+            order.closes_position_id
+            or (order.metadata or {}).get("closes_position_id")
+        )
+        expected_side = "SHORT" if order.side == "BUY" else "LONG"
+        positions = (
             Position.objects
             .select_for_update()
             .filter(
                 portfolio=order.portfolio,
                 symbol=order.symbol,
+                side=expected_side,
                 status__in=["OPEN", "PARTIALLY_CLOSED"],
             )
-            .order_by("opened_at")
-            .first()
         )
+        if target_position_id:
+            positions = positions.filter(pk=target_position_id)
+        position = positions.order_by("opened_at").first()
         if not position:
             log.warning(
                 "close.no_open_position order_id=%s symbol=%s portfolio_id=%s",
@@ -172,6 +221,10 @@ class PositionCloseService:
         position.save(update_fields=[
             "quantity", "realized_pnl", "status", "closed_at", "updated_at",
         ])
+
+        if position.status == "CLOSED":
+            from execution.protection import PositionProtectionService
+            PositionProtectionService.mark_completed(position)
 
         # 3. Inscription cash : delta net (cash_returned ou positif PnL si Deriv binary)
         # On utilise TRADE_EXECUTION comme entry_type (à étendre dans ENTRY_TYPE_CHOICES si besoin).

@@ -20,13 +20,13 @@ from typing import AsyncIterator
 from asgiref.sync import sync_to_async
 from django.conf import settings
 
-log = logging.getLogger("leotrade.ai_assistant")
+log = logging.getLogger("lyneci.ai_assistant")
 
 # ── Quota service ──────────────────────────────────────────────────────────────
 
 class QuotaService:
     """
-    Gestion du quota d'utilisation de LeoAI par utilisateur.
+    Gestion du quota d'utilisation de Lyneci AI par utilisateur.
     Toutes les méthodes DB sont synchrones — appeler via sync_to_async si besoin.
     """
 
@@ -71,7 +71,7 @@ class QuotaService:
     @staticmethod
     def pay_with_wallet(user, plan: str) -> dict:
         """
-        Débite le portefeuille LeoTrade et active le plan.
+        Débite le portefeuille Lyneci et active le plan.
         Retourne {'ok': True} ou {'ok': False, 'error': '...'}.
         """
         from .models import AIUserQuota, AIQuotaPayment
@@ -104,7 +104,7 @@ class QuotaService:
             wallet=wallet,
             amount=-price,
             transaction_type="DEBIT",
-            description=f"Abonnement LeoAI {plan} — {AIUserQuota.PLAN_LIMITS[plan]} messages",
+            description=f"Abonnement Lyneci AI {plan} — {AIUserQuota.PLAN_LIMITS[plan]} messages",
             status="COMPLETED",
         )
 
@@ -146,7 +146,7 @@ class QuotaService:
                 cancel_url=callback_url + "?cancelled=1",
             )
 
-        reference = f"LEOAI-{plan}-{user.pk}-{uuid.uuid4().hex[:8].upper()}"
+        reference = f"LYNECI-AI-{plan}-{user.pk}-{uuid.uuid4().hex[:8].upper()}"
         amount_kobo = int(price * 100 * 100)  # Paystack en kobo (1 USD × 100 centimes × 100)
 
         try:
@@ -163,7 +163,7 @@ class QuotaService:
                         "user_id": str(user.pk),
                         "plan":    plan,
                         "custom_fields": [
-                            {"display_name": "Plan LeoAI", "variable_name": "plan", "value": plan},
+                            {"display_name": "Plan Lyneci AI", "variable_name": "plan", "value": plan},
                         ],
                     },
                 },
@@ -216,8 +216,8 @@ class QuotaService:
                         "currency": "usd",
                         "unit_amount": int(price * 100),
                         "product_data": {
-                            "name": f"LeoAI {plan} — {AIUserQuota.PLAN_LIMITS[plan]} messages",
-                            "description": f"Accès à {AIUserQuota.PLAN_LIMITS[plan]} messages IA sur LeoTrade",
+                            "name": f"Lyneci AI {plan} — {AIUserQuota.PLAN_LIMITS[plan]} messages",
+                            "description": f"Accès à {AIUserQuota.PLAN_LIMITS[plan]} messages IA sur Lyneci",
                         },
                     },
                     "quantity": 1,
@@ -244,10 +244,10 @@ class QuotaService:
 
 # ── Prompt système du panel IA ─────────────────────────────────────────────────
 
-ASSISTANT_SYSTEM_PROMPT = """Tu es **LeoAI**, l'assistant IA central de **LeoTrade** — plateforme de trading 100% assistée par IA, conçue pour le trading d'actifs financiers (Forex, Indices synthétiques Deriv, Crypto, Matières premières).
+ASSISTANT_SYSTEM_PROMPT = """Tu es **Lyneci AI**, l'assistant IA central de **Lyneci** — plateforme de trading 100% assistée par IA, conçue pour le trading d'actifs financiers (Forex, Indices synthétiques Deriv, Crypto, Matières premières).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏗️ ARCHITECTURE COMPLÈTE DE LEOTRADE
+🏗️ ARCHITECTURE COMPLÈTE DE LYNECI
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 **MODULE DASHBOARD** (`/dashboard/`)
@@ -309,20 +309,20 @@ ASSISTANT_SYSTEM_PROMPT = """Tu es **LeoAI**, l'assistant IA central de **LeoTra
 • Configuration : app_id Deriv, token OAuth, serveur (demo/real)
 
 **MODULE WALLET** (`/wallet/`)
-• Solde LeoTrade PLATFORM (distinct du capital de trading)
+• Solde Lyneci PLATFORM (distinct du capital de trading)
 • Méthodes de paiement : Paystack, Wave, Orange Money, MTN MoMo, Stripe, CinetPay
-• `available_balance` : solde disponible pour abonnements et frais LeoTrade
+• `available_balance` : solde disponible pour abonnements et frais Lyneci
 • **DIFFÉRENCE FONDAMENTALE Portfolio / Wallet :**
   - Le **Portfolio** = votre capital de TRADING réel déposé chez le broker (Deriv, etc.)
     → C'est l'argent qui est investi, qui génère des P&L, des positions, du drawdown
     → Géré par le broker externe (Deriv API)
-    → Vous ne pouvez pas l'utiliser pour payer les services LeoTrade
-  - Le **Wallet** = votre crédit PLATEFORME LeoTrade
-    → Utilisé pour payer l'abonnement LeoAI, les fonctions premium, etc.
+    → Vous ne pouvez pas l'utiliser pour payer les services Lyneci
+  - Le **Wallet** = votre crédit PLATEFORME Lyneci
+    → Utilisé pour payer l'abonnement Lyneci AI, les fonctions premium, etc.
     → Rechargeable via Paystack, Wave, Orange Money, MTN MoMo ou Stripe
     → Complètement séparé de votre capital de trading
   - Les deux sont **COMPLÉMENTAIRES mais INDÉPENDANTS** :
-    → Vous pouvez avoir 50k$ dans votre portfolio broker ET 0$ dans votre wallet LeoTrade
+    → Vous pouvez avoir 50k$ dans votre portfolio broker ET 0$ dans votre wallet Lyneci
     → Le wallet sert uniquement à payer les services de la plateforme
 
 **MODULE BACKTESTING** (`/backtests/`)
@@ -334,7 +334,7 @@ ASSISTANT_SYSTEM_PROMPT = """Tu es **LeoAI**, l'assistant IA central de **LeoTra
 • Modes : AUTO (IA décide) / SEMI-AUTO (validation utilisateur) / MANUAL
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 MOTEUR IA LEOTRADE — COMPRENDRE LES SCORES
+📊 MOTEUR IA LYNECI — COMPRENDRE LES SCORES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 **Score IA (0.0 → 1.0)**
@@ -658,7 +658,7 @@ class AssistantContextService:
 
 def _format_context_for_prompt(ctx: dict) -> str:
     """Sérialise le contexte live en texte structuré pour le prompt."""
-    lines = ["=== CONTEXTE LIVE LEOTRADE ==="]
+    lines = ["=== CONTEXTE LIVE LYNECI ==="]
 
     p = ctx.get("portfolio")
     if p:

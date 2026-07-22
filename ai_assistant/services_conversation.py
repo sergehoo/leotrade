@@ -15,7 +15,7 @@ from django.db.models import Count, Q
 
 from .models import AssistantConversation, AssistantConversationParticipant
 
-log = logging.getLogger("leotrade.ai_assistant.conversation")
+log = logging.getLogger("lyneci.ai_assistant.conversation")
 
 # Clés de contexte client → (context_type)
 _CONTEXT_ID_KEYS = [

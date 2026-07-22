@@ -38,7 +38,7 @@ from .base import BaseAIProvider, MarketContext, AIDecision, ProviderUnavailable
 from .claude import SYSTEM_PROMPT, _build_user_prompt, _extract_json, _parsed_to_decision
 
 
-log = logging.getLogger("leotrade.ai_engine.deepseek")
+log = logging.getLogger("lyneci.ai_engine.deepseek")
 
 # Erreurs HTTP DeepSeek → levées comme ProviderUnavailable pour déclencher le fallback
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}

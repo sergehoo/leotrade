@@ -1,0 +1,14 @@
+{% extends "layout/base.html" %}
+{% block title %}Retrait #{{ withdrawal.pk }} — Lyneci{% endblock %}
+{% block page_title %}Contrôle du retrait{% endblock %}
+{% block content %}
+<div class="max-w-5xl space-y-6">
+  <section class="card p-6 flex flex-wrap justify-between gap-4"><div><div class="text-xs mono text-gray-500">DEMANDE #{{ withdrawal.pk }}</div><h2 class="text-2xl text-white mt-1">{{ withdrawal.amount }} {{ withdrawal.currency }}</h2><p class="text-gray-500">{{ withdrawal.wallet.user.email }} · {{ withdrawal.get_status_display }}</p></div><a href="{% url 'admin-withdrawal-queue' %}" class="text-gray-300">Retour</a></section>
+  <section class="card p-6 grid md:grid-cols-2 gap-4 text-sm"><p><span class="text-gray-500">Destination :</span> {{ withdrawal.destination_masked|default:"—" }}</p><p><span class="text-gray-500">Provider :</span> {{ withdrawal.provider|default:"—" }}</p><p><span class="text-gray-500">Référence :</span> {{ withdrawal.provider_reference|default:"—" }}</p><p><span class="text-gray-500">Frais :</span> {{ withdrawal.fee_amount }} {{ withdrawal.currency }}</p></section>
+  <div class="grid lg:grid-cols-3 gap-5">
+    <form method="post" action="{% url 'admin-withdrawal-approve' withdrawal.pk %}" class="card p-5 space-y-3">{% csrf_token %}<h3 class="text-emerald-300">Approuver</h3><textarea name="admin_note" rows="3" placeholder="Note interne" class="w-full rounded-lg bg-white/5 border border-white/10 p-3 text-white"></textarea><button class="text-emerald-300">Confirmer</button></form>
+    <form method="post" action="{% url 'admin-withdrawal-reject' withdrawal.pk %}" class="card p-5 space-y-3">{% csrf_token %}<h3 class="text-red-300">Rejeter</h3><textarea name="reason" required rows="2" placeholder="Motif" class="w-full rounded-lg bg-white/5 border border-white/10 p-3 text-white"></textarea><button class="text-red-300">Rejeter et débloquer</button></form>
+    <form method="post" action="{% url 'admin-withdrawal-mark-paid' withdrawal.pk %}" class="card p-5 space-y-3">{% csrf_token %}<h3 class="text-blue-300">Marquer payé</h3><input name="provider" value="{{ withdrawal.provider|default:'MANUAL' }}" class="w-full rounded-lg bg-white/5 border border-white/10 p-3 text-white"><input name="provider_reference" placeholder="Référence externe" class="w-full rounded-lg bg-white/5 border border-white/10 p-3 text-white"><button class="text-blue-300">Confirmer le paiement</button></form>
+  </div>
+</div>
+{% endblock %}

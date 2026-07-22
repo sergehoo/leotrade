@@ -1,13 +1,18 @@
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
 from django.utils.text import slugify
 
 from brokers.models import BrokerAccount
 from market.models import Asset, Timeframe
 from portfolio.models import Portfolio
 from strategies.models import Strategy, Signal
-from trading.services.execution.deriv_executor import DerivExecutor
+from strategies.services.deployment import (
+    StrategyDeploymentError,
+    StrategyDeploymentService,
+)
+from trading.services.execution.canonical_signal import CanonicalSignalExecutionService
 
 
 class Command(BaseCommand):
@@ -27,9 +32,14 @@ class Command(BaseCommand):
         if not broker:
             raise CommandError("Broker Deriv introuvable.")
 
-        portfolio = Portfolio.objects.filter(pk=options["portfolio_id"]).first()
+        portfolio = Portfolio.objects.select_related("broker_account").filter(
+            pk=options["portfolio_id"],
+            user=broker.user,
+            broker_account=broker,
+            is_active=True,
+        ).first()
         if not portfolio:
-            raise CommandError("Portfolio introuvable.")
+            raise CommandError("Portfolio actif introuvable ou non lié à ce broker.")
 
         symbol = options["symbol"]
         side = options["side"]
@@ -52,13 +62,14 @@ class Command(BaseCommand):
         )
 
         strategy, _ = Strategy.objects.get_or_create(
+            owner=broker.user,
             slug=slugify(f"deriv-{symbol}-{side}-{duration}{duration_unit}"),
             defaults={
                 "name": f"Deriv {symbol} {side}",
                 "strategy_type": "RULE",
                 "asset": asset,
                 "timeframe": timeframe,
-                "status": "PAPER" if broker.mode == "PAPER" else "LIVE",
+                "status": "PAPER",
                 "is_active": True,
                 "is_autonomous": False,
                 "allow_live_execution": broker.mode == "LIVE",
@@ -70,10 +81,35 @@ class Command(BaseCommand):
                 },
             },
         )
+        strategy.is_active = True
+        strategy.allow_live_execution = broker.mode == "LIVE"
+        strategy.parameters = {
+            **(strategy.parameters or {}),
+            "deriv_duration": duration,
+            "deriv_duration_unit": duration_unit,
+        }
+        strategy.save(update_fields=[
+            "is_active",
+            "allow_live_execution",
+            "parameters",
+            "updated_at",
+        ])
+        try:
+            StrategyDeploymentService.activate(
+                strategy=strategy,
+                user=broker.user,
+                portfolio=portfolio,
+                auto_execute=False,
+            )
+        except StrategyDeploymentError as exc:
+            raise CommandError(str(exc)) from exc
+        strategy.status = broker.mode
+        strategy.save(update_fields=["status", "updated_at"])
 
         signal = Signal.objects.create(
             strategy=strategy,
-            candle_time=portfolio.created_at,
+            user=broker.user,
+            candle_time=timezone.now(),
             side=side,
             confidence=0.99,
             price=Decimal("0"),
@@ -81,13 +117,12 @@ class Command(BaseCommand):
             reason="Test Deriv trade command",
         )
 
-        executor = DerivExecutor(broker, portfolio)
-        result = executor.execute_signal(signal, amount)
-
-        order = result["order"]
-        contract = result["contract"]
+        order = CanonicalSignalExecutionService(broker, portfolio).execute(
+            signal=signal,
+            approved_quantity=amount,
+        )
 
         self.stdout.write(self.style.SUCCESS("Trade Deriv envoyé avec succès"))
         self.stdout.write(f"Order ID: {order.id}")
-        self.stdout.write(f"Contract ID: {contract.contract_id}")
-        self.stdout.write(f"Status: {contract.status}")
+        self.stdout.write(f"Contract ID: {order.broker_order_id or 'en attente'}")
+        self.stdout.write(f"Status: {order.status}")

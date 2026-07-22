@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from core.realtime import RealtimeBroadcastService
+from core.outbox import OutboxService
+from execution.event_topics import NOTIFICATION_UPDATE, ORDER_UPDATE
 from notifications.shortcuts import notify as _notify
 
 
@@ -29,17 +30,23 @@ class TradingNotificationService:
             ),
             payload=_order_payload(order),
         )
-        RealtimeBroadcastService.broadcast_order_update(
-            user_id=order.user_id,
+        OutboxService.enqueue(
+            topic=ORDER_UPDATE,
+            aggregate_type="execution.Order",
+            aggregate_id=order.id,
             payload={
-                "kind": "order_created",
-                "order_id": order.id,
-                "symbol": order.symbol,
-                "status": order.status,
-                "side": order.side,
-                "approved_quantity": str(order.approved_quantity),
-                "approved_notional": str(order.approved_notional),
+                "user_id": order.user_id,
+                "payload": {
+                    "kind": "order_created",
+                    "order_id": order.id,
+                    "symbol": order.symbol,
+                    "status": order.status,
+                    "side": order.side,
+                    "approved_quantity": str(order.approved_quantity),
+                    "approved_notional": str(order.approved_notional),
+                },
             },
+            idempotency_key=f"order:{order.id}:realtime-created",
         )
 
     @staticmethod
@@ -54,15 +61,21 @@ class TradingNotificationService:
             ),
             payload=_order_payload(order),
         )
-        RealtimeBroadcastService.broadcast_order_update(
-            user_id=order.user_id,
+        OutboxService.enqueue(
+            topic=ORDER_UPDATE,
+            aggregate_type="execution.Order",
+            aggregate_id=order.id,
             payload={
-                "kind": "order_submitted",
-                "order_id": order.id,
-                "broker_order_id": order.broker_order_id,
-                "symbol": order.symbol,
-                "status": order.status,
+                "user_id": order.user_id,
+                "payload": {
+                    "kind": "order_submitted",
+                    "order_id": order.id,
+                    "broker_order_id": order.broker_order_id,
+                    "symbol": order.symbol,
+                    "status": order.status,
+                },
             },
+            idempotency_key=f"order:{order.id}:realtime-submitted",
         )
 
     @staticmethod
@@ -77,17 +90,23 @@ class TradingNotificationService:
             ),
             payload=_order_payload(order),
         )
-        RealtimeBroadcastService.broadcast_order_update(
-            user_id=order.user_id,
+        OutboxService.enqueue(
+            topic=ORDER_UPDATE,
+            aggregate_type="execution.Order",
+            aggregate_id=order.id,
             payload={
-                "kind": "order_filled",
-                "order_id": order.id,
-                "symbol": order.symbol,
-                "status": order.status,
-                "filled_quantity": str(order.filled_quantity),
-                "average_fill_price": str(order.average_fill_price),
-                "filled_notional": str(order.filled_notional),
+                "user_id": order.user_id,
+                "payload": {
+                    "kind": "order_filled",
+                    "order_id": order.id,
+                    "symbol": order.symbol,
+                    "status": order.status,
+                    "filled_quantity": str(order.filled_quantity),
+                    "average_fill_price": str(order.average_fill_price),
+                    "filled_notional": str(order.filled_notional),
+                },
             },
+            idempotency_key=f"order:{order.id}:realtime-filled",
         )
 
     @staticmethod
@@ -98,34 +117,50 @@ class TradingNotificationService:
             message=f"L'ordre {order.side} {order.symbol} a été annulé.",
             payload=_order_payload(order),
         )
-        RealtimeBroadcastService.broadcast_order_update(
-            user_id=order.user_id,
+        OutboxService.enqueue(
+            topic=ORDER_UPDATE,
+            aggregate_type="execution.Order",
+            aggregate_id=order.id,
             payload={
-                "kind": "order_cancelled",
-                "order_id": order.id,
-                "symbol": order.symbol,
-                "status": order.status,
+                "user_id": order.user_id,
+                "payload": {
+                    "kind": "order_cancelled",
+                    "order_id": order.id,
+                    "symbol": order.symbol,
+                    "status": order.status,
+                },
             },
+            idempotency_key=f"order:{order.id}:realtime-cancelled",
         )
 
     @staticmethod
     def notify_error(user_id: int, message: str, payload: dict | None = None):
-        RealtimeBroadcastService.broadcast_notification(
-            user_id=user_id,
+        OutboxService.enqueue(
+            topic=NOTIFICATION_UPDATE,
+            aggregate_type="auth.User",
+            aggregate_id=user_id,
             payload={
-                "kind": "error",
-                "message": message,
-                "payload": payload or {},
+                "user_id": user_id,
+                "payload": {
+                    "kind": "error",
+                    "message": message,
+                    "payload": payload or {},
+                },
             },
         )
 
     @staticmethod
     def notify_success(user_id: int, message: str, payload: dict | None = None):
-        RealtimeBroadcastService.broadcast_notification(
-            user_id=user_id,
+        OutboxService.enqueue(
+            topic=NOTIFICATION_UPDATE,
+            aggregate_type="auth.User",
+            aggregate_id=user_id,
             payload={
-                "kind": "success",
-                "message": message,
-                "payload": payload or {},
+                "user_id": user_id,
+                "payload": {
+                    "kind": "success",
+                    "message": message,
+                    "payload": payload or {},
+                },
             },
         )

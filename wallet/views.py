@@ -1,5 +1,6 @@
 # wallet/views.py
 from decimal import Decimal
+import logging
 from typing import Optional
 
 from django.conf import settings
@@ -24,7 +25,17 @@ from .models import (
     WalletLedgerEntry,
     PayoutDestination,
 )
-from .services import WalletService, StripeWalletService, AdyenWalletService, PayoutService
+from .services import (
+    AdyenWalletService,
+    PaymentGatewayError,
+    PaystackWalletService,
+    PayoutService,
+    StripeWalletService,
+    WalletService,
+)
+
+
+log = logging.getLogger("lyneci.wallet.views")
 
 
 # =========================================================
@@ -34,7 +45,7 @@ from .services import WalletService, StripeWalletService, AdyenWalletService, Pa
 def _get_or_create_wallet(request: HttpRequest) -> Wallet:
     wallet, _ = Wallet.objects.get_or_create(
         user=request.user,
-        defaults={"currency": "USD"},
+        defaults={"currency": settings.WALLET_DEFAULT_CURRENCY},
     )
     return wallet
 
@@ -163,21 +174,34 @@ def wallet_deposit(request: HttpRequest) -> HttpResponse:
     wallet = _get_or_create_wallet(request)
 
     if request.method == "POST":
-        form = DepositForm(request.POST)
+        form = DepositForm(request.POST, wallet=wallet)
         if form.is_valid():
             amount = form.cleaned_data["amount"]
             currency = form.cleaned_data["currency"]
             provider = form.cleaned_data["provider"]
 
             try:
-                if provider == "STRIPE":
+                if provider == "PAYSTACK":
+                    paystack_session, tx = PaystackWalletService.create_deposit_checkout(
+                        user=request.user,
+                        wallet=wallet,
+                        amount=amount,
+                        currency=currency,
+                    )
+                    response = redirect(paystack_session["authorization_url"])
+                    response.status_code = 303
+                    return response
+
+                elif provider == "STRIPE":
                     session, tx = StripeWalletService.create_deposit_checkout_session(
                         user=request.user,
                         wallet=wallet,
                         amount=amount,
                         currency=currency,
                     )
-                    return redirect(session.url, code=303)
+                    response = redirect(session.url)
+                    response.status_code = 303
+                    return response
 
                 elif provider == "ADYEN":
                     adyen_session, tx = AdyenWalletService.create_deposit_session(
@@ -197,9 +221,24 @@ def wallet_deposit(request: HttpRequest) -> HttpResponse:
                 else:
                     messages.error(request, "Provider de paiement non pris en charge.")
             except Exception as exc:
-                messages.error(request, f"Impossible de démarrer le dépôt : {exc}")
+                log.warning(
+                    "wallet.deposit.initialization_failed provider=%s user_id=%s error=%s",
+                    provider,
+                    request.user.id,
+                    type(exc).__name__,
+                )
+                messages.error(
+                    request,
+                    "Impossible de démarrer le dépôt. Réessayez dans quelques instants.",
+                )
     else:
-        form = DepositForm(initial={"currency": wallet.currency})
+        form = DepositForm(
+            wallet=wallet,
+            initial={
+                "currency": wallet.currency.upper(),
+                "provider": getattr(settings, "PAYMENT_DEFAULT_PROVIDER", "PAYSTACK"),
+            },
+        )
 
     return render(request, "wallet/deposit.html", {
         "form": form,
@@ -209,13 +248,53 @@ def wallet_deposit(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@require_GET
 def wallet_deposit_success(request: HttpRequest) -> HttpResponse:
     wallet = _get_or_create_wallet(request)
-    messages.success(
-        request,
-        "Dépôt initié avec succès. Le solde sera crédité après confirmation du provider."
-    )
-    return render(request, "wallet/deposit_success.html", {"wallet": wallet})
+    payment_status = "pending"
+    payment_transaction = None
+    provider = request.GET.get("provider", "").strip().lower()
+    reference = request.GET.get("reference", "").strip()
+
+    if provider == "paystack" and reference:
+        try:
+            payment_transaction, payment_status = PaystackWalletService.verify_and_confirm(
+                reference=reference,
+                wallet_id=wallet.id,
+            )
+        except WalletTransaction.DoesNotExist:
+            log.warning(
+                "paystack.callback.unknown_reference user_id=%s reference=%s",
+                request.user.id,
+                reference,
+            )
+            payment_status = "unknown"
+        except PaymentGatewayError as exc:
+            log.warning(
+                "paystack.callback.verification_failed user_id=%s reference=%s error=%s",
+                request.user.id,
+                reference,
+                type(exc).__name__,
+            )
+            payment_status = "pending"
+
+    if payment_status == "succeeded":
+        messages.success(request, "Paiement confirmé : votre wallet a été crédité.")
+    elif payment_status == "failed":
+        messages.error(request, "Le paiement Paystack n'a pas abouti.")
+    elif payment_status == "unknown":
+        messages.error(request, "Cette référence de paiement est inconnue.")
+    else:
+        messages.info(
+            request,
+            "Dépôt initié. Le solde sera crédité après confirmation sécurisée.",
+        )
+
+    return render(request, "wallet/deposit_success.html", {
+        "wallet": wallet,
+        "payment_status": payment_status,
+        "payment_transaction": payment_transaction,
+    })
 
 
 @login_required

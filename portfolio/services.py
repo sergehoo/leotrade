@@ -138,6 +138,18 @@ class PortfolioAccountingService:
         # Sans ce lock, deux workers concurrents peuvent lire le même available_cash
         # et tous les deux approuver un débit, conduisant à un solde négatif.
         portfolio = Portfolio.objects.select_for_update().get(pk=portfolio.pk)
+        existing_lock = portfolio.ledger_entries.filter(
+            entry_type="ORDER_LOCK",
+            reference_type=reference_type,
+            reference_id=reference_id,
+        ).first()
+        if existing_lock is not None:
+            if abs(_to_decimal(existing_lock.amount)) != amount:
+                raise ValueError(
+                    "Un verrou de cash existe déjà avec un montant différent."
+                )
+            return PortfolioService.recompute_cash_state(portfolio)
+
         portfolio = PortfolioService.recompute_cash_state(portfolio)
         if portfolio.available_cash < amount:
             raise ValueError(
@@ -168,14 +180,42 @@ class PortfolioAccountingService:
         if amount <= 0:
             raise ValueError("Le montant à libérer doit être positif.")
 
+        portfolio = Portfolio.objects.select_for_update().get(pk=portfolio.pk)
+        reservation_entries = portfolio.ledger_entries.filter(
+            reference_type=reference_type,
+            reference_id=reference_id,
+            entry_type__in=["ORDER_LOCK", "ORDER_RELEASE"],
+        )
+        locked_total = _to_decimal(
+            reservation_entries.filter(entry_type="ORDER_LOCK").aggregate(
+                total=Sum("amount")
+            )["total"]
+        )
+        released_total = _to_decimal(
+            reservation_entries.filter(entry_type="ORDER_RELEASE").aggregate(
+                total=Sum("amount")
+            )["total"]
+        )
+        remaining_locked = max(
+            Decimal("0.00"),
+            abs(min(Decimal("0.00"), locked_total)) - released_total,
+        )
+        if remaining_locked <= 0:
+            return PortfolioService.recompute_cash_state(portfolio)
+
+        release_amount = min(amount, remaining_locked)
         PortfolioAccountingService.add_ledger_entry(
             portfolio=portfolio,
             entry_type="ORDER_RELEASE",
-            amount=amount,
+            amount=release_amount,
             reference_type=reference_type,
             reference_id=reference_id,
             description="Libération de cash d'ordre",
-            metadata=metadata,
+            metadata={
+                **(metadata or {}),
+                "requested_release_amount": str(amount),
+                "remaining_locked_before": str(remaining_locked),
+            },
         )
         return PortfolioService.recompute_cash_state(portfolio)
 

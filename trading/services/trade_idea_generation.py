@@ -20,6 +20,7 @@ class TradeIdeaGenerationService:
                 asset=asset,
                 timeframe=timeframe,
                 is_active=True,
+                owner__isnull=True,
             )
             .exclude(status__in=["ARCHIVED", "FAILED", "PAUSED"])
             .order_by("-allow_live_execution", "-is_autonomous", "name")
@@ -105,6 +106,7 @@ class TradeIdeaGenerationService:
                 asset=asset,
                 timeframe=timeframe,
                 is_active=True,
+                owner__isnull=True,
             )
             .exclude(status__in=["ARCHIVED", "FAILED", "PAUSED"])
             .order_by("-allow_live_execution", "-is_autonomous", "name")
@@ -218,6 +220,7 @@ class TradeIdeaGenerationService:
             asset = row.get("asset")
             timeframe = row.get("timeframe")
             features = row.get("features") or {}
+            feature_bundle = row.get("feature_bundle")
             market_snapshot = row.get("market_snapshot") or {}
 
             if not asset or not timeframe or not isinstance(features, dict):
@@ -227,13 +230,21 @@ class TradeIdeaGenerationService:
             if strategy is None:
                 continue
 
-            scores = OpportunityScoringService.score(features) or {}
+            scores = OpportunityScoringService.score(
+                features,
+                feature_bundle=feature_bundle,
+            ) or {}
             overall_score = cls._safe_float(scores.get("overall_score", 0), 0.0)
 
             if overall_score < cls.MIN_OVERALL_SCORE:
                 continue
 
-            direction = OpportunityScoringService.choose_direction(features)
+            direction = scores.get("direction") or OpportunityScoringService.choose_direction(
+                features,
+                feature_bundle=feature_bundle,
+            )
+            if direction == "HOLD":
+                continue
             signal_side = cls._signal_side_from_direction(direction)
 
             timeframe_code_value = getattr(timeframe, "code", None) or "5m"
@@ -279,6 +290,7 @@ class TradeIdeaGenerationService:
 
             signal = Signal.objects.create(
                 strategy=strategy,
+                user=user,
                 strategy_run=None,
                 candle_time=candle_time,
                 side=signal_side,
@@ -296,6 +308,8 @@ class TradeIdeaGenerationService:
                     "setup_score": cls._safe_float(scores.get("setup_score", 0), 0.0),
                     "risk_score": cls._safe_float(scores.get("risk_score", 0), 0.0),
                     "reward_score": cls._safe_float(scores.get("reward_score", 0), 0.0),
+                    "regime": scores.get("regime"),
+                    "patterns": scores.get("patterns", []),
                     "symbol": symbol,
                     "direction": direction,
                     "user_id": user.id,
@@ -333,6 +347,9 @@ class TradeIdeaGenerationService:
                     "user_id": user.id,
                     "signal_id": signal.id,
                     "strategy_id": strategy.id,
+                    "scoring": scores.get("scoring_payload", {}),
+                    "regime": scores.get("regime"),
+                    "patterns": scores.get("patterns", []),
                 },
                 status="NEW",
                 expires_at=expires_at,

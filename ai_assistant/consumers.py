@@ -2,7 +2,7 @@
 ai_assistant/consumers.py
 ==========================
 
-WebSocket consumer pour le panel IA conversationnel LeoAI.
+WebSocket consumer pour le panel IA conversationnel Lyneci AI.
 
 Protocole (JSON) :
   Client → Server :
@@ -14,7 +14,7 @@ Protocole (JSON) :
 
   Server → Client :
     {"type": "session",   "session_id": 1, "history": [...]}
-    {"type": "thinking"}  ← LeoAI commence à rédiger
+    {"type": "thinking"}  ← Lyneci AI commence à rédiger
     {"type": "chunk",     "text": "...", "id": <msg_id>}
     {"type": "done",      "id": <msg_id>, "actions": [...], "meta": {...}}
     {"type": "action_update", "action_id": ..., "status": "CONFIRMED"|"REJECTED"}
@@ -40,7 +40,7 @@ from .services import (
     extract_actions,
 )
 
-log = logging.getLogger("leotrade.ai_assistant.consumer")
+log = logging.getLogger("lyneci.ai_assistant.consumer")
 
 # Historique de conversation envoyé au LLM (sliding window)
 MAX_HISTORY_TURNS = 10  # N derniers échanges user+assistant
@@ -216,7 +216,7 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         })
 
     async def _handle_quota_pay_wallet(self, content: dict):
-        """Payer un plan LeoAI via débit du portefeuille."""
+        """Payer un plan Lyneci AI via débit du portefeuille."""
         plan = content.get("plan", "BASIC")
         result = await sync_to_async(QuotaService.pay_with_wallet)(self.user, plan)
         if result["ok"]:

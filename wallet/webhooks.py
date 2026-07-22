@@ -2,14 +2,13 @@
 wallet/webhooks.py
 ==================
 
-Webhooks de paiement Stripe + Adyen.
+Webhooks de paiement Stripe + Adyen + Paystack.
 
 Garanties :
   - Signature broker validée (Stripe via SDK, Adyen via HMAC-SHA256)
   - Idempotence atomique : `select_for_update()` sur `ProviderWebhookEvent`
     pour éviter les doubles crédits sur retries simultanés
-  - Crédit wallet via `WalletService.credit_wallet(external_event_id=...)`
-    qui passe par `WalletLedgerService` (idempotent par event_id)
+  - Crédit wallet via `WalletService.confirm_deposit()` et le ledger atomique
 """
 
 from __future__ import annotations
@@ -28,7 +27,11 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from .models import ProviderWebhookEvent, WalletTransaction
-from .services import WalletService
+from .services import (
+    PaymentGatewayValidationError,
+    PaystackWalletService,
+    WalletService,
+)
 
 try:
     import stripe
@@ -38,7 +41,7 @@ except Exception:  # pragma: no cover
     stripe = None
 
 
-log = logging.getLogger("leotrade.wallet.webhooks")
+log = logging.getLogger("lyneci.wallet.webhooks")
 
 
 # =============================================================================
@@ -90,25 +93,18 @@ def stripe_webhook(request):
                 tx = WalletTransaction.objects.select_for_update().select_related("wallet").get(
                     id=tx_id, status="PENDING"
                 )
-                tx.status = "SUCCEEDED"
-                tx.provider_reference = data_object.get("payment_intent") or data_object.get("id")
-                tx.processed_at = timezone.now()
-                tx.metadata = {**tx.metadata, "checkout_session": data_object}
-                tx.save(update_fields=[
-                    "status", "provider_reference", "processed_at", "metadata", "updated_at",
-                ])
-
-                # Crédit IDEMPOTENT par external_event_id = stripe event id.
-                # Si le webhook arrive 2 fois, le ledger ne crédite qu'une fois.
-                WalletService.credit_wallet(
-                    wallet=tx.wallet,
-                    amount=tx.amount,
-                    tx_type="DEPOSIT",
+                provider_reference = data_object.get("payment_intent") or data_object.get("id")
+                WalletService.confirm_deposit(
+                    transaction_id=tx.id,
                     provider="STRIPE",
-                    provider_reference=tx.provider_reference,
-                    description="Stripe deposit confirmed",
-                    metadata={"source_tx_id": tx.id, "stripe_event_id": event_id},
+                    provider_reference=provider_reference,
                     external_event_id=f"stripe:{event_id}",
+                    description="Stripe deposit confirmed",
+                    provider_payload={
+                        "id": data_object.get("id"),
+                        "payment_intent": data_object.get("payment_intent"),
+                        "payment_status": data_object.get("payment_status"),
+                    },
                 )
             except WalletTransaction.DoesNotExist:
                 log.info("stripe.webhook.tx_not_found tx_id=%s", tx_id)
@@ -226,22 +222,18 @@ def adyen_webhook(request):
                 status="PENDING",
             ).select_for_update().select_related("wallet").first()
             if tx:
-                tx.status = "SUCCEEDED"
-                tx.provider_reference = psp_reference
-                tx.processed_at = timezone.now()
-                tx.metadata = {**tx.metadata, "adyen_notification": notif}
-                tx.save(update_fields=[
-                    "status", "provider_reference", "processed_at", "metadata", "updated_at",
-                ])
-                WalletService.credit_wallet(
-                    wallet=tx.wallet,
-                    amount=tx.amount,
-                    tx_type="DEPOSIT",
+                WalletService.confirm_deposit(
+                    transaction_id=tx.id,
                     provider="ADYEN",
                     provider_reference=psp_reference,
-                    description="Adyen deposit confirmed",
-                    metadata={"source_tx_id": tx.id, "adyen_psp_reference": psp_reference},
                     external_event_id=f"adyen:{psp_reference}",
+                    description="Adyen deposit confirmed",
+                    provider_payload={
+                        "psp_reference": psp_reference,
+                        "merchant_reference": merchant_reference,
+                        "event_code": event_code,
+                        "success": success,
+                    },
                 )
 
         webhook_obj.processed = True
@@ -249,3 +241,83 @@ def adyen_webhook(request):
         webhook_obj.save(update_fields=["processed", "processed_at"])
 
     return JsonResponse({"notificationResponse": "[accepted]"})
+
+
+# =============================================================================
+# Paystack
+# =============================================================================
+
+@csrf_exempt
+@require_POST
+def paystack_webhook(request):
+    secret = getattr(settings, "PAYSTACK_SECRET_KEY", "") or ""
+    if not secret:
+        log.error("paystack.webhook.secret_missing")
+        return HttpResponse(status=503)
+
+    received_signature = request.META.get("HTTP_X_PAYSTACK_SIGNATURE", "")
+    expected_signature = hmac.new(
+        secret.encode("utf-8"),
+        request.body,
+        hashlib.sha512,
+    ).hexdigest()
+    if not received_signature or not hmac.compare_digest(
+        expected_signature,
+        received_signature,
+    ):
+        log.warning("paystack.webhook.signature_invalid")
+        return HttpResponse(status=400)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return HttpResponse(status=400)
+
+    event_type = payload.get("event") if isinstance(payload, dict) else None
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(event_type, str) or not isinstance(data, dict):
+        return HttpResponse(status=400)
+
+    reference = str(data.get("reference") or "").strip()
+    provider_transaction_id = data.get("id")
+    if event_type == "charge.success" and not reference:
+        return HttpResponse(status=400)
+
+    event_identity = provider_transaction_id or reference
+    if not event_identity:
+        return HttpResponse(status=200)
+    event_id = f"{event_type}:{event_identity}"
+    sanitized_payload = {
+        "event": event_type,
+        "data": PaystackWalletService.sanitized_transaction_payload(data),
+    }
+
+    with transaction.atomic():
+        webhook_obj, created = ProviderWebhookEvent.objects.select_for_update().get_or_create(
+            provider="PAYSTACK",
+            event_id=event_id,
+            defaults={"event_type": event_type, "payload": sanitized_payload},
+        )
+        if not created and webhook_obj.processed:
+            return HttpResponse(status=200)
+
+        if event_type == "charge.success":
+            try:
+                PaystackWalletService.apply_success_payload(
+                    data=data,
+                    external_event_id=f"paystack:webhook:{event_id}",
+                )
+            except WalletTransaction.DoesNotExist:
+                log.info("paystack.webhook.tx_not_found reference=%s", reference)
+            except PaymentGatewayValidationError as exc:
+                log.warning(
+                    "paystack.webhook.payload_rejected reference=%s reason=%s",
+                    reference,
+                    exc,
+                )
+
+        webhook_obj.processed = True
+        webhook_obj.processed_at = timezone.now()
+        webhook_obj.save(update_fields=["processed", "processed_at"])
+
+    return HttpResponse(status=200)

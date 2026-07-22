@@ -1,6 +1,6 @@
 {% extends "layout/base.html" %}
 
-{% block title %}{{ backtest.name }} — LeoTrade{% endblock %}
+{% block title %}{{ backtest.name }} — Lyneci{% endblock %}
 {% block page_title %}Détail du backtest{% endblock %}
 
 {% block content %}
@@ -34,30 +34,40 @@
     </div>
   </section>
 
+  {% if backtest.status == "FAILED" %}
+  <section class="rounded-xl border border-red-500/25 bg-red-500/10 p-4">
+    <div class="text-sm font-medium text-red-300">Le backtest n’a pas abouti</div>
+    <div class="text-sm text-red-200/70 mt-1">{{ backtest.failure_message|default:"Erreur de calcul non détaillée." }}</div>
+  </section>
+  {% endif %}
+
   <!-- KPI cards -->
   <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
     <div class="card p-5">
-      <div class="text-xs mono uppercase tracking-wider text-gray-600">Capital initial</div>
-      <div class="text-white text-2xl font-semibold mt-2 mono">{{ backtest.initial_cash }}</div>
-    </div>
-
-    <div class="card p-5">
-      <div class="text-xs mono uppercase tracking-wider text-gray-600">Commission</div>
-      <div class="text-white text-2xl font-semibold mt-2 mono">{{ backtest.commission }}</div>
-    </div>
-
-    <div class="card p-5">
-      <div class="text-xs mono uppercase tracking-wider text-gray-600">Slippage</div>
-      <div class="text-white text-2xl font-semibold mt-2 mono">{{ backtest.slippage }}</div>
-    </div>
-
-    <div class="card p-5">
-      <div class="text-xs mono uppercase tracking-wider text-gray-600">Période</div>
-      <div class="text-white text-lg font-semibold mt-2">
-        {{ backtest.start_date|date:"d/m/Y" }}
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Capital final</div>
+      <div class="text-white text-2xl font-semibold mt-2 mono">
+        {{ backtest.metrics.final_equity|default_if_none:"—"|floatformat:2 }}
       </div>
-      <div class="text-xs text-gray-500 mt-1">
-        jusqu’au {{ backtest.end_date|date:"d/m/Y" }}
+    </div>
+
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Rendement net</div>
+      <div class="text-emerald-400 text-2xl font-semibold mt-2 mono">
+        {{ backtest.metrics.return_pct|default_if_none:"—"|floatformat:2 }}{% if backtest.metrics.return_pct != None %}%{% endif %}
+      </div>
+    </div>
+
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Drawdown maximal</div>
+      <div class="text-amber-400 text-2xl font-semibold mt-2 mono">
+        {{ backtest.metrics.max_drawdown_pct|default_if_none:"—"|floatformat:2 }}{% if backtest.metrics.max_drawdown_pct != None %}%{% endif %}
+      </div>
+    </div>
+
+    <div class="card p-5">
+      <div class="text-xs mono uppercase tracking-wider text-gray-600">Taux de réussite</div>
+      <div class="text-white text-2xl font-semibold mt-2 mono">
+        {{ backtest.metrics.win_rate_pct|default_if_none:"—"|floatformat:2 }}{% if backtest.metrics.win_rate_pct != None %}%{% endif %}
       </div>
     </div>
   </section>
@@ -75,27 +85,117 @@
     </div>
 
     <div class="card p-6">
-      <h3 class="text-white font-semibold mb-4">Métriques brutes</h3>
-      <div class="rounded-xl bg-black/20 border border-white/5 p-4 max-h-[360px] overflow-auto scrollbar-thin">
-        <pre class="text-xs text-gray-300 whitespace-pre-wrap leading-relaxed">{{ backtest.metrics }}</pre>
+      <h3 class="text-white font-semibold mb-4">Indicateurs</h3>
+      <div class="space-y-3 text-sm">
+        <div class="flex justify-between border-b border-white/5 pb-3">
+          <span class="text-gray-500">Trades clôturés</span>
+          <span class="text-white mono">{{ backtest.metrics.trades_count|default:0 }}</span>
+        </div>
+        <div class="flex justify-between border-b border-white/5 pb-3">
+          <span class="text-gray-500">Ratio de Sharpe</span>
+          <span class="text-white mono">{{ backtest.metrics.sharpe_ratio|default_if_none:"—"|floatformat:2 }}</span>
+        </div>
+        <div class="flex justify-between border-b border-white/5 pb-3">
+          <span class="text-gray-500">Profit factor</span>
+          <span class="text-white mono">{{ backtest.metrics.profit_factor|default_if_none:"—"|floatformat:2 }}</span>
+        </div>
+        <div class="flex justify-between border-b border-white/5 pb-3">
+          <span class="text-gray-500">Exposition marché</span>
+          <span class="text-white mono">{{ backtest.metrics.exposure_time_pct|default_if_none:"—"|floatformat:2 }}%</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-500">Frais simulés</span>
+          <span class="text-white mono">{{ backtest.metrics.total_commission|default:0|floatformat:2 }}</span>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- Params / Trades -->
+  <!-- Assumptions / Data -->
   <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
     <div class="card p-6">
-      <h3 class="text-white font-semibold mb-4">Paramètres</h3>
-      <div class="rounded-xl bg-black/20 border border-white/5 p-4">
-        <pre class="text-xs text-gray-300 whitespace-pre-wrap leading-relaxed">{{ backtest.parameters }}</pre>
+      <h3 class="text-white font-semibold mb-4">Hypothèses d’exécution</h3>
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <div class="rounded-lg bg-black/20 border border-white/5 p-3">
+          <div class="text-gray-600 text-xs">Capital initial</div>
+          <div class="text-white mono mt-1">{{ backtest.initial_cash }}</div>
+        </div>
+        <div class="rounded-lg bg-black/20 border border-white/5 p-3">
+          <div class="text-gray-600 text-xs">Commission</div>
+          <div class="text-white mono mt-1">{{ backtest.commission }}</div>
+        </div>
+        <div class="rounded-lg bg-black/20 border border-white/5 p-3">
+          <div class="text-gray-600 text-xs">Spread</div>
+          <div class="text-white mono mt-1">{{ backtest.spread }}</div>
+        </div>
+        <div class="rounded-lg bg-black/20 border border-white/5 p-3">
+          <div class="text-gray-600 text-xs">Slippage</div>
+          <div class="text-white mono mt-1">{{ backtest.slippage }}</div>
+        </div>
       </div>
     </div>
 
     <div class="card p-6">
-      <h3 class="text-white font-semibold mb-4">Journal des trades</h3>
-      <div class="rounded-xl bg-black/20 border border-white/5 p-4 max-h-[320px] overflow-auto scrollbar-thin">
-        <pre class="text-xs text-gray-300 whitespace-pre-wrap leading-relaxed">{{ backtest.trades_log }}</pre>
+      <h3 class="text-white font-semibold mb-4">Traçabilité des données</h3>
+      <div class="space-y-3 text-sm">
+        <div class="flex justify-between border-b border-white/5 pb-3">
+          <span class="text-gray-500">Bougies analysées</span>
+          <span class="text-white mono">{{ backtest.data_points }}</span>
+        </div>
+        <div class="flex justify-between border-b border-white/5 pb-3">
+          <span class="text-gray-500">Intervalles manquants estimés</span>
+          <span class="text-white mono">{{ backtest.metrics.data_quality.estimated_missing_candles|default:0 }}</span>
+        </div>
+        <div class="flex justify-between border-b border-white/5 pb-3">
+          <span class="text-gray-500">Version moteur</span>
+          <span class="text-white mono">{{ backtest.engine_version }}</span>
+        </div>
+        <div>
+          <div class="text-gray-500">Empreinte des données</div>
+          <div class="text-gray-300 mono text-[11px] mt-1 break-all">{{ backtest.data_checksum|default:"—" }}</div>
+        </div>
       </div>
+    </div>
+  </section>
+
+  <section class="card p-0 overflow-hidden">
+    <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between gap-3">
+      <h3 class="text-white font-semibold">Journal des trades</h3>
+      {% if backtest.metrics.trades_log_truncated %}
+      <span class="text-xs text-amber-400 mono">
+        Échantillon {{ backtest.metrics.stored_trades_count }}/{{ backtest.metrics.trades_count }}
+      </span>
+      {% endif %}
+    </div>
+    <div class="overflow-x-auto max-h-[420px]">
+      <table class="w-full min-w-[900px] text-sm">
+        <thead class="sticky top-0 bg-[#101620]">
+          <tr class="text-left text-gray-500 border-b border-white/10">
+            <th class="px-5 py-3 font-medium">Entrée</th>
+            <th class="px-5 py-3 font-medium">Sortie</th>
+            <th class="px-5 py-3 font-medium text-right">Taille</th>
+            <th class="px-5 py-3 font-medium text-right">Prix entrée</th>
+            <th class="px-5 py-3 font-medium text-right">Prix sortie</th>
+            <th class="px-5 py-3 font-medium text-right">PnL</th>
+            <th class="px-5 py-3 font-medium text-right">Rendement</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for trade in backtest.trades_log %}
+          <tr class="table-row border-b border-white/5">
+            <td class="px-5 py-3 text-gray-300 mono text-xs">{{ trade.entry_time }}</td>
+            <td class="px-5 py-3 text-gray-300 mono text-xs">{{ trade.exit_time }}</td>
+            <td class="px-5 py-3 text-white mono text-right">{{ trade.size|floatformat:4 }}</td>
+            <td class="px-5 py-3 text-white mono text-right">{{ trade.entry_price|floatformat:4 }}</td>
+            <td class="px-5 py-3 text-white mono text-right">{{ trade.exit_price|floatformat:4 }}</td>
+            <td class="px-5 py-3 mono text-right {% if trade.pnl >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">{{ trade.pnl|floatformat:2 }}</td>
+            <td class="px-5 py-3 mono text-right {% if trade.return_pct >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">{{ trade.return_pct|floatformat:2 }}%</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="px-6 py-10 text-center text-gray-500">Aucun trade exécuté sur cette période.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </section>
 
@@ -110,25 +210,21 @@
     </a>
   </section>
 
+  {{ backtest.equity_curve|json_script:"equity-data" }}
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
   (function () {
-    const raw = {{ equity_json|safe|default:"[]" }};
+    const dataNode = document.getElementById("equity-data");
+    const raw = dataNode ? JSON.parse(dataNode.textContent) : [];
     const labels = [];
     const values = [];
 
     raw.forEach((item, index) => {
-      labels.push(item.index || item.Date || item.date || index + 1);
-      values.push(
-        item.Equity ||
-        item.equity ||
-        item.equity_final ||
-        item.EquityFinal ||
-        0
-      );
+      labels.push(item.timestamp || index + 1);
+      values.push(item.equity ?? 0);
     });
 
     const ctx = document.getElementById("equityChart");

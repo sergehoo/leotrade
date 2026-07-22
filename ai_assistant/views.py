@@ -26,7 +26,7 @@ from django.views.decorators.http import require_POST
 from .models import AssistantConversation, AssistantMessage, AssistantAction, AIUserQuota, AIQuotaPayment
 from .services import QuotaService
 
-log = logging.getLogger("leotrade.ai_assistant")
+log = logging.getLogger("lyneci.ai_assistant")
 
 
 class AssistantConversationView(LoginRequiredMixin, View):
@@ -180,7 +180,7 @@ class QuotaCancelView(LoginRequiredMixin, View):
 @csrf_exempt
 @require_POST
 def stripe_webhook(request):
-    """Webhook Stripe pour les paiements de quota LeoAI."""
+    """Webhook Stripe pour les paiements de quota Lyneci AI."""
     payload = request.body
     sig_header = request.META.get("HTTP_STRIPE_SIGNATURE", "")
     webhook_secret = getattr(settings, "STRIPE_WEBHOOK_SECRET", "")

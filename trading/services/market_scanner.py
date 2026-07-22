@@ -339,18 +339,24 @@ class MarketScannerService:
                     .order_by("-open_time")[:200]
                 )
 
-                # Minimum 27 chandeliers requis : 26 pour MACD + 1 de marge
-                # RSI besoin de 15, ATR de 14 — on retient 27 comme plancher
-                if len(candles) < 27:
+                # The production feature pipeline needs enough history for
+                # MACD, Bollinger and pattern detection.
+                if len(candles) < 30:
                     continue
 
-                features = cls._extract_features(candles)
+                from trading.services.ai.features import compute_features
+
+                feature_bundle = compute_features(candles)
+                features = feature_bundle.snapshot
+                if not features:
+                    continue
                 market_snapshot = cls._build_market_snapshot(asset, timeframe, candles)
 
                 rows.append({
                     "asset": asset,
                     "timeframe": timeframe,
                     "features": features,
+                    "feature_bundle": feature_bundle,
                     "market_snapshot": market_snapshot,
                 })
 

@@ -1,7 +1,7 @@
 from django.urls import path, include
 
 from dashboard.views import HedgeFundDashboardView, trading_mode_toggle, kyc_dashboard, kyc_submit, admin_kyc_list, \
-    admin_kyc_detail, admin_kyc_approve, admin_kyc_reject, HedgeFundDashboardLiveDataView
+    admin_kyc_detail, admin_kyc_document, admin_kyc_approve, admin_kyc_reject, HedgeFundDashboardLiveDataView
 from leo_backtesting.views import BacktestListView, BacktestDetailView, LaunchBacktestView
 
 urlpatterns = [
@@ -16,6 +16,7 @@ urlpatterns = [
 
     path("admin/list/", admin_kyc_list, name="admin-kyc-list"),
     path("admin/<int:pk>/", admin_kyc_detail, name="admin-kyc-detail"),
+    path("admin/<int:pk>/documents/<str:field_name>/", admin_kyc_document, name="admin-kyc-document"),
     path("admin/<int:pk>/approve/", admin_kyc_approve, name="admin-kyc-approve"),
     path("admin/<int:pk>/reject/", admin_kyc_reject, name="admin-kyc-reject"),
 ]

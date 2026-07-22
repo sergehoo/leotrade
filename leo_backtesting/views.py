@@ -1,106 +1,75 @@
-"""
-leo_backtesting/views.py
-========================
-
-Vues backtest sécurisées + lancement asynchrone via Celery.
-
-Avant :
-  - BacktestListView retournait `.all()` → fuite de tous les backtests entre users
-  - LaunchBacktestView appelait `run_backtest()` synchroniquement dans la vue
-    HTTP → blocage 5-30s + timeout possible
-  - Pas de check d'ownership de la stratégie
-
-Après :
-  - Filtrage strict par user via strategy__user
-  - Lancement async via `run_backtest_task.delay(bt_id)` (worker Celery)
-  - Statut PENDING → RUNNING → DONE / FAILED suivi en live (poll status JSON)
-"""
-
 from __future__ import annotations
 
-import json as _json
+import json
 import logging
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import JsonResponse, Http404
+from django.db import IntegrityError, transaction
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 from django.views import View
 from django.views.generic import DetailView, ListView
 
+from core.outbox import OutboxService
+from leo_backtesting.event_topics import BACKTEST_RUN_REQUESTED
 from leo_backtesting.models import BacktestRun
+from leo_backtesting.services import (
+    ENGINE_VERSION,
+    build_run_parameters,
+    execution_assumptions_for,
+)
 from strategies.models import Strategy
 
 
-log = logging.getLogger("leotrade.backtesting.views")
+log = logging.getLogger("lyneci.backtesting.views")
 
 
-def _user_owns_strategy(user, strategy: Strategy) -> bool:
-    """
-    Strategy peut être attachée à un user direct, à un portfolio (qui a user),
-    ou être globale. On accepte l'ownership transitif.
-    Staff = accès total.
-    """
-    if getattr(strategy, "user_id", None) and strategy.user_id == user.id:
-        return True
-    pf = getattr(strategy, "portfolio", None)
-    if pf and getattr(pf, "user_id", None) == user.id:
-        return True
-    return getattr(user, "is_staff", False)
+def _available_strategies_for(user):
+    return Strategy.objects.visible_to(user).filter(is_active=True)
+
+
+def _backtests_for_user(user):
+    queryset = BacktestRun.objects.select_related(
+        "strategy",
+        "strategy__asset",
+        "strategy__timeframe",
+        "requested_by",
+    )
+    if user.is_staff:
+        return queryset
+    return queryset.filter(requested_by=user)
 
 
 class BacktestListView(LoginRequiredMixin, ListView):
-    """
-    Liste les backtests de l'utilisateur (via les stratégies qu'il possède).
-    """
     model = BacktestRun
     template_name = "leo_backtesting/backtest_list.html"
     context_object_name = "backtests"
     paginate_by = 20
 
     def get_queryset(self):
-        user = self.request.user
-        for filter_kwargs in (
-            {"strategy__user": user},
-            {"strategy__portfolio__user": user},
-        ):
-            try:
-                qs = BacktestRun.objects.filter(**filter_kwargs)
-                qs.exists()  # vérifie que le filtre est valide pour le schéma
-                return qs.select_related(
-                    "strategy", "strategy__asset", "strategy__timeframe"
-                ).order_by("-created_at")
-            except Exception:
-                continue
-        if user.is_staff:
-            return BacktestRun.objects.select_related("strategy").order_by("-created_at")
-        return BacktestRun.objects.none()
+        return _backtests_for_user(self.request.user).order_by("-created_at")
 
     def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        full_qs = self.get_queryset()
-        ctx["count_total"] = full_qs.count()
-        ctx["count_done"] = full_qs.filter(status="DONE").count()
-        ctx["count_running"] = full_qs.filter(status__in=["PENDING", "RUNNING"]).count()
-        ctx["count_failed"] = full_qs.filter(status="FAILED").count()
-
-        # Stratégies dispo pour le bouton "Lancer un backtest"
-        try:
-            user_strategies = Strategy.objects.filter(user=self.request.user)
-            user_strategies.exists()
-        except Exception:
-            try:
-                user_strategies = Strategy.objects.filter(portfolio__user=self.request.user)
-            except Exception:
-                user_strategies = Strategy.objects.none()
-        ctx["available_strategies"] = user_strategies.select_related(
-            "asset", "timeframe"
-        )[:50]
-
-        # IDs des backtests en cours (pour le polling Alpine)
-        running = full_qs.filter(status__in=["PENDING", "RUNNING"]).values_list("id", flat=True)
-        ctx["running_backtest_ids"] = _json.dumps(list(running))
-        return ctx
+        context = super().get_context_data(**kwargs)
+        full_queryset = self.get_queryset()
+        context["count_total"] = full_queryset.count()
+        context["count_done"] = full_queryset.filter(status="DONE").count()
+        context["count_running"] = full_queryset.filter(
+            status__in=["PENDING", "RUNNING"]
+        ).count()
+        context["count_failed"] = full_queryset.filter(status="FAILED").count()
+        context["available_strategies"] = (
+            _available_strategies_for(self.request.user)
+            .select_related("asset", "timeframe")
+            .order_by("name")[:50]
+        )
+        running_ids = full_queryset.filter(
+            status__in=["PENDING", "RUNNING"]
+        ).values_list("id", flat=True)
+        context["running_backtest_ids"] = json.dumps(list(running_ids))
+        return context
 
 
 class BacktestDetailView(LoginRequiredMixin, DetailView):
@@ -109,119 +78,82 @@ class BacktestDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "backtest"
 
     def get_queryset(self):
-        user = self.request.user
-        for filter_kwargs in (
-            {"strategy__user": user},
-            {"strategy__portfolio__user": user},
-        ):
-            try:
-                qs = BacktestRun.objects.filter(**filter_kwargs)
-                qs.exists()
-                return qs.select_related("strategy")
-            except Exception:
-                continue
-        if user.is_staff:
-            return BacktestRun.objects.select_related("strategy")
-        return BacktestRun.objects.none()
+        return _backtests_for_user(self.request.user)
 
 
 class LaunchBacktestView(LoginRequiredMixin, View):
-    """
-    Lance un backtest de manière ASYNC via Celery.
-
-    POST /backtests/launch/<strategy_id>/
-      → vérifie ownership
-      → crée BacktestRun(status=PENDING)
-      → délègue à run_backtest_task.delay(bt_id)
-      → si Celery indispo → fallback synchrone (avec warning)
-    """
-
     def post(self, request, strategy_id):
-        strategy = get_object_or_404(Strategy, pk=strategy_id)
-
-        if not _user_owns_strategy(request.user, strategy):
-            log.warning(
-                "backtest.launch.forbidden user_id=%s strategy_id=%s",
-                request.user.id, strategy_id,
-            )
-            messages.error(request, "Tu n'as pas accès à cette stratégie.")
-            return redirect("backtest-list")
-
-        # Crée le run en PENDING (visible immédiatement dans la liste)
-        from datetime import date
-        bt = BacktestRun.objects.create(
-            strategy=strategy,
-            name=f"BT - {strategy.name}",
-            start_date=date.today(),
-            end_date=date.today(),
-            status="PENDING",
-            metrics={},
+        strategy = get_object_or_404(
+            _available_strategies_for(request.user).select_related("asset", "timeframe"),
+            pk=strategy_id,
         )
+        assumptions = execution_assumptions_for(strategy)
 
         try:
-            from leo_backtesting.tasks import run_backtest_task
-            run_backtest_task.delay(bt.id)
-            messages.success(
+            with transaction.atomic():
+                today = timezone.localdate()
+                run = BacktestRun.objects.create(
+                    strategy=strategy,
+                    requested_by=request.user,
+                    name=f"BT - {strategy.name}",
+                    start_date=today,
+                    end_date=today,
+                    initial_cash=assumptions["initial_cash"],
+                    commission=assumptions["commission"],
+                    spread=assumptions["spread"],
+                    slippage=assumptions["slippage"],
+                    parameters=build_run_parameters(strategy),
+                    status="PENDING",
+                    engine_version=ENGINE_VERSION,
+                )
+                OutboxService.enqueue(
+                    topic=BACKTEST_RUN_REQUESTED,
+                    aggregate_type="leo_backtesting.BacktestRun",
+                    aggregate_id=run.id,
+                    payload={"backtest_run_id": run.id},
+                    idempotency_key=f"backtest:{run.id}:attempt:1",
+                )
+        except IntegrityError:
+            run = BacktestRun.objects.filter(
+                requested_by=request.user,
+                strategy=strategy,
+                status__in=["PENDING", "RUNNING"],
+            ).first()
+            if run is None:
+                log.exception(
+                    "backtest.launch.integrity_error user_id=%s strategy_id=%s",
+                    request.user.id,
+                    strategy.id,
+                )
+                messages.error(request, "Le backtest n’a pas pu être planifié.")
+                return redirect("backtest-list")
+            messages.warning(
                 request,
-                f"Backtest #{bt.id} en file d'attente. Le résultat apparaîtra dès la fin du calcul.",
+                f"Le backtest #{run.id} est déjà en cours pour cette stratégie.",
             )
-        except Exception as exc:
-            # Fallback synchrone si Celery indispo (dev sans worker)
-            log.warning(
-                "backtest.celery_unavailable fallback_sync strategy_id=%s err=%s",
-                strategy_id, exc,
-            )
-            try:
-                from leo_backtesting.services import run_backtest
-                _resync_to_existing_run(bt, run_backtest(strategy))
-                messages.success(request, f"Backtest #{bt.id} terminé (mode synchrone).")
-            except Exception as exc2:
-                bt.status = "FAILED"
-                bt.metrics = {"error": str(exc2)}
-                bt.save(update_fields=["status", "metrics"])
-                messages.error(request, f"Échec backtest : {exc2}")
+            return redirect("backtest-detail", pk=run.pk)
 
-        return redirect("backtest-detail", pk=bt.pk)
-
-
-def _resync_to_existing_run(target: BacktestRun, source: BacktestRun) -> None:
-    """
-    Quand le fallback synchrone est utilisé, le service `run_backtest`
-    crée son propre BacktestRun. Pour éviter d'avoir deux objets, on copie
-    les résultats dans le PENDING déjà créé et on supprime le doublon.
-    """
-    if not source or source.id == target.id:
-        return
-    target.status = source.status
-    target.metrics = source.metrics or {}
-    target.equity_curve = source.equity_curve or []
-    target.trades_log = source.trades_log or []
-    target.start_date = source.start_date or target.start_date
-    target.end_date = source.end_date or target.end_date
-    target.initial_cash = source.initial_cash
-    target.commission = source.commission
-    target.save()
-    try:
-        source.delete()
-    except Exception:
-        pass
+        messages.success(
+            request,
+            f"Backtest #{run.id} planifié. Le résultat apparaîtra automatiquement.",
+        )
+        return redirect("backtest-detail", pk=run.pk)
 
 
 class BacktestStatusView(LoginRequiredMixin, View):
-    """
-    Endpoint AJAX pour poller le statut d'un backtest en cours.
-    GET /backtests/<id>/status/  → JSON {status, metrics, ...}
-    """
-
     def get(self, request, pk):
-        bt = get_object_or_404(BacktestRun, pk=pk)
-        if not _user_owns_strategy(request.user, bt.strategy):
+        run = get_object_or_404(_backtests_for_user(request.user), pk=pk)
+        if not request.user.is_staff and run.requested_by_id != request.user.id:
             raise Http404
-        return JsonResponse({
-            "id": bt.id,
-            "status": bt.status,
-            "name": bt.name,
-            "metrics": bt.metrics or {},
-            "started_at": bt.created_at.isoformat() if bt.created_at else None,
-            "updated_at": bt.updated_at.isoformat() if bt.updated_at else None,
-        })
+        return JsonResponse(
+            {
+                "id": run.id,
+                "status": run.status,
+                "name": run.name,
+                "metrics": run.metrics or {},
+                "failure_message": run.failure_message,
+                "started_at": run.started_at.isoformat() if run.started_at else None,
+                "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+                "updated_at": run.updated_at.isoformat() if run.updated_at else None,
+            }
+        )

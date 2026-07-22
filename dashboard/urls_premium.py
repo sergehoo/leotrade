@@ -7,12 +7,14 @@ from dashboard.views_premium import (
     RecommendationExecuteView,
     ResolveKillSwitchView,
 )
+from dashboard.views_fragments import AIPartialView
 
 app_name = "dashboard"
 
 urlpatterns = [
     path("premium/", PremiumCockpitView.as_view(), name="premium_cockpit"),
     path("premium/data/", CockpitDataView.as_view(), name="premium_cockpit_data"),
+    path("premium/partials/ai-radar/", AIPartialView.as_view(), name="premium_ai_radar"),
 
     path("premium/recommendations/<int:pk>/approve/", RecommendationApproveView.as_view(), name="recommendation_approve"),
     path("premium/recommendations/<int:pk>/reject/", RecommendationRejectView.as_view(), name="recommendation_reject"),

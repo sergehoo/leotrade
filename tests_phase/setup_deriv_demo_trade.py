@@ -27,7 +27,7 @@ USAGE :
 
     Ou configure les variables ci-dessous et lance directement :
 
-        LEOTRADE_DERIV_TOKEN=TON_TOKEN python manage.py shell < tests_phase/setup_deriv_demo_trade.py
+        LYNECI_DERIV_TOKEN=TON_TOKEN python manage.py shell < tests_phase/setup_deriv_demo_trade.py
 
 VARIABLES À CONFIGURER :
     Modifie les 3 lignes dans la section "Configuration" ci-dessous.
@@ -45,14 +45,14 @@ from django.contrib.auth import get_user_model
 # Ton token API Deriv DEMO
 # → https://app.deriv.com/account/api-token
 # Crée un token avec les scopes : Read, Trade, Payments, Admin
-DERIV_TOKEN = os.environ.get("LEOTRADE_DERIV_TOKEN", "TON_TOKEN_ICI")
+DERIV_TOKEN = os.environ.get("LYNECI_DERIV_TOKEN", "TON_TOKEN_ICI")
 
-# L'App ID Deriv de LeoTrade (ou celui de ta propre app sur https://app.deriv.com/account/api-token)
+# L'App ID Deriv de Lyneci (ou celui de ta propre app sur https://app.deriv.com/account/api-token)
 # L'app ID par défaut pour dev/demo : 36544 (DerivGo) ou enregistre le tien
-DERIV_APP_ID = os.environ.get("LEOTRADE_DERIV_APP_ID", "36544")
+DERIV_APP_ID = os.environ.get("LYNECI_DERIV_APP_ID", "36544")
 
-# L'email de l'utilisateur LeoTrade que tu veux utiliser
-USER_EMAIL = os.environ.get("LEOTRADE_USER_EMAIL", "sergehoo@gmail.com")
+# L'email de l'utilisateur Lyneci que tu veux utiliser
+USER_EMAIL = os.environ.get("LYNECI_USER_EMAIL", "sergehoo@gmail.com")
 
 # Symbole Deriv à trader (compte demo synthétiques uniquement)
 SYMBOL = "R_100"          # Volatility 100 Index — disponible 24h/24 en demo
@@ -66,13 +66,13 @@ DURATION_UNIT = "m"       # m = minutes, s = secondes, h = heures, d = jours
 # ═══════════════════════════════════════════════════════════════
 
 print("\n" + "═" * 65)
-print("  LEOTRADE — SETUP + TRADE DEMO DERIV")
+print("  LYNECI — SETUP + TRADE DEMO DERIV")
 print("═" * 65)
 
 if DERIV_TOKEN in ("TON_TOKEN_ICI", "", None):
     print("\n❌ ERREUR : tu n'as pas configuré DERIV_TOKEN.")
     print("   Modifie la variable DERIV_TOKEN en haut du script,")
-    print("   ou lance avec : LEOTRADE_DERIV_TOKEN=xxxx python manage.py shell < ...")
+    print("   ou lance avec : LYNECI_DERIV_TOKEN=xxxx python manage.py shell < ...")
     sys.exit(1)
 
 User = get_user_model()

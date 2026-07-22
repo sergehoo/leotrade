@@ -1,5 +1,6 @@
 import os
 from decimal import Decimal
+from importlib.metadata import version
 from pathlib import Path
 
 from celery.schedules import crontab
@@ -39,6 +40,10 @@ ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "127.0.0.1,localhost")
 
 SITE_ID = env("SITE_ID", 1, int)
 
+BRAND_NAME = "Lyneci"
+BRAND_TAGLINE = "Intelligent Trading"
+BRAND_FULL_NAME = f"{BRAND_NAME} — {BRAND_TAGLINE}"
+
 INSTALLED_APPS = [
     # IMPORTANT : "daphne" doit être placé AVANT django.contrib.staticfiles
     # pour que `python manage.py runserver` bascule automatiquement sur le
@@ -69,7 +74,7 @@ INSTALLED_APPS = [
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
-    "allauth_2fa",
+    "allauth.mfa",
 
     "execution",
     "core",
@@ -98,6 +103,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django_prometheus.middleware.PrometheusBeforeMiddleware",
+    "core.middleware.MetricsAccessMiddleware",
     "core.middleware.RequestIDMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -106,7 +112,6 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django_otp.middleware.OTPMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
@@ -138,7 +143,7 @@ TEMPLATES = [
 DATABASES = {
     "default": {
         "ENGINE": env("DB_ENGINE", "django.db.backends.postgresql"),
-        "NAME": env("POSTGRES_DB", "leotrade2"),
+        "NAME": env("POSTGRES_DB", "lyneci2"),
         "USER": env("POSTGRES_USER", "postgres"),
         "PASSWORD": env("POSTGRES_PASSWORD", ""),
         "HOST": env("POSTGRES_HOST", "127.0.0.1"),
@@ -169,7 +174,14 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
@@ -189,20 +201,34 @@ REST_FRAMEWORK = {
     ],
 }
 
-ACCOUNT_AUTHENTICATION_METHOD = "email"
-ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
-ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_UNIQUE_EMAIL = True
-ACCOUNT_LOGIN_ATTEMPTS_LIMIT = 5
-ACCOUNT_LOGIN_ATTEMPTS_TIMEOUT = 300
+ACCOUNT_LOGIN_METHODS = {"email"}
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
+ACCOUNT_PREVENT_ENUMERATION = True
+ACCOUNT_SIGNUP_FORM_HONEYPOT_FIELD = "website"
 ACCOUNT_SESSION_REMEMBER = False
+
+# Compatibilité de la suite locale historique. L'image de production utilise
+# django-allauth 65.x et ignore ces anciens paramètres.
+if version("django-allauth").startswith("0."):
+    ACCOUNT_AUTHENTICATION_METHOD = "email"
+    ACCOUNT_EMAIL_REQUIRED = True
+    ACCOUNT_USERNAME_REQUIRED = False
 
 LOGIN_REDIRECT_URL = "/dashboard/"
 ACCOUNT_LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "LeoTrade <no-reply@leotrade.io>")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Lyneci <no-reply@lyneci.com>")
+SERVER_EMAIL = env("SERVER_EMAIL", DEFAULT_FROM_EMAIL)
+EMAIL_HOST = env("EMAIL_HOST", "")
+EMAIL_PORT = env("EMAIL_PORT", 587, int)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env("EMAIL_USE_TLS", True, bool)
+EMAIL_USE_SSL = env("EMAIL_USE_SSL", False, bool)
+EMAIL_TIMEOUT = env("EMAIL_TIMEOUT", 10, int)
 SITE_URL = env("SITE_URL", "http://127.0.0.1:8000")
 
 # ── Notifications multicanales ────────────────────────────────────────────
@@ -218,13 +244,15 @@ TWILIO_WHATSAPP_FROM = env("TWILIO_WHATSAPP_FROM", "")
 
 SMS_LOCAL_CI_URL = env("SMS_LOCAL_CI_URL", "")
 SMS_LOCAL_CI_API_KEY = env("SMS_LOCAL_CI_API_KEY", "")
-SMS_LOCAL_CI_SENDER = env("SMS_LOCAL_CI_SENDER", "LeoTrade")
+SMS_LOCAL_CI_SENDER = env("SMS_LOCAL_CI_SENDER", "Lyneci")
 
 WHATSAPP_CLOUD_TOKEN = env("WHATSAPP_CLOUD_TOKEN", "")
 WHATSAPP_CLOUD_PHONE_ID = env("WHATSAPP_CLOUD_PHONE_ID", "")
 
-ALLAUTH_2FA_ALWAYS_REVEAL_BACKUP_TOKENS = False
-ALLAUTH_2FA_SETUP_URL_NAME = "two-factor-setup"
+MFA_SUPPORTED_TYPES = ["totp", "recovery_codes"]
+MFA_TOTP_ISSUER = env("MFA_TOTP_ISSUER", "Lyneci")
+MFA_RECOVERY_CODES_SHOW_ONCE = True
+MFA_TRUST_ENABLED = False
 
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "")
 CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", "")
@@ -232,7 +260,7 @@ CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", "")
 CACHES = {
     "default": {
         "BACKEND": env("CACHE_BACKEND", "django.core.cache.backends.locmem.LocMemCache"),
-        "LOCATION": env("CACHE_LOCATION", "leotrade-cache"),
+        "LOCATION": env("CACHE_LOCATION", "lyneci-cache"),
     }
 }
 
@@ -244,6 +272,13 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 300
 CELERY_TASK_SOFT_TIME_LIMIT = 240
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_RESULT_EXPIRES = env("CELERY_RESULT_EXPIRES", 86400, int)
+CELERY_WORKER_PREFETCH_MULTIPLIER = env("CELERY_WORKER_PREFETCH_MULTIPLIER", 1, int)
+CELERY_WORKER_MAX_TASKS_PER_CHILD = env("CELERY_WORKER_MAX_TASKS_PER_CHILD", 500, int)
 
 # Channel layer config — driven by REDIS_URL so the same setting works in
 # dev, docker-compose and prod without forking. Falls back to localhost.
@@ -265,6 +300,16 @@ STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", "")
 # Paystack — passerelle de paiement par défaut (Afrique)
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", "")
 PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY", "")
+PAYSTACK_API_BASE_URL = env("PAYSTACK_API_BASE_URL", "https://api.paystack.co")
+PAYSTACK_TIMEOUT_SECONDS = env("PAYSTACK_TIMEOUT_SECONDS", 10, int)
+PAYSTACK_SUPPORTED_CURRENCIES = env_list(
+    "PAYSTACK_SUPPORTED_CURRENCIES",
+    "XOF,NGN,GHS,KES,ZAR,USD",
+)
+PAYMENT_DEFAULT_PROVIDER = env("PAYMENT_DEFAULT_PROVIDER", "PAYSTACK")
+WALLET_DEFAULT_CURRENCY = env("WALLET_DEFAULT_CURRENCY", "USD").upper()
+METRICS_AUTH_TOKEN = env("METRICS_AUTH_TOKEN", "")
+KYC_MAX_FILE_SIZE_BYTES = env("KYC_MAX_FILE_SIZE_BYTES", 10 * 1024 * 1024, int)
 
 # URL de base du site (pour les redirects de paiement)
 SITE_URL = env("SITE_URL", "http://127.0.0.1:8000")
@@ -285,6 +330,18 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 
 CELERY_BEAT_SCHEDULE = {
+    "publish-transactional-outbox-every-5s": {
+        "task": "core.tasks.publish_outbox_events_task",
+        "schedule": 5.0,
+    },
+    "evaluate-position-protections-every-5s": {
+        "task": "execution.tasks.evaluate_position_protections_task",
+        "schedule": 5.0,
+    },
+    "recover-stale-backtests-every-5m": {
+        "task": "leo_backtesting.tasks.recover_stale_backtest_runs_task",
+        "schedule": crontab(minute="*/5"),
+    },
     "run-autonomous-strategies-every-minute": {
         "task": "strategies.tasks.run_all_autonomous_strategies_task",
         "schedule": crontab(minute="*"),
@@ -352,6 +409,14 @@ CELERY_BEAT_SCHEDULE = {
     "reconcile-all-active-portfolios-every-2-minutes": {
         "task": "execution.tasks.reconcile_all_active_portfolios_task",
         "schedule": crontab(minute="*/2"),
+    },
+    "recover-stale-execution-orders-every-minute": {
+        "task": "execution.tasks.recover_stale_execution_orders_task",
+        "schedule": crontab(minute="*"),
+    },
+    "collect-operational-snapshot-every-30-seconds": {
+        "task": "core.tasks.collect_operational_snapshot_task",
+        "schedule": 30.0,
     },
     "refresh-daily-risk-states-every-5-minutes": {
         "task": "risk.tasks.refresh_daily_risk_states_task",
@@ -428,6 +493,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "execution.tasks_maintenance.cleanup_old_idempotency_keys_task",
         "schedule": crontab(hour=3, minute=0),
     },
+    "cleanup-published-outbox-events-daily": {
+        "task": "core.tasks.cleanup_published_outbox_events_task",
+        "schedule": crontab(hour=3, minute=15),
+    },
 
     # ------------------------------------------------------------------
     # Phase 1 — Sync Deriv réelle (fallback si le streamer WS ne tourne pas)
@@ -468,6 +537,12 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
+POSITION_PROTECTION_MAX_PRICE_AGE_SECONDS = env(
+    "POSITION_PROTECTION_MAX_PRICE_AGE_SECONDS",
+    45,
+    int,
+)
+
 SENTRY_DSN = env("SENTRY_DSN", "")
 SENTRY_TRACES_SAMPLE_RATE = env("SENTRY_TRACES_SAMPLE_RATE", 0.0, float)
 SENTRY_PROFILES_SAMPLE_RATE = env("SENTRY_PROFILES_SAMPLE_RATE", 0.0, float)
@@ -483,10 +558,10 @@ SENTRY_PROFILES_SAMPLE_RATE = env("SENTRY_PROFILES_SAMPLE_RATE", 0.0, float)
 # AI_PRIMARY_PROVIDER = env("AI_PRIMARY_PROVIDER", "CLAUDE")
 # AI_SECONDARY_PROVIDER = env("AI_SECONDARY_PROVIDER", "OLLAMA")
 # AI_FORCE_FALLBACK = env("AI_FORCE_FALLBACK", False, bool)
-AI_PRIMARY_PROVIDER= "DEEPSEEK"
-AI_SECONDARY_PROVIDER = "CLAUDE"
-DEEPSEEK_API_KEY= env("DEEPSEEK_API_KEY")
-AI_DEEPSEEK_MODEL= "deepseek-chat"
+AI_PRIMARY_PROVIDER = env("AI_PRIMARY_PROVIDER", "DEEPSEEK").upper()
+AI_SECONDARY_PROVIDER = env("AI_SECONDARY_PROVIDER", "CLAUDE").upper()
+DEEPSEEK_API_KEY = env("DEEPSEEK_API_KEY", "")
+AI_DEEPSEEK_MODEL = env("AI_DEEPSEEK_MODEL", "deepseek-chat")
 # Anthropic / Claude
 ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY", "")
 AI_CLAUDE_MODEL = env("AI_CLAUDE_MODEL", "claude-opus-4-5")
@@ -498,6 +573,63 @@ AI_OLLAMA_MODEL = env("AI_OLLAMA_MODEL", "llama3")
 API_RATE_LIMIT_PER_MINUTE = env("API_RATE_LIMIT_PER_MINUTE", 120, int)
 BROKER_RETRY_MAX_ATTEMPTS = env("BROKER_RETRY_MAX_ATTEMPTS", 3, int)
 BROKER_RETRY_BACKOFF_SECONDS = env("BROKER_RETRY_BACKOFF_SECONDS", 2, int)
+OUTBOX_BATCH_SIZE = env("OUTBOX_BATCH_SIZE", 100, int)
+OUTBOX_MAX_ATTEMPTS = env("OUTBOX_MAX_ATTEMPTS", 8, int)
+OUTBOX_LOCK_TIMEOUT_SECONDS = env("OUTBOX_LOCK_TIMEOUT_SECONDS", 300, int)
+OUTBOX_RETRY_BASE_SECONDS = env("OUTBOX_RETRY_BASE_SECONDS", 2, int)
+OUTBOX_RETRY_MAX_SECONDS = env("OUTBOX_RETRY_MAX_SECONDS", 300, int)
+OUTBOX_RETENTION_DAYS = env("OUTBOX_RETENTION_DAYS", 30, int)
+EXECUTION_SUBMIT_STALE_SECONDS = env("EXECUTION_SUBMIT_STALE_SECONDS", 180, int)
+EXECUTION_UNKNOWN_ALERT_SECONDS = env("EXECUTION_UNKNOWN_ALERT_SECONDS", 300, int)
+EXECUTION_RECOVERY_BATCH_SIZE = env("EXECUTION_RECOVERY_BATCH_SIZE", 100, int)
+MONITORING_SNAPSHOT_TTL_SECONDS = env("MONITORING_SNAPSHOT_TTL_SECONDS", 300, int)
+MONITORING_HEARTBEAT_MAX_AGE_SECONDS = env(
+    "MONITORING_HEARTBEAT_MAX_AGE_SECONDS", 120, int
+)
+MONITORING_RECONCILIATION_MAX_AGE_SECONDS = env(
+    "MONITORING_RECONCILIATION_MAX_AGE_SECONDS", 180, int
+)
+MONITORING_BROKER_HEALTH_MAX_AGE_SECONDS = env(
+    "MONITORING_BROKER_HEALTH_MAX_AGE_SECONDS", 600, int
+)
+MONITORING_OUTBOX_MAX_AGE_SECONDS = env(
+    "MONITORING_OUTBOX_MAX_AGE_SECONDS", 60, int
+)
+MONITORING_COLLECTOR_LOCK_SECONDS = env(
+    "MONITORING_COLLECTOR_LOCK_SECONDS", 25, int
+)
+MONITORING_ALERT_REPEAT_SECONDS = env(
+    "MONITORING_ALERT_REPEAT_SECONDS", 900, int
+)
+MONITORING_ALERT_STATE_TTL_SECONDS = env(
+    "MONITORING_ALERT_STATE_TTL_SECONDS", 604800, int
+)
+HEALTH_REQUIRE_MONITORING_HEARTBEAT = env(
+    "HEALTH_REQUIRE_MONITORING_HEARTBEAT", not DEBUG, bool
+)
+BACKTEST_DEFAULT_INITIAL_CASH = env("BACKTEST_DEFAULT_INITIAL_CASH", "10000")
+BACKTEST_MAX_CANDLES = env("BACKTEST_MAX_CANDLES", 200000, int)
+BACKTEST_MAX_EQUITY_POINTS = env("BACKTEST_MAX_EQUITY_POINTS", 5000, int)
+BACKTEST_MAX_TRADE_LOG_ROWS = env("BACKTEST_MAX_TRADE_LOG_ROWS", 10000, int)
+BACKTEST_STALE_RUN_SECONDS = env("BACKTEST_STALE_RUN_SECONDS", 600, int)
+BACKTEST_MAX_ATTEMPTS = env("BACKTEST_MAX_ATTEMPTS", 2, int)
+BACKTEST_EXECUTION_COSTS = {
+    "DEFAULT": {
+        "commission": env("BACKTEST_DEFAULT_COMMISSION", "0.001"),
+        "spread": env("BACKTEST_DEFAULT_SPREAD", "0.0002"),
+        "slippage": env("BACKTEST_DEFAULT_SLIPPAGE", "0.0001"),
+    },
+    "CRYPTO": {
+        "commission": env("BACKTEST_CRYPTO_COMMISSION", "0.001"),
+        "spread": env("BACKTEST_CRYPTO_SPREAD", "0.0002"),
+        "slippage": env("BACKTEST_CRYPTO_SLIPPAGE", "0.0001"),
+    },
+    "FOREX": {
+        "commission": env("BACKTEST_FOREX_COMMISSION", "0.0001"),
+        "spread": env("BACKTEST_FOREX_SPREAD", "0.0001"),
+        "slippage": env("BACKTEST_FOREX_SLIPPAGE", "0.00005"),
+    },
+}
 
 LOG_LEVEL = env("LOG_LEVEL", "INFO")
 SENTRY_DSN = env("SENTRY_DSN", "")
@@ -512,7 +644,7 @@ LOGGING = {
     },
     "formatters": {
         "json": {
-            "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+            "()": "pythonjsonlogger.json.JsonFormatter",
             "fmt": "%(asctime)s %(levelname)s %(name)s %(message)s %(request_id)s %(user_id)s",
         },
         "verbose": {
@@ -557,6 +689,11 @@ LOGGING = {
             "propagate": False,
         },
         "portfolio": {
+            "handlers": ["console_json"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "lyneci.backtesting": {
             "handlers": ["console_json"],
             "level": LOG_LEVEL,
             "propagate": False,
@@ -756,7 +893,7 @@ if SENTRY_DSN:
 # CACHES = {
 #     "default": {
 #         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-#         "LOCATION": "leotrade-cache",
+#         "LOCATION": "lyneci-cache",
 #     }
 # }
 # CELERY_BROKER_CONNECTION_RETRY = True

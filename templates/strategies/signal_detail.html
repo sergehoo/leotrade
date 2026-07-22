@@ -1,5 +1,5 @@
 {% extends "layout/base.html" %}
-{% block title %}Signal — LeoTrade{% endblock %}
+{% block title %}Signal — Lyneci{% endblock %}
 {% block page_title %}Détail signal{% endblock %}
 
 {% block content %}
@@ -13,6 +13,7 @@
       </div>
 
       <div class="flex gap-3">
+        {% if can_review_signal %}
         <form method="post" action="{% url 'signal-approve' signal.pk %}">
           {% csrf_token %}
           <button class="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">
@@ -25,6 +26,11 @@
             Rejeter
           </button>
         </form>
+        {% else %}
+          <span class="px-4 py-2 rounded-lg bg-white/5 text-gray-400 border border-white/10 text-sm">
+            Signal système en lecture seule
+          </span>
+        {% endif %}
       </div>
     </div>
   </section>

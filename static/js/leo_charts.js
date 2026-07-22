@@ -1,5 +1,5 @@
 /* =============================================================================
- * leo_charts.js — Graphiques financiers temps réel pour LeoTrade
+ * leo_charts.js — Graphiques financiers temps réel pour Lyneci
  * =============================================================================
  *
  * Fournit :
@@ -27,7 +27,7 @@
   Chart.defaults.font.family = "Inter, system-ui, sans-serif";
   Chart.defaults.font.size = 12;
 
-  // Palette LeoTrade
+  // Palette Lyneci
   const C = {
     profit:  "#00D4AA",
     loss:    "#FF4C6A",

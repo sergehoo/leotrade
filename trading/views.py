@@ -16,12 +16,15 @@ from strategies.models import Signal
 # from risk.services import RiskEngine
 from trading.forms import TradingIntentForm
 from trading.market_data import get_all_market_data, get_landing_market_data
-from trading.models import Order as TradingOrderLegacy, TradingIntent
-from trading.services.execution.base_execution import ExecutionService, IntentExecutionService, IntentMonitoringService
+from trading.models import TradingIntent
+from trading.services.execution.base_execution import IntentExecutionService, IntentMonitoringService
+from strategies.services.signal_review import SignalReviewError, SignalReviewService
+from strategies.services.deployment import StrategyDeploymentService
 
 # Source de vérité pour les ordres : execution.Order. trading.Order existe encore
 # pour compatibilité historique mais n'est plus écrit. Cf. Phase 4.
 from execution.models import Order as ExecutionOrder
+from execution.services import ExecutionOrchestrator
 
 
 
@@ -41,7 +44,7 @@ def market_data_api(request):
 @login_required
 def signal_list_api(request):
     """AJAX endpoint — retourne les signaux en JSON pour le polling Alpine."""
-    qs = Signal.objects.select_related(
+    qs = Signal.objects.visible_to(request.user).select_related(
         "strategy", "strategy__asset", "strategy__timeframe"
     ).order_by("-created_at")
 
@@ -79,12 +82,36 @@ class SignalListView(LoginRequiredMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        return Signal.objects.select_related("strategy", "strategy__asset").order_by("-created_at")
+        return Signal.objects.visible_to(self.request.user).select_related(
+            "strategy", "strategy__asset", "strategy__owner", "user"
+        ).order_by("-created_at")
 
 class ExecuteSignalView(LoginRequiredMixin, View):
     def post(self, request, pk):
-        signal = get_object_or_404(Signal.objects.select_related("strategy", "strategy__asset"), pk=pk)
-        portfolio = Portfolio.objects.filter(user=request.user, is_default=True).select_related("broker_account").first()
+        signal = get_object_or_404(
+            Signal.objects.executable_by(request.user).select_related(
+                "strategy", "strategy__asset", "strategy__owner", "user"
+            ),
+            pk=pk,
+        )
+        strategy_deployment = None
+        if signal.strategy.status == "LIVE":
+            strategy_deployment = StrategyDeploymentService.active_for(
+                strategy=signal.strategy,
+                user=request.user,
+            )
+            if strategy_deployment is None:
+                messages.error(
+                    request,
+                    "Aucun déploiement Live actif n'est configuré pour cette stratégie.",
+                )
+                return redirect("trading:signal-list")
+            portfolio = strategy_deployment.portfolio
+        else:
+            portfolio = Portfolio.objects.filter(
+                user=request.user,
+                is_default=True,
+            ).select_related("broker_account").first()
 
         if not portfolio:
             messages.error(request, "Aucun portefeuille par défaut.")
@@ -94,15 +121,33 @@ class ExecuteSignalView(LoginRequiredMixin, View):
 
         if risk_decision.decision == "REJECT":
             messages.error(request, f"Signal rejeté: {risk_decision.reason}")
-            signal.status = "REJECTED"
-            signal.save(update_fields=["status"])
+            try:
+                SignalReviewService.reject(signal_id=signal.id, user=request.user)
+            except SignalReviewError:
+                pass
             return redirect("trading:signal-list")
 
         try:
-            ExecutionService(portfolio.broker_account, portfolio).execute_signal(
-                signal,
-                risk_decision.approved_quantity
+            signal = SignalReviewService.approve(signal_id=signal.id, user=request.user)
+            order = ExecutionOrchestrator.create_order(
+                user=request.user,
+                portfolio=portfolio,
+                broker_account=portfolio.broker_account,
+                symbol=signal.strategy.asset.symbol,
+                side=signal.side,
+                approved_quantity=risk_decision.approved_quantity,
+                requested_stake_amount=risk_decision.approved_stake,
+                approved_notional=risk_decision.approved_notional,
+                requested_price=signal.price,
+                signal=signal,
+                strategy_deployment=strategy_deployment,
+                asset=signal.strategy.asset,
+                source="AI_ASSISTED",
+                stop_loss=signal.stop_loss,
+                take_profit=signal.take_profit,
+                metadata={"source": "signal_user_validation"},
             )
+            ExecutionOrchestrator.submit_order(order)
             messages.success(request, "Signal exécuté.")
         except Exception as exc:
             messages.error(request, f"Erreur lors de l'exécution du signal : {exc}")
@@ -197,7 +242,7 @@ class OrderDetailView(LoginRequiredMixin, DetailView):
         except Exception as exc:
             # ProgrammingError (table missing), ImportError, etc. → page reste lisible
             import logging
-            logging.getLogger("leotrade.trading.views").warning(
+            logging.getLogger("lyneci.trading.views").warning(
                 "order_detail.broker_refs_unavailable order_id=%s err=%s",
                 order.id, exc,
             )
@@ -236,7 +281,16 @@ class TradingIntentDetailView(LoginRequiredMixin, DetailView):
             IntentMonitoringService.refresh_metrics(intent)
 
         ctx["events"] = intent.events.all().order_by("-created_at")[:50]
-        ctx["orders"] = intent.orders.all().order_by("-created_at")[:20]
+        ctx["orders"] = (
+            ExecutionOrder.objects
+            .filter(
+                portfolio=intent.portfolio,
+                signal__strategy=intent.strategy,
+            )
+            .order_by("-created_at")[:20]
+            if intent.strategy_id
+            else ExecutionOrder.objects.none()
+        )
         return ctx
 
 

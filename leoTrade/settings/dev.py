@@ -37,7 +37,9 @@ CACHES["default"] = {
 # En dev, on veut le comportement Django par défaut : servir directement
 # depuis STATICFILES_DIRS sans manifest. C'est ce que fait `runserver`
 # tant que STATICFILES_STORAGE est le default.
-STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+STORAGES["staticfiles"] = {
+    "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+}
 
 CHANNEL_LAYERS = {
     "default": {

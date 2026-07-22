@@ -194,10 +194,10 @@ class TestAuditFieldsPersisted:
     @pytest.mark.django_db
     def test_user_agent_persisted(self, portfolio_paper, risk_profile_paper):
         """Le user_agent est bien stocké."""
-        _validate(portfolio_paper, override=True, ua="Mozilla/5.0 LeoTrade-Test")
+        _validate(portfolio_paper, override=True, ua="Mozilla/5.0 Lyneci-Test")
 
         audit = RiskOverrideAudit.objects.first()
-        assert "LeoTrade-Test" in audit.user_agent
+        assert "Lyneci-Test" in audit.user_agent
 
     @pytest.mark.django_db
     def test_reason_persisted(self, portfolio_paper, risk_profile_paper):
