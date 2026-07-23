@@ -1,0 +1,7 @@
+{% extends "account/email/base_message.txt" %}
+{% block content %}Une inscription a été tentée avec l’adresse {{ email }}.
+
+Un compte Lyneci utilisant cette adresse existe déjà. Si vous avez oublié son mot de passe, utilisez ce lien :
+{{ password_reset_url }}
+
+Si vous n’êtes pas à l’origine de cette tentative, aucune action n’est nécessaire.{% endblock %}

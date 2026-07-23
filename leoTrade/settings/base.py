@@ -39,6 +39,7 @@ DEBUG = env("DEBUG", False, bool)
 ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "127.0.0.1,localhost")
 
 SITE_ID = env("SITE_ID", 1, int)
+TRAEFIK_APP_HOST = env("TRAEFIK_APP_HOST", "")
 
 BRAND_NAME = "Lyneci"
 BRAND_TAGLINE = "Intelligent Trading"
@@ -208,6 +209,15 @@ ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 ACCOUNT_PREVENT_ENUMERATION = True
 ACCOUNT_SIGNUP_FORM_HONEYPOT_FIELD = "website"
 ACCOUNT_SESSION_REMEMBER = False
+ACCOUNT_EMAIL_SUBJECT_PREFIX = "[Lyneci] "
+ACCOUNT_EMAIL_NOTIFICATIONS = True
+ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
+ACCOUNT_CONFIRM_EMAIL_ON_GET = False
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
+ACCOUNT_LOGIN_ON_PASSWORD_RESET = False
+ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE = False
+ACCOUNT_REAUTHENTICATION_REQUIRED = True
+ACCOUNT_REAUTHENTICATION_TIMEOUT = 300
 
 # Compatibilité de la suite locale historique. L'image de production utilise
 # django-allauth 65.x et ignore ces anciens paramètres.
@@ -217,6 +227,7 @@ if version("django-allauth").startswith("0."):
     ACCOUNT_USERNAME_REQUIRED = False
 
 LOGIN_REDIRECT_URL = "/dashboard/"
+LOGIN_URL = "/accounts/login/"
 ACCOUNT_LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")

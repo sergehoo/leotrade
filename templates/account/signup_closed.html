@@ -1,0 +1,17 @@
+{% extends "account/base.html" %}
+
+{% block title %}Inscriptions fermées — Lyneci{% endblock %}
+{% block subtitle %}Ouverture de compte indisponible{% endblock %}
+
+{% block card_content %}
+<div class="text-center">
+  <div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10">
+    <svg class="h-7 w-7 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2h-1V7a5 5 0 00-10 0v4H6a2 2 0 00-2 2v6a2 2 0 002 2zm3-10V7a3 3 0 016 0v4H9z"/>
+    </svg>
+  </div>
+  <h1 class="text-xl font-semibold text-white">Inscriptions momentanément fermées</h1>
+  <p class="mt-2 text-sm leading-6 text-gray-400">La création de nouveaux comptes Lyneci est temporairement suspendue. Réessayez ultérieurement.</p>
+</div>
+<a href="/" class="mt-6 block w-full rounded-xl border border-white/10 py-3 text-center text-sm font-medium text-gray-300 hover:border-emerald-500/30 hover:text-emerald-300">Retour à l’accueil</a>
+{% endblock %}

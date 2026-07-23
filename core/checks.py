@@ -11,6 +11,10 @@ def _error(message, hint, check_id):
     return Error(message, hint=hint, id=check_id)
 
 
+def _is_placeholder(value):
+    return str(value or "").strip().upper().startswith("REPLACE_")
+
+
 @register(Tags.security, deploy=True)
 def production_configuration_checks(app_configs, **kwargs):
     errors = []
@@ -43,11 +47,65 @@ def production_configuration_checks(app_configs, **kwargs):
             "lyneci.E004",
         ))
 
+    traefik_app_host = str(getattr(settings, "TRAEFIK_APP_HOST", "") or "").strip().lower()
+    if traefik_app_host:
+        traefik_origin = f"https://{traefik_app_host}"
+        if traefik_app_host not in allowed_hosts:
+            errors.append(_error(
+                "Le domaine Traefik manque dans ALLOWED_HOSTS.",
+                "Ajouter TRAEFIK_APP_HOST à ALLOWED_HOSTS.",
+                "lyneci.E012",
+            ))
+        if traefik_origin not in trusted_origins:
+            errors.append(_error(
+                "L'origine Traefik manque dans CSRF_TRUSTED_ORIGINS.",
+                f"Ajouter {traefik_origin} à CSRF_TRUSTED_ORIGINS.",
+                "lyneci.E013",
+            ))
+        if parsed_site.hostname != traefik_app_host:
+            errors.append(_error(
+                "SITE_BASE_URL et TRAEFIK_APP_HOST utilisent des domaines différents.",
+                "Configurer le même domaine public dans les deux variables.",
+                "lyneci.E014",
+            ))
+
     if settings.EMAIL_BACKEND.endswith("console.EmailBackend"):
         errors.append(_error(
             "Le backend email console est interdit en production.",
             "Configurer le backend SMTP et ses identifiants.",
             "lyneci.E005",
+        ))
+
+    smtp_values = {
+        "EMAIL_HOST": getattr(settings, "EMAIL_HOST", ""),
+        "EMAIL_HOST_USER": getattr(settings, "EMAIL_HOST_USER", ""),
+        "EMAIL_HOST_PASSWORD": getattr(settings, "EMAIL_HOST_PASSWORD", ""),
+        "DEFAULT_FROM_EMAIL": getattr(settings, "DEFAULT_FROM_EMAIL", ""),
+    }
+    invalid_smtp_values = [
+        key
+        for key, value in smtp_values.items()
+        if _is_placeholder(value) or (key in {"EMAIL_HOST", "DEFAULT_FROM_EMAIL"} and not value)
+    ]
+    if invalid_smtp_values:
+        errors.append(_error(
+            "La configuration SMTP est absente ou contient des placeholders.",
+            f"Configurer les variables suivantes : {', '.join(invalid_smtp_values)}.",
+            "lyneci.E015",
+        ))
+
+    if settings.EMAIL_USE_TLS and settings.EMAIL_USE_SSL:
+        errors.append(_error(
+            "EMAIL_USE_TLS et EMAIL_USE_SSL sont actifs simultanément.",
+            "Activer uniquement le mode attendu par le fournisseur SMTP.",
+            "lyneci.E016",
+        ))
+
+    if getattr(settings, "ACCOUNT_EMAIL_VERIFICATION", "") != "mandatory":
+        errors.append(_error(
+            "La vérification email n'est pas obligatoire.",
+            "Définir ACCOUNT_EMAIL_VERIFICATION='mandatory' en production.",
+            "lyneci.E017",
         ))
 
     if settings.DATABASES["default"]["ENGINE"] != "django.db.backends.postgresql":

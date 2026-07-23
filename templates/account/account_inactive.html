@@ -1,0 +1,17 @@
+{% extends "account/base.html" %}
+
+{% block title %}Compte inactif — Lyneci{% endblock %}
+{% block subtitle %}Accès au compte suspendu{% endblock %}
+
+{% block card_content %}
+<div class="text-center">
+  <div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10">
+    <svg class="h-7 w-7 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.33 16a2 2 0 001.74 3z"/>
+    </svg>
+  </div>
+  <h1 class="text-xl font-semibold text-white">Compte temporairement inactif</h1>
+  <p class="mt-2 text-sm leading-6 text-gray-400">La connexion à ce compte est désactivée. Contactez l’assistance Lyneci si vous pensez qu’il s’agit d’une erreur.</p>
+</div>
+<a href="/" class="mt-6 block w-full rounded-xl border border-white/10 py-3 text-center text-sm font-medium text-gray-300 hover:border-emerald-500/30 hover:text-emerald-300">Retour à l’accueil</a>
+{% endblock %}

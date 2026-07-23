@@ -1,43 +1,76 @@
-{% extends "account/_base.html" %}
-{% load i18n %}
+{% extends "account/base.html" %}
 
-{% block head_title %}Mes emails — Best-Épargne{% endblock %}
+{% block title %}Adresses email — Lyneci{% endblock %}
+{% block subtitle %}Sécurité et identité du compte{% endblock %}
 
-{% block content %}
-  <h1 class="text-2xl font-bold text-center text-sky-600">Mes emails</h1>
-  <p class="text-center text-sm text-gray-500 mt-1">Ajouter / vérifier une adresse</p>
+{% block card_content %}
+<div class="mb-6">
+  <h1 class="text-xl font-semibold text-white">Mes adresses email</h1>
+  <p class="mt-1 text-sm text-gray-500">Gérez l’adresse principale utilisée pour les alertes et la récupération.</p>
+</div>
 
-  <div class="mt-6 space-y-3">
-    {% if emailaddresses %}
-      <div class="space-y-2">
-        {% for emailaddress in emailaddresses %}
-          <div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-200">
-            <div class="text-sm">
-              <div class="font-semibold text-gray-800">{{ emailaddress.email }}</div>
-              <div class="text-xs text-gray-500">
-                {% if emailaddress.verified %}Vérifié{% else %}Non vérifié{% endif %}
-                •
-                {% if emailaddress.primary %}Principal{% else %}Secondaire{% endif %}
-              </div>
-            </div>
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
-  </div>
-
-  <form method="post" action="{% url 'account_email' %}" class="mt-6 space-y-4">
+{% if emailaddresses %}
+  <form method="post" action="{% url 'account_email' %}" class="space-y-4">
     {% csrf_token %}
-    {% for field in form %}
-      <div>
-        <label class="text-sm font-semibold">{{ field.label }}</label>
-        {{ field }}
-        {% if field.errors %}<p class="text-xs text-red-600 mt-1">{{ field.errors|striptags }}</p>{% endif %}
-      </div>
-    {% endfor %}
+    {{ redirect_field }}
 
-    <button class="w-full mt-2 py-3 rounded-xl bg-sky-600 text-white font-semibold hover:bg-sky-700 transition">
-      Ajouter une adresse
+    <div class="space-y-3">
+      {% for emailaddress in emailaddresses %}
+        <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4 transition hover:border-emerald-500/30">
+          <input type="radio" name="email" value="{{ emailaddress.email }}"
+                 {% if emailaddress.primary %}checked{% endif %}
+                 class="mt-1 h-4 w-4 border-gray-700 bg-gray-800 text-emerald-500 focus:ring-emerald-500">
+          <span class="min-w-0 flex-1">
+            <span class="block break-all text-sm font-medium text-white">{{ emailaddress.email }}</span>
+            <span class="mt-2 flex flex-wrap gap-2 text-xs">
+              {% if emailaddress.verified %}
+                <span class="rounded-full bg-emerald-500/10 px-2 py-1 text-emerald-400">Vérifiée</span>
+              {% else %}
+                <span class="rounded-full bg-amber-500/10 px-2 py-1 text-amber-400">Non vérifiée</span>
+              {% endif %}
+              {% if emailaddress.primary %}
+                <span class="rounded-full bg-blue-500/10 px-2 py-1 text-blue-300">Principale</span>
+              {% endif %}
+            </span>
+          </span>
+        </label>
+      {% endfor %}
+    </div>
+
+    <div class="grid gap-2 sm:grid-cols-3">
+      <button type="submit" name="action_primary" class="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-gray-200 hover:border-emerald-500/30 hover:text-emerald-300">
+        Définir principale
+      </button>
+      <button type="submit" name="action_send" class="rounded-xl border border-white/10 px-3 py-2 text-xs font-medium text-gray-200 hover:border-emerald-500/30 hover:text-emerald-300">
+        Renvoyer la vérification
+      </button>
+      <button type="submit" name="action_remove" class="rounded-xl border border-red-500/20 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/10">
+        Supprimer
+      </button>
+    </div>
+  </form>
+{% endif %}
+
+{% if can_add_email %}
+  <div class="my-6 border-t border-white/10"></div>
+  <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-300">Ajouter une adresse</h2>
+  <form method="post" action="{% url 'account_email' %}" class="mt-4">
+    {% csrf_token %}
+    {{ redirect_field }}
+    <label for="id_email" class="mb-2 block text-xs uppercase tracking-wider text-gray-400">Nouvel email</label>
+    <input id="id_email" type="email" name="email" value="{{ form.email.value|default:'' }}" required autocomplete="email"
+           placeholder="vous@exemple.com"
+           class="w-full rounded-xl border border-gray-700 bg-gray-800/60 px-4 py-3 text-sm text-white placeholder-gray-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">
+    {% if form.email.errors %}<p class="mt-2 text-xs text-red-400">{{ form.email.errors.0 }}</p>{% endif %}
+    <button type="submit" name="action_add" class="btn-primary mt-4 w-full rounded-xl py-3 text-sm font-semibold">
+      Ajouter et vérifier
     </button>
   </form>
+{% endif %}
+{% endblock %}
+
+{% block below_card %}
+<p class="mt-4 text-center text-sm text-gray-500">
+  <a href="{% url 'dashboard' %}" class="text-emerald-400 transition-colors hover:text-emerald-300">← Retour au tableau de bord</a>
+</p>
 {% endblock %}

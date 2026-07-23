@@ -12,6 +12,7 @@ from django.urls import reverse
 
 from dashboard.form import KYCSubmissionForm
 from dashboard.models import KYCProfile
+from core.checks import production_configuration_checks
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -109,6 +110,8 @@ def test_runtime_templates_are_loadable():
         "wallet/admin/wallet_detail.html",
         "execution/order_list.html",
         "execution/order_detail.html",
+        "account/verification_sent.html",
+        "account/email_confirm.html",
         "400.html",
         "403.html",
         "404.html",
@@ -124,6 +127,17 @@ def test_public_home_uses_lyneci_identity(client):
     assert response.status_code == 200
     assert "Lyneci — Intelligent Trading" in response.content.decode()
     assert "LeoTrade" not in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_email_verification_sent_page_has_visible_lyneci_content(client):
+    response = client.get(reverse("account_email_verification_sent"))
+    content = response.content.decode()
+
+    assert response.status_code == 200
+    assert "Confirmez votre adresse email" in content
+    assert "Vérifiez votre email — Lyneci" in content
+    assert "Best-Épargne" not in content
 
 
 def test_compose_uses_shared_external_traefik():
@@ -145,6 +159,17 @@ def test_compose_uses_shared_external_traefik():
     web_labels = services["lyneci-web"]["labels"]
     assert "traefik.docker.network=${TRAEFIK_NETWORK:-proxy}" in web_labels
     assert any("tls.certresolver=${TRAEFIK_CERT_RESOLVER:-lets}" in label for label in web_labels)
+    assert any(
+        "lyneci-web-sec-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
+        in label
+        for label in web_labels
+    )
+    router_middlewares = next(
+        label
+        for label in web_labels
+        if label.startswith("traefik.http.routers.lyneci-web.middlewares=")
+    )
+    assert ",sec-headers@docker" not in router_middlewares
     assert "Host: $$TRAEFIK_APP_HOST" in services["lyneci-web"]["healthcheck"]["test"][1]
     assert "X-Forwarded-Proto: https" in services["lyneci-web"]["healthcheck"]["test"][1]
 
@@ -153,6 +178,36 @@ def test_optional_sentry_dsn_is_empty_by_default():
     environment = (PROJECT_ROOT / ".env.prod.example").read_text().splitlines()
     assert "SENTRY_DSN=" in environment
     assert not any(line.startswith("SENTRY_DSN=REPLACE_") for line in environment)
+    assert "TRAEFIK_SHARED_MIDDLEWARES=compress@docker,ratelimit@docker" in environment
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
+    EMAIL_HOST="REPLACE_WITH_SMTP_HOST",
+    EMAIL_HOST_USER="REPLACE_WITH_SMTP_USER",
+    EMAIL_HOST_PASSWORD="REPLACE_WITH_SMTP_PASSWORD",
+)
+def test_production_check_rejects_placeholder_smtp_configuration():
+    error_ids = {
+        error.id
+        for error in production_configuration_checks(None)
+    }
+
+    assert "lyneci.E015" in error_ids
+
+
+def test_docker_image_builds_a_writable_production_static_manifest():
+    dockerfile = (PROJECT_ROOT / "Dockerfile").read_text()
+    collectstatic = dockerfile.index(
+        "DJANGO_SETTINGS_MODULE=leoTrade.settings.base \\\n"
+        "       python manage.py collectstatic --noinput --skip-checks"
+    )
+    final_chown = dockerfile.index(
+        "chown -R lyneci:lyneci /app/staticfiles",
+        collectstatic,
+    )
+
+    assert final_chown > collectstatic
 
 
 @pytest.mark.django_db

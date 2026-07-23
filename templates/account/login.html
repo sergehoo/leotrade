@@ -9,6 +9,7 @@
 
 <form method="POST" action="{% url 'account_login' %}" x-data="{ loading: false }" @submit="loading = true">
   {% csrf_token %}
+  {{ redirect_field }}
 
   {% if form.non_field_errors %}
     <div class="mb-4 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
@@ -68,14 +69,6 @@
         </svg>
       </button>
     </div>
-  </div>
-
-  <!-- Remember me -->
-  <div class="flex items-center gap-2 mb-6">
-    <input type="checkbox" name="remember" id="remember"
-           class="w-4 h-4 rounded border-gray-700 bg-gray-800 text-emerald-500
-                  focus:ring-emerald-500 focus:ring-offset-gray-900"/>
-    <label for="remember" class="text-sm text-gray-400">Se souvenir de moi</label>
   </div>
 
   <!-- Submit -->

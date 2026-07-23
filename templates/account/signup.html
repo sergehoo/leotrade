@@ -10,6 +10,14 @@
 <form method="POST" action="{% url 'account_signup' %}" x-data="{ loading: false, password: '', strength: 0 }"
       @submit="loading = true">
   {% csrf_token %}
+  {{ redirect_field }}
+
+  {% if form.website %}
+    <div aria-hidden="true" style="position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;">
+      <label for="id_website">Ne pas remplir ce champ</label>
+      {{ form.website }}
+    </div>
+  {% endif %}
 
   {% if form.non_field_errors %}
     <div class="mb-4 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">

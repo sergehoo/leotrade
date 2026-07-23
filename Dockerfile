@@ -42,7 +42,8 @@ RUN mkdir -p /app/media /app/staticfiles \
     && FERNET_SECRET_KEY="$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" \
        SECRET_KEY="build-only-secret-key-not-used-at-runtime-000000000000000000000000" \
        DJANGO_SETTINGS_MODULE=leoTrade.settings.base \
-       python manage.py collectstatic --noinput --skip-checks
+       python manage.py collectstatic --noinput --skip-checks \
+    && chown -R lyneci:lyneci /app/staticfiles
 
 USER lyneci
 

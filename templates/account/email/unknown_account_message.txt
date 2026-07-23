@@ -1,0 +1,7 @@
+{% extends "account/email/base_message.txt" %}
+{% block content %}Une tentative de récupération a été effectuée pour {{ email }}, mais aucun compte Lyneci ne correspond à cette adresse.
+
+Vous pouvez créer un compte ici :
+{{ signup_url }}
+
+Si vous n’êtes pas à l’origine de cette demande, ignorez cet email.{% endblock %}

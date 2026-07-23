@@ -120,7 +120,13 @@ services:
       - traefik.http.routers.lyneci-web.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-lets}
       - traefik.http.routers.lyneci-web.service=lyneci-web-svc
       - traefik.http.services.lyneci-web-svc.loadbalancer.server.port=8000
-      - traefik.http.routers.lyneci-web.middlewares=${TRAEFIK_SHARED_MIDDLEWARES:-sec-headers@docker,compress@docker,ratelimit@docker}
+      - traefik.http.routers.lyneci-web.middlewares=lyneci-web-sec-headers@docker,${TRAEFIK_SHARED_MIDDLEWARES:-compress@docker,ratelimit@docker}
+      - traefik.http.middlewares.lyneci-web-sec-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.lyneci-web-sec-headers.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.lyneci-web-sec-headers.headers.stsPreload=true
+      - traefik.http.middlewares.lyneci-web-sec-headers.headers.frameDeny=true
+      - traefik.http.middlewares.lyneci-web-sec-headers.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.lyneci-web-sec-headers.headers.referrerPolicy=strict-origin-when-cross-origin
 
   lyneci-worker:
     <<: *app-defaults
@@ -184,7 +190,13 @@ services:
       - traefik.http.routers.lyneci-flower.tls=true
       - traefik.http.routers.lyneci-flower.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-lets}
       - traefik.http.routers.lyneci-flower.service=lyneci-flower-svc
-      - traefik.http.routers.lyneci-flower.middlewares=${TRAEFIK_SHARED_MIDDLEWARES:-sec-headers@docker,compress@docker,ratelimit@docker}
+      - traefik.http.routers.lyneci-flower.middlewares=lyneci-flower-sec-headers@docker,${TRAEFIK_SHARED_MIDDLEWARES:-compress@docker,ratelimit@docker}
+      - traefik.http.middlewares.lyneci-flower-sec-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.lyneci-flower-sec-headers.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.lyneci-flower-sec-headers.headers.stsPreload=true
+      - traefik.http.middlewares.lyneci-flower-sec-headers.headers.frameDeny=true
+      - traefik.http.middlewares.lyneci-flower-sec-headers.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.lyneci-flower-sec-headers.headers.referrerPolicy=strict-origin-when-cross-origin
       - traefik.http.services.lyneci-flower-svc.loadbalancer.server.port=5555
 
 networks:

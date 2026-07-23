@@ -1,0 +1,12 @@
+{% extends "account/email/base_message.html" %}
+{% block preheader %}Alerte de sécurité concernant votre compte Lyneci{% endblock %}
+{% block content %}
+  <h1 style="margin:0 0 14px;font-size:24px;line-height:1.3;color:#ffffff;">Activité de sécurité</h1>
+  <div style="margin:0 0 22px;">{% block notification_message %}{% endblock %}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;border:1px solid #253044;border-radius:12px;background:#0b101a;">
+    <tr><td style="padding:12px 14px;color:#94a3b8;">Adresse IP</td><td style="padding:12px 14px;text-align:right;color:#ffffff;">{{ ip|default:"Non disponible" }}</td></tr>
+    <tr><td style="padding:12px 14px;border-top:1px solid #253044;color:#94a3b8;">Navigateur</td><td style="padding:12px 14px;border-top:1px solid #253044;text-align:right;color:#ffffff;">{{ user_agent|default:"Non disponible" }}</td></tr>
+    <tr><td style="padding:12px 14px;border-top:1px solid #253044;color:#94a3b8;">Date</td><td style="padding:12px 14px;border-top:1px solid #253044;text-align:right;color:#ffffff;">{{ timestamp|default:"Non disponible" }}</td></tr>
+  </table>
+  <p style="margin:0;padding:14px;border:1px solid #7f1d1d;border-radius:10px;background:#2a1015;color:#fecaca;">Si vous ne reconnaissez pas cette opération, changez immédiatement votre mot de passe et contactez l’assistance Lyneci.</p>
+{% endblock %}

@@ -1,0 +1,9 @@
+Bonjour,
+
+{% block content %}{% endblock %}
+
+— L’équipe Lyneci
+Intelligent Trading
+https://{{ current_site.domain }}
+
+Cet email est envoyé automatiquement. Ne transmettez jamais vos mots de passe, codes ou liens de sécurité.

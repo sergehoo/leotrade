@@ -1,0 +1,1 @@
+{% extends "account/email/base_notification.txt" %}{% block notification_message %}L’adresse email de votre compte Lyneci a été modifiée de {{ from_email }} vers {{ to_email }}.{% endblock %}
