@@ -60,14 +60,26 @@ traction. Passage à B/C uniquement en Phase 4, financé par la traction.
 
 ---
 
-## 3. Décision n°2 — Instrument (OUVERTE, arbitrage requis)
+## 3. Décision n°2 — Instrument (ACTÉE : multi-instrument classifié)
 
-- **Rester sur synthétiques Deriv** : espérance négative, incompatible avec la
-  thèse « préservation ». Non recommandé comme socle.
-- **Ouvrir vers espérance non-négative** (actions, ETF, FX majeur) : cohérent
-  avec la préservation, mais change broker + régulation + données.
+**Décision : garder Deriv ET ouvrir aux autres marchés.** Le multi-instrument
+sauve la thèse de préservation ; l'architecture Broker Gateway (déjà en place)
+l'absorbe. Contrainte non négociable : un instrument négatif-EV ne peut pas être
+le socle de la préservation. → **Couche de classification des instruments.**
 
-**Recommandation :** planifier la sortie des synthétiques négatifs-EV. À trancher.
+| Classe | Instruments | Politique |
+|---|---|---|
+| **CORE** (préservation) | Actions, ETF, FX majeur | Univers **par défaut**, éligible « préservation », caps standards. |
+| **SPÉCULATIF** (haut risque) | Synthétiques Deriv (R_75…) | **Opt-in explicite**, étiqueté « spéculatif / haut risque », **exclu du défaut**, cap par trade ≤ 0,25 %, exposition plafonnée. L'IA ne le recommande **jamais** comme outil de préservation. |
+
+**Architecture :**
+- Chaque `Asset` porte une classe d'éligibilité (s'appuie sur `asset_class`).
+- Le moteur de risque lit la classe et applique la politique (cap par trade,
+  exposition max, éligibilité au mode préservation).
+- L'IA connaît la classe : pour un instrument SPÉCULATIF, disclosure renforcée
+  et jamais de cadrage « préservation ».
+- Le mode par défaut de l'utilisateur = CORE uniquement ; le SPÉCULATIF exige
+  un opt-in tracé.
 
 ---
 
@@ -157,9 +169,10 @@ Aucune porte franchie ⇒ **PAPER uniquement, zéro argent de tiers.**
 
 ---
 
-## 9. Décisions ouvertes
+## 9. Décisions
 
-1. **Instrument** (§3) : rester Deriv synthétiques ou ouvrir vers non-négatif-EV.
-2. Prochain pilier à détailler : moteur de risque (spec chiffrée), pipeline de
-   validation (sur le code existant), ou cadrage Modèle A (ce qu'on a le droit
-   de dire / ne pas dire).
+1. **Instrument** (§3) : ✅ ACTÉ — multi-instrument classifié (CORE préservation
+   + SPÉCULATIF opt-in). Synthétiques Deriv conservés mais hors du défaut.
+2. Prochain pilier à détailler (au choix) : moteur de risque (spec chiffrée),
+   pipeline de validation (sur le code existant), ou cadrage Modèle A (ce qu'on
+   a le droit de dire / ne pas dire).
