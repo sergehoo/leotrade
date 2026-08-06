@@ -50,6 +50,24 @@ class RiskProfile(TimeStampedModel):
     block_on_high_correlation = models.BooleanField(default=True)
 
     kill_switch_enabled = models.BooleanField(default=True)
+
+    # ── Capital Preservation First — politique par classe d'instrument ──────
+    # Le mode préservation restreint l'univers aux instruments CORE (espérance
+    # structurellement non-négative). Les niveaux VOLATILE et SPECULATIVE
+    # exigent un opt-in explicite, tracé et révocable.
+    preservation_mode = models.BooleanField(
+        default=True,
+        help_text="Restreint l'univers aux instruments éligibles à la préservation du capital.",
+    )
+    allow_volatile_instruments = models.BooleanField(
+        default=False,
+        help_text="Autorise les instruments à volatilité élevée (crypto, FX exotique, matières premières).",
+    )
+    allow_speculative_instruments = models.BooleanField(
+        default=False,
+        help_text="Autorise les instruments à espérance négative par construction (synthétiques Deriv).",
+    )
+
     notes = models.TextField(blank=True, null=True)
 
     class Meta:

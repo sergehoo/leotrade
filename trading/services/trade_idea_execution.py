@@ -614,13 +614,51 @@ class TradeIdeaExecutionService:
         return symbol.startswith(("BOOM", "CRASH"))
 
     @classmethod
-    def _build_deriv_sizing(cls, stake_amount: Decimal):
+    def _build_deriv_sizing(cls, stake_amount: Decimal, *, portfolio=None,
+                            risk_profile=None, instrument_tier=None):
+        """Sizing des contrats Deriv (options binaires / multipliers).
+
+        Capital Preservation First — correction d'un contournement majeur :
+        cette branche n'appelait pas `PositionSizingService`, donc
+        `max_risk_per_trade` (et le plafond dur de classe) n'étaient **jamais**
+        appliqués — précisément sur les instruments à espérance négative.
+
+        Sur ces contrats, la mise EST la perte maximale (on perd 100 % du stake).
+        La contrainte de risque se réduit donc à un plafond de mise :
+            mise_max = équité × risque_effectif_%
+        """
+        capped = Decimal(str(stake_amount))
+        note = ""
+
+        if portfolio is not None and risk_profile is not None:
+            from risk.instruments import effective_risk_pct, policy_for_tier
+
+            equity = cls._to_decimal(getattr(portfolio, "equity", 0), "equity", allow_none=True) or Decimal("0")
+            pct = cls._to_decimal(
+                getattr(risk_profile, "max_risk_per_trade", 0), "max_risk_per_trade",
+                allow_none=True,
+            ) or Decimal("0")
+            if instrument_tier:
+                pct = effective_risk_pct(pct, policy_for_tier(instrument_tier))
+
+            max_stake = (equity * pct / Decimal("100")).quantize(Decimal("0.01"))
+            if max_stake > 0 and capped > max_stake:
+                note = (
+                    f" Mise plafonnée par le risque maximal autorisé "
+                    f"({pct}% de l'équité) : {capped} → {max_stake}."
+                )
+                capped = max_stake
+
+        final_stake = capped
+        reason_text = f"Deriv stake-based contract (qty=1, notional=stake).{note}"
+
         class DerivSizing:
-            requested_stake = stake_amount
+            requested_stake = Decimal(str(stake_amount))
+            approved_stake = final_stake
             quantity = Decimal("1")
-            notional = stake_amount
+            notional = final_stake
             leverage = Decimal("1")
-            reason = "Deriv stake-based contract (qty=1, notional=stake)"
+            reason = reason_text
 
         return DerivSizing()
 
@@ -893,7 +931,31 @@ class TradeIdeaExecutionService:
                             f"Minimum Deriv requis : {broker_minimum_stake}."
                         )
 
-                    sizing = cls._build_deriv_sizing(stake_amount)
+                    # Plafond de risque appliqué aussi sur Deriv : la mise EST
+                    # la perte maximale, donc le risque se borne par la mise.
+                    from risk.instruments import classify as _classify_instrument
+
+                    sizing = cls._build_deriv_sizing(
+                        stake_amount,
+                        portfolio=portfolio,
+                        risk_profile=risk_profile,
+                        instrument_tier=_classify_instrument(
+                            getattr(idea, "asset", None), symbol=idea.symbol,
+                        ),
+                    )
+
+                    # Si le plafond de risque descend la mise sous le minimum
+                    # broker, le trade DOIT être refusé : c'est le signal que ce
+                    # capital est trop faible pour cet instrument.
+                    if sizing.notional < broker_minimum_stake:
+                        raise ValueError(
+                            f"Exécution impossible pour {idea.symbol}. "
+                            f"Ton profil de risque plafonne la mise à "
+                            f"{sizing.notional}, sous le minimum Deriv de "
+                            f"{broker_minimum_stake}. Ce capital est trop faible "
+                            f"pour cet instrument : augmente ton capital ou "
+                            f"choisis un instrument moins risqué."
+                        )
 
                 else:
                     constraint = cls._resolve_constraint(broker_account, idea.symbol)
@@ -923,6 +985,10 @@ class TradeIdeaExecutionService:
                         min_qty=min_qty,
                     )
 
+                    # Capital Preservation First : plafond dur de la classe
+                    # d'instrument appliqué au sizing (ne peut que réduire).
+                    from risk.instruments import classify as _classify_instrument
+
                     try:
                         sizing = PositionSizingService.compute(
                             portfolio=portfolio,
@@ -934,6 +1000,9 @@ class TradeIdeaExecutionService:
                             qty_step=qty_step,
                             min_notional=min_notional,
                             leverage=cls.DEFAULT_LEVERAGE,
+                            instrument_tier=_classify_instrument(
+                                getattr(idea, "asset", None), symbol=idea.symbol,
+                            ),
                         )
                     except ValueError as exc:
                         message = str(exc)

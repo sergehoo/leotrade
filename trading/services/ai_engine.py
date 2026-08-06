@@ -258,6 +258,10 @@ class AIRecommendationService:
         qty_step = getattr(constraint, "qty_step", None) or cls.DEFAULT_QTY_STEP
         min_notional = getattr(constraint, "min_notional", None) or cls.DEFAULT_MIN_NOTIONAL
 
+        # Capital Preservation First : le plafond dur de risque de la classe
+        # d'instrument s'applique au sizing (ne peut que réduire).
+        from risk.instruments import classify as _classify_instrument
+
         try:
             sizing = PositionSizingService.compute(
                 portfolio=portfolio,
@@ -269,6 +273,9 @@ class AIRecommendationService:
                 qty_step=qty_step,
                 min_notional=min_notional,
                 leverage=cls.DEFAULT_LEVERAGE,
+                instrument_tier=_classify_instrument(
+                    getattr(opportunity, "asset", None), symbol=opportunity.symbol,
+                ),
             )
         except ValueError as exc:
             message = str(exc)

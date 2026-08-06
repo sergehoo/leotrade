@@ -312,6 +312,20 @@ class PositionSizingService:
             qty_step: Decimal = Decimal("0.00000001"),
             min_notional: Decimal = Decimal("0"),
             leverage: Decimal = Decimal("1"),
+            # ── Capital Preservation First (optionnels, rétrocompatibles) ──
+            # instrument_tier : applique le plafond DUR de risque de la classe
+            #   (CORE 0,50 % / VOLATILE 0,25 % / SPECULATIVE 0,25 %). Ne peut
+            #   que RÉDUIRE le risque du profil, jamais l'augmenter.
+            # atr : volatilité de l'instrument en unités de prix (Average True
+            #   Range). Fournie ⇒ active le volatility targeting.
+            # target_vol_pct : part d'équité que l'on accepte de voir bouger sur
+            #   un mouvement de 1 ATR. Par défaut (None) = le risque EFFECTIF
+            #   après plafond de classe : sinon un budget figé à 1 % laisserait
+            #   un mouvement d'1 ATR coûter 4x le plafond d'un instrument
+            #   SPECULATIVE (0,25 %), ce que la protection est censée empêcher.
+            instrument_tier: str | None = None,
+            atr: Decimal | None = None,
+            target_vol_pct: Decimal | None = None,
     ) -> SizingResult:
         if requested_stake <= 0:
             raise ValueError("Le stake demandé doit être supérieur à zéro.")
@@ -328,7 +342,23 @@ class PositionSizingService:
         if equity <= 0:
             raise ValueError("L'equity du portefeuille doit être supérieure à zéro.")
 
-        max_risk_per_trade_percent = _d(risk_profile.max_risk_per_trade) / Decimal("100")
+        # Mission 1 — Protéger : le risque par trade est plafonné par le profil
+        # ET par la classe d'instrument. Le plus contraignant gagne.
+        profile_risk_pct = _d(risk_profile.max_risk_per_trade)
+        tier_note = ""
+        if instrument_tier:
+            from .instruments import effective_risk_pct, policy_for_tier
+
+            tier_policy = policy_for_tier(instrument_tier)
+            capped_risk_pct = effective_risk_pct(profile_risk_pct, tier_policy)
+            if capped_risk_pct < profile_risk_pct:
+                tier_note = (
+                    f" Plafond classe {tier_policy.tier} appliqué : "
+                    f"{profile_risk_pct}% → {capped_risk_pct}%."
+                )
+            profile_risk_pct = capped_risk_pct
+
+        max_risk_per_trade_percent = profile_risk_pct / Decimal("100")
         risk_amount = equity * max_risk_per_trade_percent
 
         if risk_amount <= 0:
@@ -342,7 +372,29 @@ class PositionSizingService:
         stake_based_quantity = requested_stake / entry_price
         cash_based_quantity = available_cash / entry_price
 
-        raw_quantity = min(risk_based_quantity, stake_based_quantity, cash_based_quantity)
+        candidates = [risk_based_quantity, stake_based_quantity, cash_based_quantity]
+
+        # Volatility targeting — borne la quantité pour qu'un mouvement de
+        # 1 ATR ne fasse pas bouger l'équité de plus de target_vol_pct.
+        # Complète le stop-based sizing : protège aussi quand le stop est très
+        # serré sur un instrument très volatil (stop-out quasi certain).
+        vol_note = ""
+        atr_value = _d(atr) if atr is not None else Decimal("0")
+        if atr_value > 0:
+            # Budget de volatilité aligné sur le risque effectif (déjà plafonné
+            # par la classe) sauf surcharge explicite de l'appelant.
+            vol_pct = _d(target_vol_pct) if target_vol_pct is not None else profile_risk_pct
+            vol_budget = equity * (vol_pct / Decimal("100"))
+            vol_based_quantity = vol_budget / atr_value
+            candidates.append(vol_based_quantity)
+            if vol_based_quantity < min(risk_based_quantity, stake_based_quantity):
+                vol_note = (
+                    f" Volatility targeting actif (ATR={atr_value}, "
+                    f"cible={vol_pct}%) : quantité bornée à "
+                    f"{vol_based_quantity:.8f}."
+                )
+
+        raw_quantity = min(candidates)
         quantity = cls._quantize_step(raw_quantity, qty_step)
 
         broker_min_stake = max(
@@ -416,6 +468,7 @@ class PositionSizingService:
                 f"cash_qty={cash_based_quantity:.8f}, "
                 f"raw_qty={raw_quantity:.8f}, "
                 f"final_qty={quantity:.8f}."
+                f"{tier_note}{vol_note}"
             ),
         )
 
@@ -1103,6 +1156,56 @@ class RiskGuardService:
         if _d(profile.max_leverage) > 0 and _d(portfolio.broker_account.mode == "LIVE" and 1 or 1) > _d(
                 profile.max_leverage):
             pass
+
+        # ── 9bis. Classe d'instrument (Capital Preservation First) ──
+        # ⚠ ORDRE CRITIQUE — ce bloc doit rester APRÈS les blocs 7/8/8bis/9
+        # (pertes jour/semaine/mois, drawdown) : ceux-ci déclenchent le kill
+        # switch en EFFET DE BORD. Un retour anticipé ici masquerait cette
+        # protection, bien plus forte qu'un simple filtrage de classe.
+        # Un instrument à espérance négative ou à volatilité élevée n'est pas
+        # tradable par défaut : il exige un opt-in explicite, et il est exclu
+        # du mode préservation du capital. Blocages SOFT : franchissables via
+        # la décharge explicite, ce qui trace l'opt-in dans RiskOverrideAudit.
+        from .instruments import InstrumentTier, classify, policy_for_tier
+
+        instrument_tier = classify(asset, symbol=symbol)
+        tier_policy = policy_for_tier(instrument_tier)
+        payload["instrument_tier"] = instrument_tier
+        payload["instrument_tier_max_risk_pct"] = str(tier_policy.max_risk_per_trade_pct)
+
+        if tier_policy.requires_explicit_optin:
+            tier_enabled = (
+                profile.allow_speculative_instruments
+                if instrument_tier == InstrumentTier.SPECULATIVE
+                else profile.allow_volatile_instruments
+            )
+            if not tier_enabled:
+                soft = _soft_block_or_override(
+                    "INSTRUMENT_TIER_NOT_ENABLED",
+                    (
+                        f"{symbol} est classé « {tier_policy.label} » et n'est pas "
+                        f"autorisé par ton profil. {tier_policy.disclosure} "
+                        f"Active explicitement cette classe dans ton profil de "
+                        f"risque si tu acceptes ce niveau de risque."
+                    ),
+                )
+                if soft is not None:
+                    return soft
+
+        if profile.preservation_mode and not tier_policy.eligible_for_preservation:
+            soft = _soft_block_or_override(
+                "PRESERVATION_MODE_EXCLUDES_INSTRUMENT",
+                (
+                    f"Ton profil est en mode « préservation du capital », qui "
+                    f"restreint l'univers aux instruments à espérance "
+                    f"structurellement non-négative. {symbol} est classé "
+                    f"« {tier_policy.label} » et en est exclu. "
+                    f"{tier_policy.disclosure}"
+                ),
+            )
+            if soft is not None:
+                return soft
+
 
         symbol_existing = cls.symbol_open_exposure(portfolio, symbol)
         symbol_future = symbol_existing + approved_notional

@@ -123,6 +123,12 @@ def risk_profile_paper(db, user, portfolio_paper):
         allow_live_trading=True,
         require_stop_loss=False,
         kill_switch_enabled=True,
+        # Ces profils testent des instruments synthétiques Deriv
+        # (classe SPECULATIVE) : sous la politique Capital Preservation
+        # First, cela exige un opt-in explicite + préservation désactivée.
+        preservation_mode=False,
+        allow_speculative_instruments=True,
+        allow_volatile_instruments=True,
     )
 
 
@@ -150,4 +156,10 @@ def risk_profile_live(db, user, portfolio_live):
         allow_live_trading=True,
         require_stop_loss=False,
         kill_switch_enabled=True,
+        # Ces profils testent des instruments synthétiques Deriv
+        # (classe SPECULATIVE) : sous la politique Capital Preservation
+        # First, cela exige un opt-in explicite + préservation désactivée.
+        preservation_mode=False,
+        allow_speculative_instruments=True,
+        allow_volatile_instruments=True,
     )

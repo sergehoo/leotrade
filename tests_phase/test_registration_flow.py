@@ -109,7 +109,9 @@ def test_signup_sends_confirmation_and_confirmation_activates_login(client, sett
     assert confirmation_email.subject.startswith("[Lyneci]")
     assert "https://lyneci.test/accounts/confirm-email/" in confirmation_email.body
     assert confirmation_email.alternatives
-    assert "Lyneci" in confirmation_email.alternatives[0].content
+    # Django ≤ 5.1 : `alternatives` est une liste de tuples (contenu, mimetype).
+    # L'accès par attribut `.content` n'existe qu'à partir de Django 5.2.
+    assert "Lyneci" in confirmation_email.alternatives[0][0]
 
     confirmation_url = next(
         line.strip()

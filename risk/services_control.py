@@ -227,6 +227,12 @@ class RiskSettingsUpdateService:
         "max_monthly_loss", "max_drawdown", "max_open_positions",
         "max_leverage", "min_confidence", "allow_short",
         "require_stop_loss", "kill_switch_enabled",
+        # Capital Preservation First — l'opt-in par classe d'instrument doit
+        # passer par ICI : c'est le seul mutateur audité (RiskAuditLog) et
+        # notifié. Sans ces champs, le message de blocage invitait l'utilisateur
+        # à « activer la classe dans son profil » sans qu'aucun chemin n'existe.
+        "preservation_mode", "allow_volatile_instruments",
+        "allow_speculative_instruments",
     }
     DECIMAL_FIELDS = {
         "max_risk_per_trade", "max_daily_loss", "max_weekly_loss",

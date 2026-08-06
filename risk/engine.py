@@ -268,6 +268,10 @@ class RiskEngine:
         min_notional = _d(getattr(constraint, "min_notional", Decimal("0")))
         leverage = Decimal("1")
 
+        # Capital Preservation First : plafond dur de la classe d'instrument
+        # appliqué au sizing (ne peut que réduire le risque du profil).
+        from .instruments import classify as _classify_instrument
+
         try:
             sizing = PositionSizingService.compute(
                 portfolio=self.portfolio,
@@ -279,6 +283,7 @@ class RiskEngine:
                 qty_step=qty_step,
                 min_notional=min_notional,
                 leverage=leverage,
+                instrument_tier=_classify_instrument(symbol=symbol),
             )
         except Exception as exc:
             return RiskEngineDecision(

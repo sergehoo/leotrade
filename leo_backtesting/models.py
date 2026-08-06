@@ -95,16 +95,20 @@ class BacktestRun(TimeStampedModel):
                 condition=models.Q(status__in=["PENDING", "RUNNING"]),
                 name="leo_bt_one_active_per_user_strategy",
             ),
+            # NB : sur CheckConstraint, le kwarg est `check=` (Django ≤ 5.0) ;
+            # `condition=` n'existe qu'à partir de Django 5.1 et casse au
+            # chargement des modèles sur la version installée ici (4.2).
+            # `check=` reste supporté sur Django 5.x.
             models.CheckConstraint(
-                condition=models.Q(start_date__lte=models.F("end_date")),
+                check=models.Q(start_date__lte=models.F("end_date")),
                 name="leo_bt_dates_ordered",
             ),
             models.CheckConstraint(
-                condition=models.Q(initial_cash__gt=0),
+                check=models.Q(initial_cash__gt=0),
                 name="leo_bt_initial_cash_positive",
             ),
             models.CheckConstraint(
-                condition=(
+                check=(
                     models.Q(commission__gte=0, commission__lte=Decimal("0.10"))
                     & models.Q(spread__gte=0, spread__lte=Decimal("0.05"))
                     & models.Q(slippage__gte=0, slippage__lte=Decimal("0.05"))
