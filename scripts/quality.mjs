@@ -1,11 +1,16 @@
 import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const BACKEND = join(REPO_ROOT, "backend");
 
 const candidates = [
   process.env.LEOTRADE_PYTHON,
   "python3",
-  ".venv/bin/python",
-  "venv/bin/python",
+  join(REPO_ROOT, ".venv/bin/python"),
+  join(REPO_ROOT, "venv/bin/python"),
 ].filter(Boolean);
 const python = candidates.find((candidate) =>
   candidate.includes("/") ? existsSync(candidate) : true,
@@ -25,7 +30,7 @@ const environment = {
 
 function run(args) {
   const result = spawnSync(python, args, {
-    cwd: process.cwd(),
+    cwd: BACKEND,
     env: environment,
     stdio: "inherit",
   });

@@ -14,6 +14,8 @@ from django.utils import timezone
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# Monorepo : artefacts d'infra sous infrastructure/ (cf. test_production_readiness).
+INFRA_ROOT = PROJECT_ROOT.parent / "infrastructure"
 
 
 def _snapshot(*, generated_at_epoch: int, **values) -> dict:
@@ -265,10 +267,10 @@ def test_system_diagnostics_supports_fresh_machine_readable_output():
 
 
 def test_deployment_enforces_flower_auth_and_declares_alert_rules():
-    compose = (PROJECT_ROOT / "docker_compose.yml").read_text()
+    compose = (INFRA_ROOT / "docker" / "docker-compose.yml").read_text()
     requirements = (PROJECT_ROOT / "requirements.txt").read_text()
     alert_rules = yaml.safe_load(
-        (PROJECT_ROOT / "deploy/observability/lyneci-alerts.yml").read_text()
+        (INFRA_ROOT / "deploy/observability/lyneci-alerts.yml").read_text()
     )
 
     assert "flower==2.0.1" in requirements

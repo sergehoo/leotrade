@@ -1,8 +1,8 @@
 x-app-image: &app-image
   image: ${APP_IMAGE:-lyneci:local}
   build:
-    context: .
-    dockerfile: Dockerfile
+    context: ../..
+    dockerfile: infrastructure/docker/Dockerfile
 
 x-app-environment: &app-environment
   DJANGO_ENV: prod
@@ -16,7 +16,7 @@ x-app-environment: &app-environment
 x-app-defaults: &app-defaults
   <<: *app-image
   env_file:
-    - ${APP_ENV_FILE:-.env.prod}
+    - ${APP_ENV_FILE:-../deploy/.env.prod}
   environment: *app-environment
   init: true
   security_opt:

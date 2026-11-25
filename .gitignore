@@ -67,3 +67,4 @@ coverage.xml
 
 # Node (quality gate)
 node_modules/
+.ostack/knowledge/

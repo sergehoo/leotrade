@@ -12,7 +12,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY requirements.txt ./
+COPY backend/requirements.txt ./
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install --upgrade pip \
     && /opt/venv/bin/pip install -r requirements.txt
@@ -35,7 +35,7 @@ RUN apt-get update \
 COPY --from=builder /opt/venv /opt/venv
 
 WORKDIR /app
-COPY --chown=lyneci:lyneci . /app
+COPY --chown=lyneci:lyneci backend/ /app
 
 RUN mkdir -p /app/media /app/staticfiles \
     && chown -R lyneci:lyneci /app/media /app/staticfiles \

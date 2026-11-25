@@ -27,7 +27,7 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        run: pip install -r backend/requirements-dev.txt
 
       - name: Validate Django and migrations
         env:
@@ -54,6 +54,7 @@ jobs:
           PAYSTACK_PUBLIC_KEY: pk_test_ci
           PAYSTACK_SECRET_KEY: sk_test_ci
           AI_PRIMARY_PROVIDER: HEURISTIC
+        working-directory: backend
         run: python manage.py check --deploy --fail-level ERROR
 
       - name: Run test suite
@@ -63,8 +64,8 @@ jobs:
 
       - name: Validate Compose configuration
         env:
-          APP_ENV_FILE: .env.prod.example
-        run: docker compose -f docker_compose.yml --env-file .env.prod.example config --quiet
+          APP_ENV_FILE: ../deploy/.env.prod.example
+        run: docker compose -f infrastructure/docker/docker-compose.yml --env-file infrastructure/deploy/.env.prod.example config --quiet
 
       - name: Build production image
-        run: docker build --tag lyneci:ci .
+        run: docker build --tag lyneci:ci --file infrastructure/docker/Dockerfile .

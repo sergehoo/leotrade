@@ -16,6 +16,10 @@ from core.checks import production_configuration_checks
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# Monorepo : le backend Django vit dans backend/, les artefacts d'infra
+# (Docker, Compose, gabarits d'environnement) vivent dans infrastructure/.
+REPO_ROOT = PROJECT_ROOT.parent
+INFRA_ROOT = REPO_ROOT / "infrastructure"
 
 
 def _kyc_payload():
@@ -141,7 +145,7 @@ def test_email_verification_sent_page_has_visible_lyneci_content(client):
 
 
 def test_compose_uses_shared_external_traefik():
-    compose = yaml.safe_load((PROJECT_ROOT / "docker_compose.yml").read_text())
+    compose = yaml.safe_load((INFRA_ROOT / "docker" / "docker-compose.yml").read_text())
     services = compose["services"]
 
     assert "traefik" not in services
@@ -175,8 +179,8 @@ def test_compose_uses_shared_external_traefik():
 
 
 def test_optional_sentry_dsn_is_empty_by_default():
-    portable_example = PROJECT_ROOT / "deploy" / "production.env.example"
-    dotfile_example = PROJECT_ROOT / ".env.prod.example"
+    portable_example = INFRA_ROOT / "deploy" / "production.env.example"
+    dotfile_example = INFRA_ROOT / "deploy" / ".env.prod.example"
     if dotfile_example.exists():
         assert dotfile_example.read_text() == portable_example.read_text()
     environment = portable_example.read_text().splitlines()
@@ -201,7 +205,7 @@ def test_production_check_rejects_placeholder_smtp_configuration():
 
 
 def test_docker_image_builds_a_writable_production_static_manifest():
-    dockerfile = (PROJECT_ROOT / "Dockerfile").read_text()
+    dockerfile = (INFRA_ROOT / "docker" / "Dockerfile").read_text()
     collectstatic = dockerfile.index(
         "DJANGO_SETTINGS_MODULE=leoTrade.settings.base \\\n"
         "       python manage.py collectstatic --noinput --skip-checks"
