@@ -26,8 +26,15 @@ class BrokerConnectionService:
             ])
             return {"success": True, "payload": payload}
         except Exception as exc:
+            from brokers.services_accounts import BrokerAccountService
+
+            # Un broker peut renvoyer la valeur soumise dans son message
+            # d'erreur. Ce champ est persisté puis servi par l'API : on le
+            # nettoie avant écriture, pas à l'affichage.
+            message = BrokerAccountService.redact_secrets(broker_account, str(exc))
+
             broker_account.last_connection_status = False
-            broker_account.last_connection_error = str(exc)
+            broker_account.last_connection_error = message
             broker_account.last_connected_at = timezone.now()
             broker_account.status = "ERROR"
             broker_account.save(update_fields=[
@@ -37,7 +44,7 @@ class BrokerConnectionService:
                 "status",
                 "updated_at",
             ])
-            return {"success": False, "error": str(exc)}
+            return {"success": False, "error": message}
 
 
 def build_deriv_client_for_account(broker_account):

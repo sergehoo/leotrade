@@ -6,6 +6,7 @@ import { Toaster } from "sonner"
 import { setSessionExpiredHandler } from "@/api/client"
 import AppShell from "@/components/layout/AppShell"
 import DashboardPage, { PendingSection } from "@/routes/DashboardPage"
+import BrokersPage from "@/routes/brokers/BrokersPage"
 import LoginPage from "@/routes/LoginPage"
 import ProtectedRoute from "@/routes/ProtectedRoute"
 import { useAuth } from "@/stores/auth"
@@ -66,10 +67,7 @@ export default function App() {
                 path="portefeuille-electronique"
                 element={<PendingSection title="Portefeuille électronique" scope="Les dépôts et retraits" />}
               />
-              <Route
-                path="brokers"
-                element={<PendingSection title="Brokers" scope="La gestion des comptes broker" />}
-              />
+              <Route path="brokers" element={<BrokersPage />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

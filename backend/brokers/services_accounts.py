@@ -129,6 +129,33 @@ class BrokerAccountService:
             )
         return stored
 
+    @staticmethod
+    def redact_secrets(account, text: str) -> str:
+        """Masque toute valeur de secret présente dans un message d'erreur.
+
+        Certains brokers renvoient la valeur soumise dans leur message
+        d'erreur (« Invalid API key: AK-… »). Sans ce filtre, cette chaîne
+        est persistée dans `last_connection_error` puis servie par l'API —
+        un secret ressortirait alors par le chemin le moins surveillé.
+
+        On ne déchiffre que sur le chemin d'erreur, qui est rare : le coût
+        et l'entrée au journal d'accès sont justifiés par ce qu'ils évitent.
+        """
+        if not text:
+            return text
+
+        cleaned = str(text)
+        for secret_type in SECRET_FIELDS.values():
+            try:
+                value = account.get_secret(secret_type)
+            except Exception:  # déchiffrement impossible : rien à masquer
+                continue
+            # Les valeurs très courtes produiraient des remplacements
+            # parasites dans un message légitime.
+            if value and len(value) >= 6:
+                cleaned = cleaned.replace(value, "«secret masqué»")
+        return cleaned
+
     # ------------------------------------------------------------------
     # Garde KYC sur le mode LIVE
     # ------------------------------------------------------------------

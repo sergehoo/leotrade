@@ -41,6 +41,7 @@ def check_all_brokers_health_task():
 
     from django.utils import timezone
 
+    from brokers.services_accounts import BrokerAccountService
     from infrastructure.broker_clients.gateway import BrokerGateway, CircuitOpenError
 
     logger = logging.getLogger("lyneci.brokers.health")
@@ -57,11 +58,15 @@ def check_all_brokers_health_task():
             healthy += 1
         except CircuitOpenError as exc:
             account.last_connection_status = False
-            account.last_connection_error = str(exc)
+            account.last_connection_error = BrokerAccountService.redact_secrets(account, str(exc))
             account.status = "ERROR"
         except Exception as exc:
             account.last_connection_status = False
-            account.last_connection_error = str(exc)[:2000]
+            # Même filtre que le test manuel : un health check ne doit pas
+            # devenir le chemin par lequel un secret est persisté en clair.
+            account.last_connection_error = BrokerAccountService.redact_secrets(
+                account, str(exc),
+            )[:2000]
             account.status = "ERROR"
             logger.warning(
                 "broker.health_check_failed account_id=%s broker=%s error=%s",

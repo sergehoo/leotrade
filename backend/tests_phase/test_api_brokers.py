@@ -683,3 +683,58 @@ class TestConstraints:
 
         assert response.status_code == 502
         assert response.json()["code"] == "SYNC_FAILED"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  11. Un message d'erreur broker ne doit pas devenir un canal de fuite
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+class TestErrorRedaction:
+    """Certains brokers renvoient la valeur soumise dans leur message d'erreur.
+
+    Ce message est persisté dans `last_connection_error` puis servi par
+    l'API : c'est le chemin par lequel un secret ressortirait sans qu'on
+    le remarque.
+    """
+
+    def test_a_broker_error_echoing_the_token_is_redacted_before_storage(
+        self, client, deriv_account, monkeypatch,
+    ):
+        leaky = f"Invalid token: {SECRET_VALUES['deriv_token']} — rejected"
+        monkeypatch.setattr(
+            "infrastructure.broker_clients.BrokerClientFactory.build",
+            lambda acc: type("C", (), {
+                "test_connection": staticmethod(
+                    lambda: (_ for _ in ()).throw(RuntimeError(leaky))
+                ),
+            })(),
+        )
+
+        response = client.post(_action_url(deriv_account.pk, "test-connection"))
+
+        assert response.status_code == 400
+        _assert_no_secret_leak(response.json())
+
+        deriv_account.refresh_from_db()
+        assert SECRET_VALUES["deriv_token"] not in (deriv_account.last_connection_error or "")
+        assert "«secret masqué»" in deriv_account.last_connection_error
+
+    def test_redaction_keeps_the_useful_part_of_the_message(self, deriv_account):
+        """Masquer ne doit pas rendre le diagnostic inutilisable."""
+        from brokers.services_accounts import BrokerAccountService
+
+        cleaned = BrokerAccountService.redact_secrets(
+            deriv_account,
+            f"401 Unauthorized: token {SECRET_VALUES['deriv_token']} expired",
+        )
+
+        assert "401 Unauthorized" in cleaned
+        assert "expired" in cleaned
+        assert SECRET_VALUES["deriv_token"] not in cleaned
+
+    def test_an_error_without_any_secret_is_left_intact(self, deriv_account):
+        from brokers.services_accounts import BrokerAccountService
+
+        original = "Connexion refusée par le serveur (timeout après 30s)"
+        assert BrokerAccountService.redact_secrets(deriv_account, original) == original
