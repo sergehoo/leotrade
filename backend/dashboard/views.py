@@ -727,6 +727,9 @@ def trading_mode_toggle(request):
 
     Garde-fous
     ----------
+    - LIVE exige un KYC approuvé (garde partagée avec l'API : les deux
+      surfaces actionnent le même interrupteur, elles doivent appliquer
+      la même règle). Le retour en PAPER n'est jamais bloqué.
     - On refuse LIVE si aucun BrokerAccount actif n'est configuré.
     - Pour Deriv en LIVE : on vérifie la présence d'un deriv_token. À
       défaut, on bascule quand même mais on prévient explicitement.
@@ -734,12 +737,23 @@ def trading_mode_toggle(request):
     """
     import logging
     from brokers.models import BrokerAccount
+    from brokers.services_accounts import BrokerAccountService, LiveModeNotAllowed
 
     log = logging.getLogger("lyneci.dashboard.mode_toggle")
 
     mode = (request.POST.get("mode") or "").strip().upper()
     if mode not in ("PAPER", "LIVE"):
         mode = "PAPER"
+
+    try:
+        BrokerAccountService.assert_mode_allowed(request.user, mode)
+    except LiveModeNotAllowed as exc:
+        log.warning(
+            "broker_account_mode_toggle_denied user_id=%s reason=%s",
+            request.user.pk, exc.code,
+        )
+        messages.error(request, exc.message)
+        return redirect(request.META.get("HTTP_REFERER") or "dashboard")
 
     accounts = list(
         BrokerAccount.objects.filter(user=request.user, is_active=True)

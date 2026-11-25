@@ -163,3 +163,20 @@ def risk_profile_live(db, user, portfolio_live):
         allow_speculative_instruments=True,
         allow_volatile_instruments=True,
     )
+
+
+@pytest.fixture
+def approved_kyc(db, user):
+    """KYC approuvé — prérequis de toute action LIVE.
+
+    Le mode LIVE est la seule bascule qui expose de l'argent réel : la
+    garde `BrokerAccountService.assert_live_allowed` l'interdit tant que
+    le dossier n'est pas approuvé. Les tests qui exercent un parcours LIVE
+    doivent donc poser ce prérequis explicitement.
+    """
+    from dashboard.models import KYCProfile
+
+    profile, _ = KYCProfile.objects.update_or_create(
+        user=user, defaults={"status": "APPROVED"},
+    )
+    return profile

@@ -60,6 +60,14 @@ def logged_client(db, user):
     return c
 
 
+@pytest.fixture(autouse=True)
+def _kyc_approved(approved_kyc):
+    """Tous les scénarios de ce module basculent en LIVE : le KYC approuvé
+    est leur prérequis. Le refus sans KYC est couvert par
+    `TestToggleRequiresApprovedKyc`, qui neutralise cette fixture."""
+    return approved_kyc
+
+
 @pytest.fixture
 def three_paper_brokers(db, user):
     """3 BrokerAccount en mode PAPER pour le même utilisateur."""
@@ -253,3 +261,73 @@ class TestToggleUserIsolation:
         assert other_broker.mode == "PAPER", (
             f"Le broker d'un autre utilisateur a été modifié ! mode={other_broker.mode}"
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  7. LIVE exige un KYC approuvé
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestToggleRequiresApprovedKyc:
+    """Le mode LIVE est la seule bascule qui expose de l'argent réel.
+
+    Sans KYC approuvé, elle doit être refusée — et le retour en PAPER doit
+    rester possible en toutes circonstances : on ne verrouille jamais la
+    porte de sortie.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _no_kyc(self, db, user):
+        """Neutralise l'autouse du module : aucun profil KYC approuvé."""
+        from dashboard.models import KYCProfile
+
+        KYCProfile.objects.filter(user=user).delete()
+
+    @pytest.mark.django_db
+    def test_live_denied_without_kyc(self, logged_client, user):
+        broker = _make_broker(user, "Paper", mode="PAPER")
+
+        _post_toggle(logged_client, "LIVE")
+
+        broker.refresh_from_db()
+        assert broker.mode == "PAPER", "La bascule LIVE a franchi la garde KYC."
+
+    @pytest.mark.django_db
+    def test_live_denied_does_not_touch_session(self, logged_client, user):
+        """Le refus ne doit pas laisser l'UI afficher LIVE : sinon le sidebar
+        annonce un mode que l'orchestrateur n'appliquera jamais."""
+        _make_broker(user, "Paper", mode="PAPER")
+
+        _post_toggle(logged_client, "LIVE")
+
+        assert logged_client.session.get("trading_mode") != "LIVE"
+
+    @pytest.mark.django_db
+    def test_live_denied_explains_why(self, logged_client, user):
+        _make_broker(user, "Paper", mode="PAPER")
+
+        response = _post_toggle(logged_client, "LIVE")
+
+        messages = [str(m) for m in response.context["messages"]]
+        assert any("KYC" in m for m in messages), f"Messages : {messages}"
+
+    @pytest.mark.django_db
+    def test_pending_kyc_is_not_enough(self, logged_client, user):
+        from dashboard.models import KYCProfile
+
+        KYCProfile.objects.create(user=user, status="UNDER_REVIEW")
+        broker = _make_broker(user, "Paper", mode="PAPER")
+
+        _post_toggle(logged_client, "LIVE")
+
+        broker.refresh_from_db()
+        assert broker.mode == "PAPER"
+
+    @pytest.mark.django_db
+    def test_return_to_paper_always_allowed(self, logged_client, user):
+        """Sans KYC, un compte déjà en LIVE doit pouvoir revenir en PAPER."""
+        broker = _make_broker(user, "Live", mode="LIVE")
+
+        _post_toggle(logged_client, "PAPER")
+
+        broker.refresh_from_db()
+        assert broker.mode == "PAPER"
