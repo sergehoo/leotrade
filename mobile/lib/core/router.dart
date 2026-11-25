@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/auth/presentation/auth_controller.dart';
 import '../features/auth/presentation/login_screen.dart';
+import '../features/brokers/presentation/brokers_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 
 /// Écran d'attente pendant la reprise de session.
@@ -45,6 +46,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/demarrage', builder: (_, __) => const _SplashScreen()),
       GoRoute(path: '/connexion', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/', builder: (_, __) => const DashboardScreen()),
+      GoRoute(path: '/brokers', builder: (_, __) => const BrokersScreen()),
     ],
   );
 });

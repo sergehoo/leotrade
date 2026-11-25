@@ -117,6 +117,16 @@ class ApiClient {
     return _unwrap(() => _dio.patch<T>(path, data: data));
   }
 
+  /// DELETE renvoie 204 sans corps : le type de retour est volontairement
+  /// `void`, un `_unwrap<T>` castant `null` en `T` échouerait.
+  Future<void> delete(String path) async {
+    try {
+      await _dio.delete<void>(path);
+    } on DioException catch (error) {
+      throw toApiError(error);
+    }
+  }
+
   Future<T> _unwrap<T>(Future<Response<T>> Function() call) async {
     try {
       final response = await call();

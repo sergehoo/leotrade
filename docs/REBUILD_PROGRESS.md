@@ -177,3 +177,74 @@ Par valeur décroissante et dépendances :
 6. **Assistant IA** — 44 fonctions, 14 prêtes. Le mieux amorcé.
 7. **Marchés et stratégies** — 41 fonctions, 0 prête.
 8. **Notifications et temps réel** — 36 fonctions, transverse aux précédents.
+
+---
+
+## Lot 4 — Brokers (terminé)
+
+Premier domaine métier porté de bout en bout : service → API → React → Flutter.
+
+### Ce qui a été remonté
+
+`brokers/services_accounts.py` devient la source unique des règles du cycle
+de vie d'un compte broker. Les deux surfaces (API v1 et vues Django) y
+appellent les mêmes gardes — c'était la condition pour ne pas laisser
+diverger ce qui touche à l'argent réel.
+
+| Règle | Où elle vit |
+|---|---|
+| Présence d'un secret, jamais sa valeur | `secret_status` / `missing_secrets` |
+| KYC approuvé obligatoire pour LIVE | `assert_live_allowed` |
+| Un seul compte par défaut | `set_default`, sous verrou de ligne |
+| Pas de suppression d'un compte engagé | `assert_deletable` |
+| Test de connexion + état + notification | `test_connection` |
+| Masquage des secrets dans les erreurs | `redact_secrets` |
+
+### API exposée
+
+`/api/v1/brokers/` — CRUD complet, plus `set-default/`, `test-connection/`,
+`sync-constraint/`, `health/`. Les trois premières sous le throttle
+« sensitive ». Codes d'erreur stables : `KYC_REQUIRED`, `MISSING_SECRETS`,
+`OPEN_POSITIONS`, `LINKED_PORTFOLIOS`, `CONNECTION_FAILED`, `SYNC_FAILED`.
+Un broker injoignable renvoie 502, pas 500.
+
+### Trois failles fermées en passant
+
+1. **`IsOwner` ne demandait pas l'authentification.** Les ViewSets qui la
+   déclarent remplacent la permission par défaut du projet ; une requête
+   anonyme franchissait `has_permission` puis atteignait `get_queryset()`,
+   où `filter(user=AnonymousUser)` lève un `TypeError` — 500 au lieu de 401.
+   Concernait tous les ViewSets, pas seulement les brokers.
+
+2. **La bascule PAPER→LIVE n'avait aucune garde KYC.** Un compte non vérifié
+   pouvait passer tous ses brokers en LIVE depuis le sidebar, alors que l'API
+   annonce `can_trade_live=false`. Le retour en PAPER reste toujours ouvert :
+   on ne verrouille pas la porte de sortie.
+
+3. **`last_connection_error` persistait la chaîne brute du broker**, que
+   l'API servait ensuite. Un broker qui renvoie la valeur soumise dans son
+   message (« Invalid API key: AK-… ») faisait ressortir un secret par le
+   chemin le moins surveillé.
+
+### Vérification
+
+- 516 tests backend (1 ignoré) — dont 47 sur ce domaine, les assertions de
+  non-fuite portant sur toutes les routes **et sur le contrat OpenAPI**.
+- 18 tests Flutter, `flutter analyze` propre, build web OK.
+- Parcours validé au navigateur : refus serveur en Live avec motif KYC,
+  création acceptée en Paper, test de connexion réel contre Deriv dont
+  l'échec 401 s'affiche tel quel. Aucune réponse HTTP ne porte la valeur
+  du jeton soumis (vérifié dans le panneau réseau).
+
+### Ce que ce lot ne couvre pas
+
+- Aucun temps réel : l'état du circuit est lu par sondage (30 s côté web).
+- `sync-constraint/` est exposé mais sans écran ; les contraintes
+  d'instrument seront pilotées depuis le domaine Marchés.
+- La rotation planifiée des secrets (`BrokerCredential.rotated_at` existe,
+  rien ne l'écrit).
+
+### Suite — Lot 5 : portefeuille et positions
+
+28 fonctions, 5 prêtes. Dépend du Lot 4 : une position appartient à un
+portefeuille, lui-même rattaché à un compte broker.

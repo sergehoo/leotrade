@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/format.dart';
 import '../../../core/network/api_client.dart';
@@ -21,6 +22,11 @@ class DashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Tableau de bord'),
         actions: [
+          IconButton(
+            tooltip: 'Brokers',
+            onPressed: () => context.push('/brokers'),
+            icon: const Icon(Icons.power_outlined),
+          ),
           IconButton(
             tooltip: 'Déconnexion',
             onPressed: () => ref.read(authControllerProvider.notifier).signOut(),
