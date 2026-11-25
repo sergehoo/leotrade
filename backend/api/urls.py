@@ -1,4 +1,13 @@
+from django.urls import path
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
+
+from api.views.auth import LoginMFAView, LoginView, LogoutView, MeView
 
 from api.views.brokers import BrokerAccountViewSet, BrokerConstraintViewSet
 from api.views.portfolio import PortfolioViewSet, PositionViewSet, PortfolioSnapshotViewSet, CashLedgerEntryViewSet, \
@@ -50,4 +59,24 @@ router.register(r"ai-inference-logs", AIInferenceLogViewSet, basename="api-ai-in
 router.register(r"decision-audits", DecisionAuditViewSet, basename="api-decision-audits")
 router.register(r"brokers", BrokerAccountViewSet, basename="api-brokers")
 router.register(r"broker-constraints", BrokerConstraintViewSet, basename="api-broker-constraints")
-urlpatterns = router.urls
+
+
+# Le refresh est throttlé au même titre que la connexion : c'est une surface
+# d'attaque équivalente (un refresh token volé y est rejoué).
+class ThrottledTokenRefreshView(TokenRefreshView):
+    throttle_scope = "auth"
+
+
+urlpatterns = [
+    # ── Authentification ───────────────────────────────────────────────
+    path("auth/login/", LoginView.as_view(), name="api-auth-login"),
+    path("auth/login/mfa/", LoginMFAView.as_view(), name="api-auth-login-mfa"),
+    path("auth/refresh/", ThrottledTokenRefreshView.as_view(), name="api-auth-refresh"),
+    path("auth/verify/", TokenVerifyView.as_view(), name="api-auth-verify"),
+    path("auth/logout/", LogoutView.as_view(), name="api-auth-logout"),
+    path("auth/me/", MeView.as_view(), name="api-auth-me"),
+    # ── Contrat d'API ──────────────────────────────────────────────────
+    path("schema/", SpectacularAPIView.as_view(), name="api-schema"),
+    path("docs/", SpectacularSwaggerView.as_view(url_name="api-schema"), name="api-docs"),
+    path("redoc/", SpectacularRedocView.as_view(url_name="api-schema"), name="api-redoc"),
+] + router.urls

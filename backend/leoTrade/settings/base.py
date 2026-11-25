@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from decimal import Decimal
 from importlib.metadata import version
 from pathlib import Path
@@ -63,6 +64,10 @@ INSTALLED_APPS = [
 
     "rest_framework",
     "rest_framework_simplejwt",
+    # Révocation des refresh tokens (déconnexion réelle, pas seulement
+    # l'oubli du token côté client).
+    "rest_framework_simplejwt.token_blacklist",
+    "drf_spectacular",
     "django_filters",
     "corsheaders",
     "django_celery_beat",
@@ -189,8 +194,10 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework.authentication.SessionAuthentication",
+        # JWT en premier : les clients React / Flutter sont les consommateurs
+        # principaux. La session reste pour l'admin Django et les vues legacy.
         "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
@@ -200,6 +207,56 @@ REST_FRAMEWORK = {
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ],
+    # Pagination obligatoire : sans elle, /positions/ ou /ledger/ renvoient
+    # l'historique entier d'un compte actif et saturent le client mobile.
+    "DEFAULT_PAGINATION_CLASS": "api.pagination.StandardPageNumberPagination",
+    "PAGE_SIZE": 25,
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.ScopedRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        # Authentification : limite stricte, c'est la surface attaquée en
+        # bourrage d'identifiants.
+        "auth": env("THROTTLE_AUTH", "10/min"),
+        # Écritures qui déclenchent de l'argent ou des ordres.
+        "sensitive": env("THROTTLE_SENSITIVE", "30/min"),
+        # Génération IA : coûteuse, facturée au quota.
+        "ai": env("THROTTLE_AI", "20/min"),
+    },
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
+    "DEFAULT_VERSION": "v1",
+    "ALLOWED_VERSIONS": ["v1"],
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": f"{BRAND_NAME} API",
+    "DESCRIPTION": (
+        "API de la plateforme de trading assistée par IA Lyneci. "
+        "Toute action de trading passe par le Risk Engine : les clients "
+        "n'appellent jamais un broker directement."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SCHEMA_PATH_PREFIX": "/api/v1",
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SORT_OPERATIONS": False,
+}
+
+SIMPLE_JWT = {
+    # Access court : un token volé expire vite. Refresh long avec rotation,
+    # pour ne pas forcer une reconnexion quotidienne sur mobile.
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=env("JWT_ACCESS_MINUTES", 15, int)),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=env("JWT_REFRESH_DAYS", 14, int)),
+    "ROTATE_REFRESH_TOKENS": True,
+    # Sans blacklist, un refresh token volé reste valide après rotation.
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
 }
 
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
