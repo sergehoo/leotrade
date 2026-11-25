@@ -112,6 +112,26 @@ class Order(TimeStampedModel):
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default="MANUAL", db_index=True)
 
     requested_quantity = models.DecimalField(max_digits=24, decimal_places=8, default=Decimal("0"))
+    # ⚠ UNITÉ NON GARANTIE — défaut connu, à résorber.
+    #
+    # Trois producteurs écrivent des grandeurs de natures différentes dans ce
+    # même champ :
+    #   1. risk/services.py, PositionSizingService.compute → quantité en
+    #      unités de sous-jacent (montant / prix). C'est l'intention.
+    #   2. risk/services.py:1010, branche Deriv → `requested_stake`, soit un
+    #      MONTANT EN DEVISE.
+    #   3. market/views.py:644, Quick Trade hors Deriv → `amount`, soit un
+    #      MONTANT EN DEVISE (le commentaire sur place l'assume : « en quick
+    #      trade on utilise stake = qty »).
+    #
+    # Conséquence : aucun consommateur ne peut convertir ce champ sans savoir
+    # par quel chemin il a été écrit. C'est pourquoi la garde d'unité MT5
+    # (infrastructure/broker_clients/mt5_client.py, submit_order) REFUSE
+    # d'ouvrir plutôt que de convertir quand 1 lot ≠ 1 unité.
+    #
+    # Résorber le défaut suppose de donner une unité unique à ce champ et de
+    # reprendre les 9 appelants de ExecutionOrchestrator.create_order ; ce
+    # n'est pas un correctif ponctuel.
     approved_quantity = models.DecimalField(max_digits=24, decimal_places=8, default=Decimal("0"))
     filled_quantity = models.DecimalField(max_digits=24, decimal_places=8, default=Decimal("0"))
 

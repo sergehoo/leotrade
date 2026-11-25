@@ -234,6 +234,10 @@ class BinanceBrokerClient(BaseBrokerClient):
             quantity=order.approved_quantity,
             price=order.limit_price or order.requested_price,
             constraint=constraint,
+            # Borne haute passée explicitement, jamais héritée de `constraint` :
+            # seule l'ouverture la subit, pour qu'aucune fermeture ne puisse
+            # être bloquée par un plafond de taille.
+            max_qty=getattr(constraint, "max_qty", None) if constraint else None,
         )
         if not normalized.ok:
             raise ValueError(f"Binance precision rejected: {normalized.reason}")

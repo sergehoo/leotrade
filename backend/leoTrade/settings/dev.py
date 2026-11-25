@@ -14,6 +14,14 @@ ALLOWED_HOSTS = [
     "*.localhost",
 ]
 
+# Test sur téléphone réel : l'appareil atteint le Mac par son IP de réseau
+# local, qui change d'un réseau à l'autre. On l'ajoute par variable
+# d'environnement plutôt qu'en dur — une IP commitée serait fausse demain,
+# et la liste doit rester restreinte pour les raisons ci-dessus.
+#
+#   DEV_LAN_HOST=10.20.1.177 python manage.py runserver 0.0.0.0:8000
+ALLOWED_HOSTS += [h for h in env_list("DEV_LAN_HOST", "") if h]
+
 # Kill switch local — peut être surchargé par variable d'env
 # FEATURE_TRADING_ENABLED = env.bool("FEATURE_TRADING_ENABLED", default=True)
 

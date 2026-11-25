@@ -1,3 +1,16 @@
+"""
+OBSOLÈTE — ne pas utiliser.
+
+`BrokerConstraintService` n'a aucun appelant dans le dépôt. Son
+`normalize_quantity` ÉCRÊTE silencieusement au maximum broker au lieu de
+refuser, ce qui donne l'illusion d'un garde-fou là où il n'y en a pas : le
+chemin réellement exécuté est `core.precision.normalize_order`, qui, lui,
+refuse (cf. `max_qty`).
+
+Conservé le temps d'une suppression franche, mais toute nouvelle borne de
+quantité va dans `core/precision.py`, pas ici.
+"""
+
 from __future__ import annotations
 
 from decimal import Decimal, ROUND_DOWN

@@ -331,6 +331,46 @@ class MT5BrokerClient(BaseBrokerClient):
             if tick is None:
                 raise ValueError(f"Tick introuvable pour {symbol}")
 
+            # ──────────────────────────────────────────────────────────────
+            # Garde d'unité — OUVERTURE UNIQUEMENT.
+            #
+            # `request["volume"]` est exprimé en LOTS : 1 lot vaut
+            # `trade_contract_size` unités du sous-jacent (100 000 sur une
+            # paire forex, 100 sur XAUUSD, souvent 1 sur un CFD indice).
+            #
+            # `order.approved_quantity`, lui, n'a pas d'unité garantie. Trois
+            # producteurs y écrivent des grandeurs différentes :
+            #   - risk/services.py (PositionSizingService) : une quantité en
+            #     unités de sous-jacent (montant / prix) ;
+            #   - risk/services.py:1010, chemin Deriv : un MONTANT en devise ;
+            #   - market/views.py:644, Quick Trade : un MONTANT en devise.
+            # cf. la note d'invariant sur Order.approved_quantity.
+            #
+            # Tant que cet invariant n'est pas établi en amont, convertir
+            # serait pire que refuser : sur un Quick Trade MT5, un montant de
+            # 500 USD divisé par 100 000 donnerait 0,005 lot — un ordre
+            # parfaitement valide pour le broker, donc EXÉCUTÉ, là où
+            # aujourd'hui « 500 lots » est rejeté bruyamment. On transformerait
+            # un échec visible en trade silencieusement faux.
+            #
+            # On refuse donc d'OUVRIR quand on ne peut pas prouver que
+            # 1 lot = 1 unité. La valeur est lue en direct sur le terminal,
+            # sans passer par BrokerConstraint : pas de dépendance à une table
+            # qui peut être vide ou périmée.
+            #
+            # La fermeture (close_position) n'est délibérément PAS gardée :
+            # refuser une sortie détruirait du capital au lieu d'en protéger.
+            raw_contract_size = getattr(symbol_info, "trade_contract_size", None)
+            if raw_contract_size is None or _d(raw_contract_size) != Decimal("1"):
+                raise ValueError(
+                    f"MT5 {symbol}: ouverture refusée — taille de contrat "
+                    f"{raw_contract_size!r} non unitaire. La quantité interne "
+                    f"est exprimée en unités de sous-jacent et serait envoyée "
+                    f"telle quelle dans un champ en lots, soit une erreur de "
+                    f"dimensionnement d'un facteur {raw_contract_size!r}. "
+                    f"La fermeture des positions existantes reste autorisée."
+                )
+
             # Round volume to symbol step before sending (prevents broker rejects).
             normalized = normalize_order(
                 quantity=order.approved_quantity,
@@ -338,6 +378,9 @@ class MT5BrokerClient(BaseBrokerClient):
                 min_qty=Decimal(str(symbol_info.volume_min or 0.01)),
                 qty_step=Decimal(str(symbol_info.volume_step or 0.01)),
                 price_tick=Decimal(str(symbol_info.point or 0.00001)),
+                # Borne haute absente jusqu'ici : rien côté application
+                # n'empêchait un ordre surdimensionné de partir au broker.
+                max_qty=Decimal(str(symbol_info.volume_max or 0)),
             )
             if not normalized.ok:
                 raise ValueError(f"MT5 precision rejected: {normalized.reason}")

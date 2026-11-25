@@ -149,6 +149,7 @@ def normalize_order(
     qty_step: Optional[Decimal] = None,
     price_tick: Optional[Decimal] = None,
     min_notional: Optional[Decimal] = None,
+    max_qty: Optional[Decimal] = None,
 ) -> NormalizedOrder:
     """
     Normalize quantity/price against broker constraints.
@@ -157,18 +158,30 @@ def normalize_order(
     parameters ``min_qty/qty_step/price_tick/min_notional``.
 
     Returns a ``NormalizedOrder`` with ``ok=False`` and a reason if the order
-    cannot satisfy minimum constraints.
+    cannot satisfy the broker constraints.
+
+    ``max_qty`` is the upper bound (0 or None = pas de borne). Il REFUSE au
+    lieu d'écrêter : une quantité au-dessus du maximum broker signale une
+    erreur de dimensionnement en amont, et l'écrêter silencieusement
+    transformerait cette erreur en ordre valide de taille arbitraire —
+    exactement ce qu'on veut éviter sur un chemin qui engage de l'argent.
+    Il n'est volontairement PAS lu depuis ``constraint`` : les appelants qui
+    ferment une position ne doivent pas hériter d'une borne qui pourrait
+    bloquer une sortie.
     """
     if constraint is not None:
         min_qty = to_decimal(getattr(constraint, "min_qty", min_qty))
         qty_step = to_decimal(getattr(constraint, "qty_step", qty_step))
         price_tick = to_decimal(getattr(constraint, "price_tick", price_tick))
         min_notional = to_decimal(getattr(constraint, "min_notional", min_notional))
+        # max_qty reste celui passé explicitement — cf. docstring.
     else:
         min_qty = to_decimal(min_qty)
         qty_step = to_decimal(qty_step)
         price_tick = to_decimal(price_tick) if price_tick is not None else _DEC_ZERO
         min_notional = to_decimal(min_notional)
+
+    max_qty = to_decimal(max_qty) if max_qty is not None else _DEC_ZERO
 
     raw_qty = to_decimal(quantity)
     raw_price = to_decimal(price) if price is not None else None
@@ -194,6 +207,19 @@ def normalize_order(
             notional=_DEC_ZERO,
             ok=False,
             reason=f"Quantity {norm_qty} below broker min_qty {min_qty}.",
+        )
+
+    if max_qty > 0 and norm_qty > max_qty:
+        return NormalizedOrder(
+            quantity=norm_qty,
+            price=norm_price,
+            notional=_DEC_ZERO,
+            ok=False,
+            reason=(
+                f"Quantity {norm_qty} above broker max_qty {max_qty}. "
+                f"Un dépassement du maximum broker trahit une erreur de "
+                f"dimensionnement en amont : l'ordre est refusé, pas écrêté."
+            ),
         )
 
     notional = norm_qty * norm_price if norm_price is not None else _DEC_ZERO
