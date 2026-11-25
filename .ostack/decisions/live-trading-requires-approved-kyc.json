@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "live-trading-requires-approved-kyc",
+  "problem": "Le chemin d'exécution LIVE pouvait atteindre le broker sans vérifier le statut KYC de l'utilisateur.",
+  "context": "Le domain-check finance-markets a demandé une revue humaine. Le propriétaire du produit a confirmé explicitement la politique KYC = APPROVED.",
+  "optionsTried": [
+    {
+      "option": "Ne vérifier que dans le cockpit IA",
+      "result": "Rejeté car les autres chemins d'exécution pourraient contourner le contrôle."
+    },
+    {
+      "option": "Contrôle au dernier kilomètre dans l'orchestrateur canonique",
+      "result": "Retenu car tous les ordres LIVE passent par cette frontière avant le broker."
+    }
+  ],
+  "chosenSolution": "Exiger un profil KYC au statut APPROVED dans l'orchestrateur canonique avant toute soumission LIVE; ne pas imposer ce contrôle au mode PAPER.",
+  "reason": "La règle doit être impossible à contourner par une autre interface et ne doit pas empêcher l'apprentissage en PAPER.",
+  "reuseConditions": [
+    "Tout nouveau connecteur broker LIVE doit passer par ExecutionOrchestrator.submit_order.",
+    "Toute nouvelle voie d'exécution directe doit appeler LiveTradingComplianceService.",
+    "Le statut attendu reste APPROVED tant qu'une décision produit ultérieure ne le remplace pas."
+  ],
+  "tags": [
+    "kyc",
+    "live-trading",
+    "compliance",
+    "execution-boundary"
+  ],
+  "tests": [
+    "LIVE sans KYC est rejeté avant construction de l'adaptateur broker.",
+    "LIVE avec KYC APPROVED passe le garde-fou.",
+    "PAPER n'exige pas de KYC."
+  ],
+  "recordedBy": "product-owner",
+  "recordedAt": "2026-07-23T12:45:00Z"
+}

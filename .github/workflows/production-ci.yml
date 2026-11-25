@@ -22,13 +22,17 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
       - name: Validate Django and migrations
-        run: |
-          python manage.py check --settings=leoTrade.settings.test
-          python manage.py makemigrations --check --dry-run --settings=leoTrade.settings.test
+        env:
+          LEOTRADE_PYTHON: python
+        run: npm run check
 
       - name: Validate production safeguards
         env:
@@ -53,7 +57,9 @@ jobs:
         run: python manage.py check --deploy --fail-level ERROR
 
       - name: Run test suite
-        run: pytest tests_phase -q
+        env:
+          LEOTRADE_PYTHON: python
+        run: npm test
 
       - name: Validate Compose configuration
         env:

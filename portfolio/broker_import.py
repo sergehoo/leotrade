@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import List
-
 from django.db import transaction
 from django.utils import timezone
 
@@ -118,21 +116,6 @@ class BrokerImportService:
             "updated_at",
         ])
         return position
-
-    @staticmethod
-    def _fetch_binance_positions(broker_account: BrokerAccount) -> List[dict]:
-        # TODO: brancher le vrai client Binance
-        return []
-
-    @staticmethod
-    def _fetch_mt5_positions(broker_account: BrokerAccount) -> List[dict]:
-        # TODO: brancher le vrai client MT5
-        return []
-
-    @staticmethod
-    def _fetch_deriv_positions(broker_account: BrokerAccount) -> List[dict]:
-        # TODO: brancher le vrai client Deriv
-        return []
 
     @staticmethod
     def _fetch_remote_cash(broker_account: BrokerAccount):

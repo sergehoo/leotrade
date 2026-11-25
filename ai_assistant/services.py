@@ -19,6 +19,7 @@ from typing import AsyncIterator
 
 from asgiref.sync import sync_to_async
 from django.conf import settings
+from django.db import transaction
 
 log = logging.getLogger("lyneci.ai_assistant")
 
@@ -69,6 +70,7 @@ class QuotaService:
         return opts
 
     @staticmethod
+    @transaction.atomic
     def pay_with_wallet(user, plan: str) -> dict:
         """
         Débite le portefeuille Lyneci et active le plan.
@@ -76,6 +78,7 @@ class QuotaService:
         """
         from .models import AIUserQuota, AIQuotaPayment
         from wallet.models import Wallet, WalletTransaction
+        from wallet.services_v2 import InsufficientFundsError, WalletLedgerService
         from django.utils import timezone
 
         quota = QuotaService.get_or_create(user)
@@ -84,7 +87,7 @@ class QuotaService:
             return {"ok": False, "error": "Plan invalide."}
 
         try:
-            wallet = Wallet.objects.get(user=user)
+            wallet = Wallet.objects.select_for_update().get(user=user)
         except Wallet.DoesNotExist:
             return {"ok": False, "error": "Portefeuille introuvable."}
 
@@ -95,18 +98,39 @@ class QuotaService:
                 "insufficient_funds": True,
             }
 
-        # Débit du portefeuille
-        wallet.available_balance -= price
-        wallet.save(update_fields=["available_balance", "updated_at"])
-
-        # Log transaction
-        WalletTransaction.objects.create(
+        wallet_tx = WalletTransaction.objects.create(
             wallet=wallet,
-            amount=-price,
-            transaction_type="DEBIT",
-            description=f"Abonnement Lyneci AI {plan} — {AIUserQuota.PLAN_LIMITS[plan]} messages",
-            status="COMPLETED",
+            amount=price,
+            tx_type="FEE",
+            currency=wallet.currency,
+            description=(
+                f"Abonnement Lyneci AI {plan} — "
+                f"{AIUserQuota.PLAN_LIMITS[plan]} messages"
+            ),
+            status="PENDING",
         )
+        try:
+            WalletLedgerService.debit(
+                wallet_id=wallet.id,
+                amount=price,
+                external_event_id=f"ai-quota-wallet:{wallet_tx.id}",
+                transaction_obj=wallet_tx,
+                description=wallet_tx.description,
+                metadata={"plan": plan, "user_id": user.id},
+            )
+        except InsufficientFundsError:
+            wallet_tx.status = "FAILED"
+            wallet_tx.processed_at = timezone.now()
+            wallet_tx.save(update_fields=["status", "processed_at", "updated_at"])
+            return {
+                "ok": False,
+                "error": "Solde insuffisant.",
+                "insufficient_funds": True,
+            }
+
+        wallet_tx.status = "SUCCEEDED"
+        wallet_tx.processed_at = timezone.now()
+        wallet_tx.save(update_fields=["status", "processed_at", "updated_at"])
 
         # Paiement
         payment = AIQuotaPayment.objects.create(

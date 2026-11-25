@@ -1,5 +1,6 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 
 from api.permissions import IsOwner
@@ -21,6 +22,7 @@ from trading.models_ai import (
 )
 from trading.services.recommendation_actions import RecommendationActionService
 from trading.tasks_ai import generate_ai_recommendations_for_portfolio_task
+from portfolio.models import Portfolio
 
 
 class MarketScanRunViewSet(viewsets.ReadOnlyModelViewSet):
@@ -114,7 +116,19 @@ class TradeRecommendationViewSet(viewsets.ReadOnlyModelViewSet):
         if not portfolio_id:
             return Response({"detail": "portfolio_id requis."}, status=status.HTTP_400_BAD_REQUEST)
 
-        result = generate_ai_recommendations_for_portfolio_task.delay(int(portfolio_id))
+        try:
+            portfolio_id = int(portfolio_id)
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "portfolio_id invalide."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        portfolio = get_object_or_404(
+            Portfolio.objects.filter(user=request.user, is_active=True),
+            pk=portfolio_id,
+        )
+        result = generate_ai_recommendations_for_portfolio_task.delay(portfolio.pk)
         return Response({"status": "queued", "task_id": str(result.id)})
 
 

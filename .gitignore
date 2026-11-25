@@ -53,3 +53,17 @@ coverage.xml
 
 # Docker
 *.override.yml
+
+# Claude Code — préférences locales machine
+.claude/settings.local.json
+
+# OStack — état éphémère (preuves locales, caches, runs)
+.ostack/cache/
+.ostack/tmp/
+.ostack/runs/
+.ostack/deliberations/
+.ostack/audit.jsonl
+.ostack/graph.json
+
+# Node (quality gate)
+node_modules/

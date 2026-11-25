@@ -1,0 +1,395 @@
+{
+  "schemaVersion": 1,
+  "lessons": [
+    {
+      "id": "usage-learn-observe",
+      "kind": "usage",
+      "key": "learn.observe",
+      "statement": "Action 'learn.observe' exécutée 10 fois (0 refus/échec)",
+      "occurrences": 10,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "audit.jsonl"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "usage-change-execute",
+      "kind": "usage",
+      "key": "change.execute",
+      "statement": "Action 'change.execute' exécutée 5 fois (4 refus/échec)",
+      "occurrences": 5,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "audit.jsonl"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "usage-domain-check",
+      "kind": "usage",
+      "key": "domain.check",
+      "statement": "Action 'domain.check' exécutée 4 fois (2 refus/échec)",
+      "occurrences": 4,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "audit.jsonl"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "usage-deliberation-challenge",
+      "kind": "usage",
+      "key": "deliberation.challenge",
+      "statement": "Action 'deliberation.challenge' exécutée 3 fois (0 refus/échec)",
+      "occurrences": 3,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "audit.jsonl"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-aucun-ordre-ne-peut-atteindre-un-broker-avant-une-decision-explicite-du-mote",
+      "kind": "recurring_invariant",
+      "key": "aucun ordre ne peut atteindre un broker avant une decision explicite du moteur de risque",
+      "statement": "Invariant récurrent [prohibition]: Aucun ordre ne peut atteindre un broker avant une décision explicite du moteur de risque",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-aucune-donnee-commande-ou-exposition-paper-ne-doit-etre-confondue-avec-le-mo",
+      "kind": "recurring_invariant",
+      "key": "aucune donnee, commande ou exposition paper ne doit etre confondue avec le mode live",
+      "statement": "Invariant récurrent [consistency]: Aucune donnée, commande ou exposition paper ne doit être confondue avec le mode live",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-aucune-page-ni-api-ne-doit-presenter-de-donnee-fictive-hardcodee-ou-de-rempl",
+      "kind": "recurring_invariant",
+      "key": "aucune page ni api ne doit presenter de donnee fictive, hardcodee ou de remplissage comme reelle",
+      "statement": "Invariant récurrent [prohibition]: Aucune page ni API ne doit présenter de donnée fictive, hardcodée ou de remplissage comme réelle",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-aucune-qualification-production-ready-ne-peut-etre-donnee-sans-migrations-pr",
+      "kind": "recurring_invariant",
+      "key": "aucune qualification production-ready ne peut etre donnee sans migrations propres, tests, controles de deploiement, analyse securite et preuves ostack executees",
+      "statement": "Invariant récurrent [obligation]: Aucune qualification production-ready ne peut être donnée sans migrations propres, tests, contrôles de déploiement, analyse sécurité et preuves OStack exécutées",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-chaque-canal-websocket-authentifie-l-utilisateur-et-isole-les-evenements-par",
+      "kind": "recurring_invariant",
+      "key": "chaque canal websocket authentifie l'utilisateur et isole les evenements par proprietaire",
+      "statement": "Invariant récurrent [permission]: Chaque canal WebSocket authentifie l'utilisateur et isole les événements par propriétaire",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-chaque-parcours-critique-fournit-des-etats-chargement-vide-indisponible-et-e",
+      "kind": "recurring_invariant",
+      "key": "chaque parcours critique fournit des etats chargement, vide, indisponible et erreur recuperable",
+      "statement": "Invariant récurrent [obligation]: Chaque parcours critique fournit des états chargement, vide, indisponible et erreur récupérable",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-la-configuration-production-doit-refuser-le-demarrage-si-un-secret-ou-servic",
+      "kind": "recurring_invariant",
+      "key": "la configuration production doit refuser le demarrage si un secret ou service critique est absent ou non sur",
+      "statement": "Invariant récurrent [obligation]: La configuration production doit refuser le démarrage si un secret ou service critique est absent ou non sûr",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-la-repetition-d-une-meme-commande-financiere-ne-doit-jamais-creer-un-second-",
+      "kind": "recurring_invariant",
+      "key": "la repetition d'une meme commande financiere ne doit jamais creer un second ordre ou mouvement",
+      "statement": "Invariant récurrent [consistency]: La répétition d'une même commande financière ne doit jamais créer un second ordre ou mouvement",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-les-secrets-broker-paiement-et-ia-ne-doivent-jamais-etre-stockes-en-clair-re",
+      "kind": "recurring_invariant",
+      "key": "les secrets broker, paiement et ia ne doivent jamais etre stockes en clair, renvoyes au client ou journalises",
+      "statement": "Invariant récurrent [prohibition]: Les secrets broker, paiement et IA ne doivent jamais être stockés en clair, renvoyés au client ou journalisés",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-tout-kill-switch-applicable-bloque-immediatement-les-nouvelles-expositions",
+      "kind": "recurring_invariant",
+      "key": "tout kill switch applicable bloque immediatement les nouvelles expositions",
+      "statement": "Invariant récurrent [obligation]: Tout kill switch applicable bloque immédiatement les nouvelles expositions",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-toute-lecture-ou-mutation-d-un-objet-financier-est-limitee-a-son-proprietair",
+      "kind": "recurring_invariant",
+      "key": "toute lecture ou mutation d'un objet financier est limitee a son proprietaire ou a un role explicitement autorise",
+      "statement": "Invariant récurrent [permission]: Toute lecture ou mutation d'un objet financier est limitée à son propriétaire ou à un rôle explicitement autorisé",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-toute-recommandation-ia-persistee-contient-ses-sources-hypotheses-confiance-",
+      "kind": "recurring_invariant",
+      "key": "toute recommandation ia persistee contient ses sources, hypotheses, confiance, risque, invalidation et horizon",
+      "statement": "Invariant récurrent [obligation]: Toute recommandation IA persistée contient ses sources, hypothèses, confiance, risque, invalidation et horizon",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-toute-synchronisation-broker-ou-paiement-supporte-delai-reprise-idempotence-",
+      "kind": "recurring_invariant",
+      "key": "toute synchronisation broker ou paiement supporte delai, reprise, idempotence et etat inconnu explicite",
+      "statement": "Invariant récurrent [obligation]: Toute synchronisation broker ou paiement supporte délai, reprise, idempotence et état inconnu explicite",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-un-ordre-live-ne-peut-etre-soumis-sans-identite-verifiee-broker-actif-tradin",
+      "kind": "recurring_invariant",
+      "key": "un ordre live ne peut etre soumis sans identite verifiee, broker actif, trading global active et validation du risque",
+      "statement": "Invariant récurrent [permission]: Un ordre live ne peut être soumis sans identité vérifiée, broker actif, trading global activé et validation du risque",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "recurring-invariant-une-trade-idea-ou-recommandation-executable-exige-des-donnees-de-marche-reel",
+      "kind": "recurring_invariant",
+      "key": "une trade idea ou recommandation executable exige des donnees de marche reelles, fraiches et suffisantes",
+      "statement": "Invariant récurrent [obligation]: Une trade idea ou recommandation exécutable exige des données de marché réelles, fraîches et suffisantes",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "intents"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "usage-graph-rebuild",
+      "kind": "usage",
+      "key": "graph.rebuild",
+      "statement": "Action 'graph.rebuild' exécutée 2 fois (0 refus/échec)",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "audit.jsonl"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "usage-intent-compile",
+      "kind": "usage",
+      "key": "intent.compile",
+      "statement": "Action 'intent.compile' exécutée 2 fois (0 refus/échec)",
+      "occurrences": 2,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "audit.jsonl"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "usage-architecture-check",
+      "kind": "usage",
+      "key": "architecture.check",
+      "statement": "Action 'architecture.check' exécutée 1 fois (0 refus/échec)",
+      "occurrences": 1,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "audit.jsonl"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "usage-command-run",
+      "kind": "usage",
+      "key": "command.run",
+      "statement": "Action 'command.run' exécutée 1 fois (1 refus/échec)",
+      "occurrences": 1,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "audit.jsonl"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "usage-decision-record",
+      "kind": "usage",
+      "key": "decision.record",
+      "statement": "Action 'decision.record' exécutée 1 fois (0 refus/échec)",
+      "occurrences": 1,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "audit.jsonl"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "usage-framework-install",
+      "kind": "usage",
+      "key": "framework.install",
+      "statement": "Action 'framework.install' exécutée 1 fois (0 refus/échec)",
+      "occurrences": 1,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "audit.jsonl"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    },
+    {
+      "id": "usage-improve-cycle",
+      "kind": "usage",
+      "key": "improve.cycle",
+      "statement": "Action 'improve.cycle' exécutée 1 fois (0 refus/échec)",
+      "occurrences": 1,
+      "projects": [
+        "leotrade"
+      ],
+      "sources": [
+        "audit.jsonl"
+      ],
+      "firstSeen": "2026-08-06T18:38:18.957Z",
+      "lastSeen": "2026-08-06T18:38:18.957Z"
+    }
+  ]
+}

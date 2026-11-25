@@ -11,7 +11,7 @@ from api.serializers.portfolio import (
     PortfolioAllocationSerializer,
     PositionCorrelationSerializer,
 )
-from api.serializers.actions import DepositWithdrawSerializer, CorrelationComputeSerializer
+from api.serializers.actions import CorrelationComputeSerializer
 
 from portfolio.models import (
     Portfolio,
@@ -21,7 +21,7 @@ from portfolio.models import (
     PortfolioAllocation,
     PositionCorrelation,
 )
-from portfolio.services import PortfolioService, PortfolioAccountingService
+from portfolio.services import PortfolioService
 from portfolio.broker_import import BrokerImportService
 
 
@@ -69,6 +69,17 @@ class PortfolioViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def import_live(self, request, pk=None):
         portfolio = self.get_object()
+        broker = portfolio.broker_account
+        if broker.mode != "LIVE" or not broker.is_active or broker.status != "ACTIVE":
+            return Response(
+                {
+                    "detail": (
+                        "L'import distant exige un compte broker LIVE actif "
+                        "et validé."
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         imported = BrokerImportService.import_live_positions(portfolio)
         PortfolioService.create_snapshot(portfolio)
         return Response({
@@ -98,40 +109,7 @@ class PortfolioViewSet(viewsets.ModelViewSet):
             PositionCorrelationSerializer(rows, many=True, context={"request": request}).data
         )
 
-    @action(detail=True, methods=["post"])
-    def deposit(self, request, pk=None):
-        portfolio = self.get_object()
-        serializer = DepositWithdrawSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        PortfolioAccountingService.deposit(
-            portfolio=portfolio,
-            amount=serializer.validated_data["amount"],
-            description=serializer.validated_data.get("description", "Dépôt API"),
-            metadata=serializer.validated_data.get("metadata"),
-        )
-        PortfolioService.refresh_portfolio_metrics(portfolio)
-
-        return Response(PortfolioSerializer(portfolio, context={"request": request}).data)
-
-    @action(detail=True, methods=["post"])
-    def withdraw(self, request, pk=None):
-        portfolio = self.get_object()
-        serializer = DepositWithdrawSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        PortfolioAccountingService.withdraw(
-            portfolio=portfolio,
-            amount=serializer.validated_data["amount"],
-            description=serializer.validated_data.get("description", "Retrait API"),
-            metadata=serializer.validated_data.get("metadata"),
-        )
-        PortfolioService.refresh_portfolio_metrics(portfolio)
-
-        return Response(PortfolioSerializer(portfolio, context={"request": request}).data)
-
-
-class PositionViewSet(viewsets.ModelViewSet):
+class PositionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PositionSerializer
     permission_classes = [IsOwner]
 
@@ -142,24 +120,6 @@ class PositionViewSet(viewsets.ModelViewSet):
             .select_related("portfolio", "broker_account", "asset")
             .order_by("-opened_at")
         )
-
-    def perform_create(self, serializer):
-        position = serializer.save()
-        position.update_market_metrics()
-        position.save()
-        PortfolioService.refresh_portfolio_metrics(position.portfolio)
-
-    def perform_update(self, serializer):
-        position = serializer.save()
-        position.update_market_metrics()
-        position.save()
-        PortfolioService.refresh_portfolio_metrics(position.portfolio)
-
-    def perform_destroy(self, instance):
-        portfolio = instance.portfolio
-        instance.delete()
-        PortfolioService.refresh_portfolio_metrics(portfolio)
-
 
 class PortfolioSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PortfolioSnapshotSerializer

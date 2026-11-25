@@ -1,0 +1,475 @@
+{
+  "schemaVersion": 1,
+  "id": "leotrade-production-readiness",
+  "request": "Transformer LeoTrade en plateforme de trading production-ready, stable, fluide et sécurisée, reposant exclusivement sur des données réelles, avec broker gateway, wallet, portefeuille, ordres, risque, IA et temps réel cohérents, puis décider objectivement si une migration React TypeScript est nécessaire.",
+  "functionalIntent": [
+    "Fournir un parcours complet de l'inscription à la consultation et à l'exécution contrôlée",
+    "Synchroniser brokers, wallets, portefeuilles, positions et ordres à partir de sources réelles",
+    "Diffuser les changements critiques en temps réel avec reprise sur erreur",
+    "Produire des recommandations IA explicables et bloquées sans données suffisantes",
+    "Garantir une séparation stricte entre paper trading et live trading",
+    "Prouver la préparation par tests, contrôles sécurité, build et documentation"
+  ],
+  "actors": [
+    "visiteur",
+    "utilisateur authentifié",
+    "trader paper",
+    "trader live autorisé",
+    "administrateur",
+    "broker externe",
+    "fournisseur de market data",
+    "worker asynchrone"
+  ],
+  "invariants": [
+    {
+      "id": "no-fake-data",
+      "statement": "Aucune page ni API ne doit présenter de donnée fictive, hardcodée ou de remplissage comme réelle",
+      "kind": "prohibition",
+      "given": "une page ou API sans donnée issue d'une source réelle",
+      "when": "un utilisateur consulte cette surface",
+      "outcome": "un état vide explicite est affiché sans inventer de valeur",
+      "auditRequired": false
+    },
+    {
+      "id": "tenant-object-permissions",
+      "statement": "Toute lecture ou mutation d'un objet financier est limitée à son propriétaire ou à un rôle explicitement autorisé",
+      "kind": "permission",
+      "given": "un objet wallet, portefeuille, broker, ordre, position ou recommandation",
+      "when": "un utilisateur tente de le lire ou le modifier",
+      "outcome": "le backend vérifie la permission au niveau de l'objet",
+      "auditRequired": true
+    },
+    {
+      "id": "paper-live-separation",
+      "statement": "Aucune donnée, commande ou exposition paper ne doit être confondue avec le mode live",
+      "kind": "consistency",
+      "given": "un compte ou portefeuille associé à un mode de trading",
+      "when": "un ordre est préparé, soumis, réconcilié ou affiché",
+      "outcome": "le mode reste explicite et cohérent sur toute la chaîne",
+      "auditRequired": true
+    },
+    {
+      "id": "live-explicit-authorization",
+      "statement": "Un ordre live ne peut être soumis sans identité vérifiée, broker actif, trading global activé et validation du risque",
+      "kind": "permission",
+      "given": "une demande d'ordre live",
+      "when": "l'orchestrateur prépare la soumission broker",
+      "outcome": "tous les garde-fous sont vérifiés côté serveur",
+      "auditRequired": true
+    },
+    {
+      "id": "idempotent-execution",
+      "statement": "La répétition d'une même commande financière ne doit jamais créer un second ordre ou mouvement",
+      "kind": "consistency",
+      "given": "une commande portant la même clé d'idempotence",
+      "when": "elle est reçue ou rejouée après une erreur réseau",
+      "outcome": "le résultat initial est retourné sans doublon",
+      "auditRequired": true
+    },
+    {
+      "id": "real-market-data-required",
+      "statement": "Une trade idea ou recommandation exécutable exige des données de marché réelles, fraîches et suffisantes",
+      "kind": "obligation",
+      "given": "une génération de recommandation",
+      "when": "le moteur évalue l'actif et le contexte",
+      "outcome": "la recommandation est refusée ou marquée indisponible si la source est absente ou périmée",
+      "auditRequired": true
+    },
+    {
+      "id": "explainable-ai",
+      "statement": "Toute recommandation IA persistée contient ses sources, hypothèses, confiance, risque, invalidation et horizon",
+      "kind": "obligation",
+      "given": "une recommandation IA validée",
+      "when": "elle est enregistrée ou affichée",
+      "outcome": "les éléments d'explication et de traçabilité sont présents",
+      "auditRequired": true
+    },
+    {
+      "id": "risk-precedes-execution",
+      "statement": "Aucun ordre ne peut atteindre un broker avant une décision explicite du moteur de risque",
+      "kind": "prohibition",
+      "given": "une intention d'ordre",
+      "when": "la passerelle broker est appelée",
+      "outcome": "une validation de risque cohérente et non expirée existe",
+      "auditRequired": true
+    },
+    {
+      "id": "kill-switch-enforced",
+      "statement": "Tout kill switch applicable bloque immédiatement les nouvelles expositions",
+      "kind": "obligation",
+      "given": "un kill switch global, portefeuille ou stratégie actif",
+      "when": "une nouvelle entrée est demandée",
+      "outcome": "la demande est refusée et auditée",
+      "auditRequired": true
+    },
+    {
+      "id": "broker-secret-confidentiality",
+      "statement": "Les secrets broker, paiement et IA ne doivent jamais être stockés en clair, renvoyés au client ou journalisés",
+      "kind": "prohibition",
+      "given": "un secret reçu ou chargé par le serveur",
+      "when": "il est persisté, traité, sérialisé ou journalisé",
+      "outcome": "le secret reste chiffré ou masqué et limité au serveur",
+      "auditRequired": true
+    },
+    {
+      "id": "realtime-user-isolation",
+      "statement": "Chaque canal WebSocket authentifie l'utilisateur et isole les événements par propriétaire",
+      "kind": "permission",
+      "given": "une connexion WebSocket",
+      "when": "un événement financier ou IA est diffusé",
+      "outcome": "seul l'utilisateur autorisé reçoit le message",
+      "auditRequired": true
+    },
+    {
+      "id": "resilient-sync",
+      "statement": "Toute synchronisation broker ou paiement supporte délai, reprise, idempotence et état inconnu explicite",
+      "kind": "obligation",
+      "given": "une indisponibilité ou réponse ambiguë d'un service externe",
+      "when": "la synchronisation ou l'exécution échoue",
+      "outcome": "aucun succès n'est inventé et une réconciliation sûre est planifiée",
+      "auditRequired": true
+    },
+    {
+      "id": "empty-and-error-states",
+      "statement": "Chaque parcours critique fournit des états chargement, vide, indisponible et erreur récupérable",
+      "kind": "obligation",
+      "given": "une page de dashboard, portefeuille, wallet, ordre, position, broker ou IA",
+      "when": "la donnée manque, charge ou échoue",
+      "outcome": "l'utilisateur reçoit un état explicite et une action sûre",
+      "auditRequired": false
+    },
+    {
+      "id": "production-config-fail-closed",
+      "statement": "La configuration production doit refuser le démarrage si un secret ou service critique est absent ou non sûr",
+      "kind": "obligation",
+      "given": "un démarrage en environnement production",
+      "when": "la configuration est chargée",
+      "outcome": "les prérequis sécurité et dépendances sont validés avant service",
+      "auditRequired": true
+    },
+    {
+      "id": "verified-release",
+      "statement": "Aucune qualification production-ready ne peut être donnée sans migrations propres, tests, contrôles de déploiement, analyse sécurité et preuves OStack exécutées",
+      "kind": "obligation",
+      "given": "une version candidate",
+      "when": "la livraison est évaluée",
+      "outcome": "les preuves réelles déterminent le verdict et les blocages résiduels sont déclarés",
+      "auditRequired": true
+    }
+  ],
+  "properties": [
+    {
+      "id": "no-fake-data-holds",
+      "invariantId": "no-fake-data",
+      "title": "L'issue interdite ne se produit pas",
+      "gherkin": "Given une page ou API sans donnée issue d'une source réelle\nWhen un utilisateur consulte cette surface\nThen il est vérifié que « un état vide explicite est affiché sans inventer de valeur » ne s'est pas produit",
+      "adversarial": false
+    },
+    {
+      "id": "no-fake-data-adversarial",
+      "invariantId": "no-fake-data",
+      "title": "Une tentative directe de provoquer l'issue interdite est refusée",
+      "gherkin": "Given une page ou API sans donnée issue d'une source réelle\nWhen un utilisateur consulte cette surface en tentant délibérément de provoquer \"un état vide explicite est affiché sans inventer de valeur\"\nThen la tentative est refusée\nAnd il est vérifié que « un état vide explicite est affiché sans inventer de valeur » ne s'est pas produit",
+      "adversarial": true
+    },
+    {
+      "id": "tenant-object-permissions-allowed",
+      "invariantId": "tenant-object-permissions",
+      "title": "L'acteur autorisé peut agir",
+      "gherkin": "Given un objet wallet, portefeuille, broker, ordre, position ou recommandation\nWhen un utilisateur tente de le lire ou le modifier\nThen le backend vérifie la permission au niveau de l'objet\nAnd une entrée d'audit est créée",
+      "adversarial": false
+    },
+    {
+      "id": "tenant-object-permissions-denied",
+      "invariantId": "tenant-object-permissions",
+      "title": "Un acteur non autorisé est refusé",
+      "gherkin": "Given un objet wallet, portefeuille, broker, ordre, position ou recommandation\nWhen un acteur non autorisé tente la même action\nThen l'action est refusée\nAnd aucun changement n'est appliqué\nAnd une entrée d'audit est créée",
+      "adversarial": true
+    },
+    {
+      "id": "paper-live-separation-holds",
+      "invariantId": "paper-live-separation",
+      "title": "La cohérence est préservée",
+      "gherkin": "Given un compte ou portefeuille associé à un mode de trading\nWhen un ordre est préparé, soumis, réconcilié ou affiché\nThen le mode reste explicite et cohérent sur toute la chaîne",
+      "adversarial": false
+    },
+    {
+      "id": "paper-live-separation-generative",
+      "invariantId": "paper-live-separation",
+      "title": "La cohérence tient sur des données générées",
+      "gherkin": "Given de nombreux jeux de données générés pour un compte ou portefeuille associé à un mode de trading\nWhen un ordre est préparé, soumis, réconcilié ou affiché\nThen le mode reste explicite et cohérent sur toute la chaîne pour chaque jeu de données",
+      "adversarial": true
+    },
+    {
+      "id": "live-explicit-authorization-allowed",
+      "invariantId": "live-explicit-authorization",
+      "title": "L'acteur autorisé peut agir",
+      "gherkin": "Given une demande d'ordre live\nWhen l'orchestrateur prépare la soumission broker\nThen tous les garde-fous sont vérifiés côté serveur\nAnd une entrée d'audit est créée",
+      "adversarial": false
+    },
+    {
+      "id": "live-explicit-authorization-denied",
+      "invariantId": "live-explicit-authorization",
+      "title": "Un acteur non autorisé est refusé",
+      "gherkin": "Given une demande d'ordre live\nWhen un acteur non autorisé tente la même action\nThen l'action est refusée\nAnd aucun changement n'est appliqué\nAnd une entrée d'audit est créée",
+      "adversarial": true
+    },
+    {
+      "id": "idempotent-execution-holds",
+      "invariantId": "idempotent-execution",
+      "title": "La cohérence est préservée",
+      "gherkin": "Given une commande portant la même clé d'idempotence\nWhen elle est reçue ou rejouée après une erreur réseau\nThen le résultat initial est retourné sans doublon",
+      "adversarial": false
+    },
+    {
+      "id": "idempotent-execution-generative",
+      "invariantId": "idempotent-execution",
+      "title": "La cohérence tient sur des données générées",
+      "gherkin": "Given de nombreux jeux de données générés pour une commande portant la même clé d'idempotence\nWhen elle est reçue ou rejouée après une erreur réseau\nThen le résultat initial est retourné sans doublon pour chaque jeu de données",
+      "adversarial": true
+    },
+    {
+      "id": "real-market-data-required-holds",
+      "invariantId": "real-market-data-required",
+      "title": "L'obligation est respectée",
+      "gherkin": "Given une génération de recommandation\nWhen le moteur évalue l'actif et le contexte\nThen la recommandation est refusée ou marquée indisponible si la source est absente ou périmée\nAnd une entrée d'audit est créée",
+      "adversarial": false
+    },
+    {
+      "id": "explainable-ai-holds",
+      "invariantId": "explainable-ai",
+      "title": "L'obligation est respectée",
+      "gherkin": "Given une recommandation IA validée\nWhen elle est enregistrée ou affichée\nThen les éléments d'explication et de traçabilité sont présents\nAnd une entrée d'audit est créée",
+      "adversarial": false
+    },
+    {
+      "id": "risk-precedes-execution-holds",
+      "invariantId": "risk-precedes-execution",
+      "title": "L'issue interdite ne se produit pas",
+      "gherkin": "Given une intention d'ordre\nWhen la passerelle broker est appelée\nThen il est vérifié que « une validation de risque cohérente et non expirée existe » ne s'est pas produit\nAnd une entrée d'audit est créée",
+      "adversarial": false
+    },
+    {
+      "id": "risk-precedes-execution-adversarial",
+      "invariantId": "risk-precedes-execution",
+      "title": "Une tentative directe de provoquer l'issue interdite est refusée",
+      "gherkin": "Given une intention d'ordre\nWhen la passerelle broker est appelée en tentant délibérément de provoquer \"une validation de risque cohérente et non expirée existe\"\nThen la tentative est refusée\nAnd il est vérifié que « une validation de risque cohérente et non expirée existe » ne s'est pas produit",
+      "adversarial": true
+    },
+    {
+      "id": "kill-switch-enforced-holds",
+      "invariantId": "kill-switch-enforced",
+      "title": "L'obligation est respectée",
+      "gherkin": "Given un kill switch global, portefeuille ou stratégie actif\nWhen une nouvelle entrée est demandée\nThen la demande est refusée et auditée\nAnd une entrée d'audit est créée",
+      "adversarial": false
+    },
+    {
+      "id": "broker-secret-confidentiality-holds",
+      "invariantId": "broker-secret-confidentiality",
+      "title": "L'issue interdite ne se produit pas",
+      "gherkin": "Given un secret reçu ou chargé par le serveur\nWhen il est persisté, traité, sérialisé ou journalisé\nThen il est vérifié que « le secret reste chiffré ou masqué et limité au serveur » ne s'est pas produit\nAnd une entrée d'audit est créée",
+      "adversarial": false
+    },
+    {
+      "id": "broker-secret-confidentiality-adversarial",
+      "invariantId": "broker-secret-confidentiality",
+      "title": "Une tentative directe de provoquer l'issue interdite est refusée",
+      "gherkin": "Given un secret reçu ou chargé par le serveur\nWhen il est persisté, traité, sérialisé ou journalisé en tentant délibérément de provoquer \"le secret reste chiffré ou masqué et limité au serveur\"\nThen la tentative est refusée\nAnd il est vérifié que « le secret reste chiffré ou masqué et limité au serveur » ne s'est pas produit",
+      "adversarial": true
+    },
+    {
+      "id": "realtime-user-isolation-allowed",
+      "invariantId": "realtime-user-isolation",
+      "title": "L'acteur autorisé peut agir",
+      "gherkin": "Given une connexion WebSocket\nWhen un événement financier ou IA est diffusé\nThen seul l'utilisateur autorisé reçoit le message\nAnd une entrée d'audit est créée",
+      "adversarial": false
+    },
+    {
+      "id": "realtime-user-isolation-denied",
+      "invariantId": "realtime-user-isolation",
+      "title": "Un acteur non autorisé est refusé",
+      "gherkin": "Given une connexion WebSocket\nWhen un acteur non autorisé tente la même action\nThen l'action est refusée\nAnd aucun changement n'est appliqué\nAnd une entrée d'audit est créée",
+      "adversarial": true
+    },
+    {
+      "id": "resilient-sync-holds",
+      "invariantId": "resilient-sync",
+      "title": "L'obligation est respectée",
+      "gherkin": "Given une indisponibilité ou réponse ambiguë d'un service externe\nWhen la synchronisation ou l'exécution échoue\nThen aucun succès n'est inventé et une réconciliation sûre est planifiée\nAnd une entrée d'audit est créée",
+      "adversarial": false
+    },
+    {
+      "id": "empty-and-error-states-holds",
+      "invariantId": "empty-and-error-states",
+      "title": "L'obligation est respectée",
+      "gherkin": "Given une page de dashboard, portefeuille, wallet, ordre, position, broker ou IA\nWhen la donnée manque, charge ou échoue\nThen l'utilisateur reçoit un état explicite et une action sûre",
+      "adversarial": false
+    },
+    {
+      "id": "production-config-fail-closed-holds",
+      "invariantId": "production-config-fail-closed",
+      "title": "L'obligation est respectée",
+      "gherkin": "Given un démarrage en environnement production\nWhen la configuration est chargée\nThen les prérequis sécurité et dépendances sont validés avant service\nAnd une entrée d'audit est créée",
+      "adversarial": false
+    },
+    {
+      "id": "verified-release-holds",
+      "invariantId": "verified-release",
+      "title": "L'obligation est respectée",
+      "gherkin": "Given une version candidate\nWhen la livraison est évaluée\nThen les preuves réelles déterminent le verdict et les blocages résiduels sont déclarés\nAnd une entrée d'audit est créée",
+      "adversarial": false
+    }
+  ],
+  "controls": [
+    "endpoint_protection",
+    "status_validation",
+    "authentication",
+    "object_permission",
+    "audit_log",
+    "input_validation",
+    "data_integrity_check"
+  ],
+  "requiredTests": [
+    "functional_test",
+    "e2e_test",
+    "permission_test",
+    "integration_test",
+    "unit_test",
+    "property_test"
+  ],
+  "acceptanceCriteria": [
+    "Aucune page ni API ne doit présenter de donnée fictive, hardcodée ou de remplissage comme réelle",
+    "Toute lecture ou mutation d'un objet financier est limitée à son propriétaire ou à un rôle explicitement autorisé",
+    "Aucune donnée, commande ou exposition paper ne doit être confondue avec le mode live",
+    "Un ordre live ne peut être soumis sans identité vérifiée, broker actif, trading global activé et validation du risque",
+    "La répétition d'une même commande financière ne doit jamais créer un second ordre ou mouvement",
+    "Une trade idea ou recommandation exécutable exige des données de marché réelles, fraîches et suffisantes",
+    "Toute recommandation IA persistée contient ses sources, hypothèses, confiance, risque, invalidation et horizon",
+    "Aucun ordre ne peut atteindre un broker avant une décision explicite du moteur de risque",
+    "Tout kill switch applicable bloque immédiatement les nouvelles expositions",
+    "Les secrets broker, paiement et IA ne doivent jamais être stockés en clair, renvoyés au client ou journalisés",
+    "Chaque canal WebSocket authentifie l'utilisateur et isole les événements par propriétaire",
+    "Toute synchronisation broker ou paiement supporte délai, reprise, idempotence et état inconnu explicite",
+    "Chaque parcours critique fournit des états chargement, vide, indisponible et erreur récupérable",
+    "La configuration production doit refuser le démarrage si un secret ou service critique est absent ou non sûr",
+    "Aucune qualification production-ready ne peut être donnée sans migrations propres, tests, contrôles de déploiement, analyse sécurité et preuves OStack exécutées"
+  ],
+  "expectedEvidence": [
+    {
+      "invariantId": "no-fake-data",
+      "kind": "functional_test",
+      "description": "Test fonctionnel proving: Aucune page ni API ne doit présenter de donnée fictive, hardcodée ou de remplissage comme réelle"
+    },
+    {
+      "invariantId": "no-fake-data",
+      "kind": "e2e_test",
+      "description": "Test E2E proving: Aucune page ni API ne doit présenter de donnée fictive, hardcodée ou de remplissage comme réelle"
+    },
+    {
+      "invariantId": "tenant-object-permissions",
+      "kind": "permission_test",
+      "description": "Test de permission (incluant tentative de contournement) proving: Toute lecture ou mutation d'un objet financier est limitée à son propriétaire ou à un rôle explicitement autorisé"
+    },
+    {
+      "invariantId": "tenant-object-permissions",
+      "kind": "integration_test",
+      "description": "Test d'intégration proving: Toute lecture ou mutation d'un objet financier est limitée à son propriétaire ou à un rôle explicitement autorisé"
+    },
+    {
+      "invariantId": "paper-live-separation",
+      "kind": "unit_test",
+      "description": "Test unitaire proving: Aucune donnée, commande ou exposition paper ne doit être confondue avec le mode live"
+    },
+    {
+      "invariantId": "paper-live-separation",
+      "kind": "property_test",
+      "description": "Test fondé sur les propriétés proving: Aucune donnée, commande ou exposition paper ne doit être confondue avec le mode live"
+    },
+    {
+      "invariantId": "live-explicit-authorization",
+      "kind": "permission_test",
+      "description": "Test de permission (incluant tentative de contournement) proving: Un ordre live ne peut être soumis sans identité vérifiée, broker actif, trading global activé et validation du risque"
+    },
+    {
+      "invariantId": "live-explicit-authorization",
+      "kind": "integration_test",
+      "description": "Test d'intégration proving: Un ordre live ne peut être soumis sans identité vérifiée, broker actif, trading global activé et validation du risque"
+    },
+    {
+      "invariantId": "idempotent-execution",
+      "kind": "unit_test",
+      "description": "Test unitaire proving: La répétition d'une même commande financière ne doit jamais créer un second ordre ou mouvement"
+    },
+    {
+      "invariantId": "idempotent-execution",
+      "kind": "property_test",
+      "description": "Test fondé sur les propriétés proving: La répétition d'une même commande financière ne doit jamais créer un second ordre ou mouvement"
+    },
+    {
+      "invariantId": "real-market-data-required",
+      "kind": "integration_test",
+      "description": "Test d'intégration proving: Une trade idea ou recommandation exécutable exige des données de marché réelles, fraîches et suffisantes"
+    },
+    {
+      "invariantId": "explainable-ai",
+      "kind": "integration_test",
+      "description": "Test d'intégration proving: Toute recommandation IA persistée contient ses sources, hypothèses, confiance, risque, invalidation et horizon"
+    },
+    {
+      "invariantId": "risk-precedes-execution",
+      "kind": "functional_test",
+      "description": "Test fonctionnel proving: Aucun ordre ne peut atteindre un broker avant une décision explicite du moteur de risque"
+    },
+    {
+      "invariantId": "risk-precedes-execution",
+      "kind": "e2e_test",
+      "description": "Test E2E proving: Aucun ordre ne peut atteindre un broker avant une décision explicite du moteur de risque"
+    },
+    {
+      "invariantId": "kill-switch-enforced",
+      "kind": "integration_test",
+      "description": "Test d'intégration proving: Tout kill switch applicable bloque immédiatement les nouvelles expositions"
+    },
+    {
+      "invariantId": "broker-secret-confidentiality",
+      "kind": "functional_test",
+      "description": "Test fonctionnel proving: Les secrets broker, paiement et IA ne doivent jamais être stockés en clair, renvoyés au client ou journalisés"
+    },
+    {
+      "invariantId": "broker-secret-confidentiality",
+      "kind": "e2e_test",
+      "description": "Test E2E proving: Les secrets broker, paiement et IA ne doivent jamais être stockés en clair, renvoyés au client ou journalisés"
+    },
+    {
+      "invariantId": "realtime-user-isolation",
+      "kind": "permission_test",
+      "description": "Test de permission (incluant tentative de contournement) proving: Chaque canal WebSocket authentifie l'utilisateur et isole les événements par propriétaire"
+    },
+    {
+      "invariantId": "realtime-user-isolation",
+      "kind": "integration_test",
+      "description": "Test d'intégration proving: Chaque canal WebSocket authentifie l'utilisateur et isole les événements par propriétaire"
+    },
+    {
+      "invariantId": "resilient-sync",
+      "kind": "integration_test",
+      "description": "Test d'intégration proving: Toute synchronisation broker ou paiement supporte délai, reprise, idempotence et état inconnu explicite"
+    },
+    {
+      "invariantId": "empty-and-error-states",
+      "kind": "integration_test",
+      "description": "Test d'intégration proving: Chaque parcours critique fournit des états chargement, vide, indisponible et erreur récupérable"
+    },
+    {
+      "invariantId": "production-config-fail-closed",
+      "kind": "integration_test",
+      "description": "Test d'intégration proving: La configuration production doit refuser le démarrage si un secret ou service critique est absent ou non sûr"
+    },
+    {
+      "invariantId": "verified-release",
+      "kind": "integration_test",
+      "description": "Test d'intégration proving: Aucune qualification production-ready ne peut être donnée sans migrations propres, tests, contrôles de déploiement, analyse sécurité et preuves OStack exécutées"
+    }
+  ],
+  "contentHash": "1ec37d7d0c70d01d982eaecf7ddcbcf8c9c885100bf1312699d6f56b71394516"
+}

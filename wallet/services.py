@@ -122,12 +122,6 @@ class WalletService:
     @staticmethod
     @transaction.atomic
     def lock_funds_for_withdrawal(wallet: Wallet, amount: Decimal, destination_type="BANK", destination_masked=""):
-        if wallet.available_balance < amount:
-            raise ValueError("Solde insuffisant")
-        wallet.available_balance -= amount
-        wallet.locked_balance += amount
-        wallet.save(update_fields=["available_balance", "locked_balance", "updated_at"])
-
         tx = WalletTransaction.objects.create(
             wallet=wallet,
             tx_type="WITHDRAWAL",
@@ -136,6 +130,13 @@ class WalletService:
             currency=wallet.currency,
             provider="MANUAL",
             description="Withdrawal request created",
+        )
+        WalletLedgerService.lock(
+            wallet_id=wallet.id,
+            amount=amount,
+            external_event_id=f"withdrawal-lock:{tx.id}",
+            transaction_obj=tx,
+            description="Fonds verrouillés pour demande de retrait",
         )
 
         wd = WithdrawalRequest.objects.create(
@@ -176,12 +177,19 @@ class WalletService:
     @staticmethod
     @transaction.atomic
     def mark_withdrawal_paid(withdrawal: WithdrawalRequest, provider=None, provider_reference=None):
-        wallet = withdrawal.wallet
-        if wallet.locked_balance < withdrawal.amount:
-            raise ValueError("Locked balance incoherent")
-        wallet.locked_balance -= withdrawal.amount
-        wallet.total_withdrawn = (wallet.total_withdrawn or Decimal("0.00")) + withdrawal.amount
-        wallet.save(update_fields=["locked_balance", "total_withdrawn", "updated_at"])
+        tx = WalletService._get_linked_transaction(withdrawal)
+        WalletLedgerService.unlock(
+            wallet_id=withdrawal.wallet_id,
+            amount=withdrawal.amount,
+            external_event_id=f"withdrawal-paid:{withdrawal.id}",
+            transaction_obj=tx,
+            to_available=False,
+            description="Retrait payé",
+            metadata={
+                "provider": provider or withdrawal.provider,
+                "provider_reference": provider_reference,
+            },
+        )
 
         withdrawal.status = "PAID"
         withdrawal.provider = provider or withdrawal.provider
@@ -189,8 +197,6 @@ class WalletService:
         withdrawal.paid_at = timezone.now()
         withdrawal.save(update_fields=["status", "provider", "provider_reference", "paid_at", "updated_at"])
 
-        # Ciblage précis de la transaction liée (par ID) plutôt que par montant
-        tx = WalletService._get_linked_transaction(withdrawal)
         if tx and tx.status == "PENDING":
             tx.status = "SUCCEEDED"
             tx.provider = provider or "MANUAL"
@@ -203,20 +209,22 @@ class WalletService:
     @staticmethod
     @transaction.atomic
     def reject_withdrawal(withdrawal: WithdrawalRequest, reason=""):
-        wallet = withdrawal.wallet
-        if wallet.locked_balance < withdrawal.amount:
-            raise ValueError("Locked balance incoherent")
-        wallet.locked_balance -= withdrawal.amount
-        wallet.available_balance += withdrawal.amount
-        wallet.save(update_fields=["locked_balance", "available_balance", "updated_at"])
+        tx = WalletService._get_linked_transaction(withdrawal)
+        WalletLedgerService.unlock(
+            wallet_id=withdrawal.wallet_id,
+            amount=withdrawal.amount,
+            external_event_id=f"withdrawal-rejected:{withdrawal.id}",
+            transaction_obj=tx,
+            to_available=True,
+            description="Retrait rejeté — fonds restitués",
+            metadata={"reason": reason},
+        )
 
         withdrawal.status = "REJECTED"
         withdrawal.failure_reason = reason
         withdrawal.reviewed_at = timezone.now()
         withdrawal.save(update_fields=["status", "failure_reason", "reviewed_at", "updated_at"])
 
-        # Ciblage précis de la transaction liée (par ID) plutôt que par montant
-        tx = WalletService._get_linked_transaction(withdrawal)
         if tx and tx.status == "PENDING":
             tx.status = "FAILED"
             tx.description = reason

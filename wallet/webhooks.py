@@ -18,6 +18,7 @@ import hashlib
 import hmac
 import json
 import logging
+from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.db import transaction
@@ -42,6 +43,23 @@ except Exception:  # pragma: no cover
 
 
 log = logging.getLogger("lyneci.wallet.webhooks")
+
+
+def _stripe_session_matches_transaction(session, tx: WalletTransaction) -> bool:
+    try:
+        amount_total = Decimal(str(session.get("amount_total"))) / Decimal("100")
+    except (InvalidOperation, TypeError, ValueError):
+        return False
+
+    return all(
+        (
+            session.get("payment_status") == "paid",
+            amount_total == tx.amount,
+            str(session.get("currency") or "").upper() == tx.currency.upper(),
+            str(session.get("client_reference_id") or "") == str(tx.wallet.user_id),
+            str(session.get("id") or "") == str(tx.provider_session_id or ""),
+        )
+    )
 
 
 # =============================================================================
@@ -71,6 +89,8 @@ def stripe_webhook(request):
 
     event_id = event.get("id")
     event_type = event.get("type")
+    if not event_id or not event_type:
+        return HttpResponse(status=400)
 
     # Verrou idempotent ATOMIQUE : un autre worker recevant le même event
     # se met en file d'attente jusqu'à ce qu'on commit. Cela évite la fenêtre
@@ -85,7 +105,10 @@ def stripe_webhook(request):
 
     data_object = event["data"]["object"]
 
-    if event_type == "checkout.session.completed":
+    if event_type in {
+        "checkout.session.completed",
+        "checkout.session.async_payment_succeeded",
+    }:
         metadata = data_object.get("metadata") or {}
         tx_id = metadata.get("wallet_transaction_id")
         if tx_id:
@@ -93,6 +116,16 @@ def stripe_webhook(request):
                 tx = WalletTransaction.objects.select_for_update().select_related("wallet").get(
                     id=tx_id, status="PENDING"
                 )
+                if (
+                    str(metadata.get("user_id") or "") != str(tx.wallet.user_id)
+                    or not _stripe_session_matches_transaction(data_object, tx)
+                ):
+                    log.warning(
+                        "stripe.webhook.session_mismatch tx_id=%s event_id=%s",
+                        tx_id,
+                        event_id,
+                    )
+                    return HttpResponse(status=400)
                 provider_reference = data_object.get("payment_intent") or data_object.get("id")
                 WalletService.confirm_deposit(
                     transaction_id=tx.id,
@@ -108,6 +141,9 @@ def stripe_webhook(request):
                 )
             except WalletTransaction.DoesNotExist:
                 log.info("stripe.webhook.tx_not_found tx_id=%s", tx_id)
+        else:
+            log.warning("stripe.webhook.tx_metadata_missing event_id=%s", event_id)
+            return HttpResponse(status=400)
 
     obj.processed = True
     obj.processed_at = timezone.now()

@@ -1,0 +1,31 @@
+{
+  "planId": "p1-premium-pipeline-hardening",
+  "description": "Relie les Trade Ideas réelles au cockpit IA, isole les scans par utilisateur, impose l'approbation et la confirmation LIVE, corrige les snapshots du dashboard et sécurise le paiement des quotas Paystack/Stripe avec webhooks signés et rapprochement strict.",
+  "actorId": "ogahserge",
+  "reason": "Le propriétaire a approuvé le diff P1 et son empreinte affichée en demandant de continuer",
+  "recordedAt": "2026-07-23T23:30:39.848Z",
+  "status": "rejected",
+  "qualityResults": [
+    {
+      "command": {
+        "command": "npm",
+        "args": [
+          "run",
+          "check"
+        ]
+      },
+      "success": false,
+      "exitCode": 1,
+      "stdout": "\n> check\n> node scripts/quality.mjs check\n\n",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/var/folders/4_/rf_4rby12vq8d3wn4h3zhyd80000gn/T/ostack-isolation-67bzIJ/workspace/manage.py\", line 16, in main\n    from django.core.management import execute_from_command_line\nModuleNotFoundError: No module named 'django'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/private/var/folders/4_/rf_4rby12vq8d3wn4h3zhyd80000gn/T/ostack-isolation-67bzIJ/workspace/manage.py\", line 27, in <module>\n    main()\n    ~~~~^^\n  File \"/private/var/folders/4_/rf_4rby12vq8d3wn4h3zhyd80000gn/T/ostack-isolation-67bzIJ/workspace/manage.py\", line 18, in main\n    raise ImportError(\n    ...<3 lines>...\n    ) from exc\nImportError: Couldn't import Django. Are you sure it's installed and available on your PYTHONPATH environment variable? Did you forget to activate a virtual environment?\n",
+      "durationMs": 4539
+    }
+  ],
+  "confirmationHash": "483e97a6766637642ba397db327d71fdb4af4d84a17371275b1a3c317c4d9378",
+  "isolation": {
+    "id": "ostack-isolation-67bzIJ",
+    "copiedFiles": 25347,
+    "copiedBytes": 529612059,
+    "excludedPathCount": 17
+  }
+}

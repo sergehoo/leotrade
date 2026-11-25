@@ -43,6 +43,7 @@ class PortfolioSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = [
+            "starting_balance",
             "current_balance",
             "available_cash",
             "locked_cash",

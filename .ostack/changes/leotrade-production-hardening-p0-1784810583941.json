@@ -1,0 +1,166 @@
+{
+  "planId": "leotrade-production-hardening-p0",
+  "description": "Ferme les failles P0 de secrets, tenant, wallet, paiements et fraîcheur marché; supprime les données de démonstration; ajoute tests, barrière qualité OStack, CI et documentation de déploiement/rollback sans migration React prématurée.",
+  "actorId": "ogahserge",
+  "reason": "Confirmation utilisateur finale après validation intégrale du candidat isolé",
+  "recordedAt": "2026-07-23T12:43:03.941Z",
+  "status": "succeeded",
+  "manifest": {
+    "id": "00b5a28e-80a6-4e2b-948b-0e63753ac449",
+    "committedAt": "2026-07-23T12:43:03.937Z",
+    "changes": [
+      {
+        "path": "brokers/forms.py",
+        "kind": "update",
+        "beforeHash": "22832954a8572d8bf63724c7871319c88f391832b59f6ff3a445c66f14f8673d",
+        "afterHash": "0b4934825e38626349375dfabde85b2c633bb92a913a81de6a828335874c54e4"
+      },
+      {
+        "path": "api/views/ai.py",
+        "kind": "update",
+        "beforeHash": "f541c58205df4f4f863950acb6c2f2e2981de073ab1951777f8eb3ca07b5bd34",
+        "afterHash": "4efc79b5889877ff33e6474f1ca90683856686e64cd72a341851a5c9752bb5b8"
+      },
+      {
+        "path": "api/views/portfolio.py",
+        "kind": "update",
+        "beforeHash": "2c3c1609fbe886eee4db55a1800402b916ac6552148d17572a5c5aac4fd2d02a",
+        "afterHash": "fd535682ca2287efcb85854913c030864b820232e8008771b89481a4f3f0e164"
+      },
+      {
+        "path": "api/serializers/portfolio.py",
+        "kind": "update",
+        "beforeHash": "56bd18c4384258226f97f3583046a013935dafccbe356f022a804a6a8141194c",
+        "afterHash": "40da84e04ce47b1142a4d87ff9ed333773d327cfecabc754b02287ba923898eb"
+      },
+      {
+        "path": "trading/services/trade_idea_generation.py",
+        "kind": "update",
+        "beforeHash": "0c2943f293f6e966ff0b6310192588a5516dac47ee4fe861c2bc16c394b7c52e",
+        "afterHash": "6212a0e2f21fe449b0b30357813e821b08de70a63272e62d3f192c660f16c772"
+      },
+      {
+        "path": "portfolio/broker_import.py",
+        "kind": "update",
+        "beforeHash": "92dd0f45ce1500040d1d0bff81b10fc9fef5a3ca9dfc3defc6b317f9eeb37e51",
+        "afterHash": "a81154d3090dd20444ca3eb163a4355fd3b809cd29982ec6a4e7b0b3b1055ac4"
+      },
+      {
+        "path": "wallet/services_v2.py",
+        "kind": "update",
+        "beforeHash": "ae8c9f52a32f6dabc89370b3b41d7c6f9ea3b65461b54bc5a6ae0fe4ebde05a4",
+        "afterHash": "99220b6a34e943935974c7a996f62d290890e5428b808a86d3c4777c42639fdb"
+      },
+      {
+        "path": "wallet/services.py",
+        "kind": "update",
+        "beforeHash": "6e0ad29ae1bd9ee329fe407de5616b8ec180569f16074fc384c3d5bf9add3721",
+        "afterHash": "cc4221035a1bf420929ffb12f0b30f27b4f4d8e7ee9a2edb5ae2f38e91e4f6a8"
+      },
+      {
+        "path": "wallet/webhooks.py",
+        "kind": "update",
+        "beforeHash": "cb888c6beb2a21aa7e97454f5661aa1d191c693df716688df1db07852d3966a6",
+        "afterHash": "9cd0fe4d6129425e1c03ee6dfb300aedaeffbdaa02c5cc79c4a4e32b353f5530"
+      },
+      {
+        "path": "ai_assistant/views.py",
+        "kind": "update",
+        "beforeHash": "c2888df68a40fed1f7e812321e3e897311a5a375e3bd159a607669ffd949ce83",
+        "afterHash": "b1b97a4fef15b85aa81d57aac44eb85c986454d0d742ee6fb0080f52935e0e2e"
+      },
+      {
+        "path": "ai_assistant/services.py",
+        "kind": "update",
+        "beforeHash": "035c3f7f6f366bdcb99d948f611ffb672b50801827cbb4ce1a665cd972005afb",
+        "afterHash": "9ae4e20e004e42612f77d8972f900c45c5582bf8feb3fc2d29fa8638536982d4"
+      },
+      {
+        "path": "templates/landing/home.html",
+        "kind": "update",
+        "beforeHash": "defa5f35aafa8844484b94a4bfe229297a6d1c3cf4c924d4c979947946e3a0e2",
+        "afterHash": "f1062567514406d7414567a72a0e1911bde3caa4abfa082aea1e9021cffd6403"
+      },
+      {
+        "path": "templates/account/base.html",
+        "kind": "update",
+        "beforeHash": "63ec53cf4d7660304b0c82814dd8aff5c58ee7c01d760087327476d3a2c58a9e",
+        "afterHash": "aa1c8c74adc0713f9aba69b9e8233e49cd9340a4d92d94329e50baf7f881a07e"
+      },
+      {
+        "path": ".github/workflows/production-ci.yml",
+        "kind": "update",
+        "beforeHash": "1278712662d080aae499ad8fe1dcb6a3486904c7d9502e79b8de666224d67529",
+        "afterHash": "7fdbc2307a069792fa2c717a72514f0e93915586e1ea0f68040b43df3d2c118f"
+      },
+      {
+        "path": "README.md",
+        "kind": "update",
+        "beforeHash": "51ef788a1e61f9636499b4b97ff2325dd7a81b219bf5618678071c636a8d8554",
+        "afterHash": "62448837aba85693b58035032683ceec3b41f6ac8db9a7ad78476a0e622dc29f"
+      },
+      {
+        "path": "package.json",
+        "kind": "create",
+        "afterHash": "24d09e07310cd72c26aa33642d3901edae6bbaab7d84009612e56bcc4ef6bd97"
+      },
+      {
+        "path": "scripts/quality.mjs",
+        "kind": "create",
+        "afterHash": "3c1271dba0e8ae7960252ee7583e3a0d03ffe5b7b20a8d1b84ecf39fcd9174d6"
+      },
+      {
+        "path": "tests_phase/test_production_hardening.py",
+        "kind": "create",
+        "afterHash": "0f1d121f52c27117e2cb4e686bcd89df3d797e443c78421f4a71aecb7d920624"
+      },
+      {
+        "path": "tests_phase/test_production_readiness.py",
+        "kind": "update",
+        "beforeHash": "3e9ef230ff5d613c100fa65f9123c23f2c8fe53fb84c2db02c74476af532fe36",
+        "afterHash": "a9412f884cd8691c730ca0e895cd260b12303601d1de4e1b78cedaa5c8fd600a"
+      },
+      {
+        "path": "deploy/production.env.example",
+        "kind": "create",
+        "afterHash": "338a03668b3a5cf0398eac238d0d7a32765158e36128b9bb11049127cef7d577"
+      }
+    ]
+  },
+  "qualityResults": [
+    {
+      "command": {
+        "command": "npm",
+        "args": [
+          "run",
+          "check"
+        ]
+      },
+      "success": true,
+      "exitCode": 0,
+      "stdout": "\n> check\n> node scripts/quality.mjs check\n\nSystem check identified no issues (0 silenced).\nNo changes detected\n",
+      "stderr": "",
+      "durationMs": 10373
+    },
+    {
+      "command": {
+        "command": "npm",
+        "args": [
+          "test"
+        ]
+      },
+      "success": true,
+      "exitCode": 0,
+      "stdout": "\n> test\n> node scripts/quality.mjs test\n\n........................................................................ [ 19%]\n........................................................................ [ 39%]\n........................................................................ [ 58%]\n......................................................................................................s....................... [ 92%]\n..........................                                               [100%]\n=============================== warnings summary ===============================\n../../../../../../../tmp/leotrade-validation.Hz80Gv/venv/lib/python3.12/site-packages/binance/ws/websocket_api.py:4\n../../../../../../../tmp/leotrade-validation.Hz80Gv/venv/lib/python3.12/site-packages/binance/ws/websocket_api.py:4\n  /private/tmp/leotrade-validation.Hz80Gv/venv/lib/python3.12/site-packages/binance/ws/websocket_api.py:4: DeprecationWarning: websockets.WebSocketClientProtocol is deprecated\n    from websockets import WebSocketClientProtocol  # type: ignore\n\n../../../../../../../tmp/leotrade-validation.Hz80Gv/venv/lib/python3.12/site-packages/websockets/legacy/__init__.py:6\n  /private/tmp/leotrade-validation.Hz80Gv/venv/lib/python3.12/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions\n    warnings.warn(  # deprecated in 14.0 - 2024-11-09\n\ntests_phase/test_ai_performance.py::test_performance_summary_empty_is_safe\n  /private/var/folders/4_/rf_4rby12vq8d3wn4h3zhyd80000gn/T/ostack-isolation-JWiZeC/workspace/leo_backtesting/migrations/0002_backtestrun_production_lifecycle.py:178: RemovedInDjango60Warning: CheckConstraint.check is deprecated in favor of `.condition`.\n    constraint=models.CheckConstraint(\n\ntests_phase/test_ai_performance.py::test_performance_summary_empty_is_safe\n  /private/var/folders/4_/rf_4rby12vq8d3wn4h3zhyd80000gn/T/ostack-isolation-JWiZeC/workspace/leo_backtesting/migrations/0002_backtestrun_production_lifecycle.py:185: RemovedInDjango60Warning: CheckConstraint.check is deprecated in favor of `.condition`.\n    constraint=models.CheckConstraint(\n\ntests_phase/test_ai_performance.py::test_performance_summary_empty_is_safe\n  /private/var/folders/4_/rf_4rby12vq8d3wn4h3zhyd80000gn/T/ostack-isolation-JWiZeC/workspace/leo_backtesting/migrations/0002_backtestrun_production_lifecycle.py:192: RemovedInDjango60Warning: CheckConstraint.check is deprecated in favor of `.condition`.\n    constraint=models.CheckConstraint(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n",
+      "stderr": "",
+      "durationMs": 74550
+    }
+  ],
+  "confirmationHash": "3fc1663925c8b37c6266013975d471eec6dbce2b045619a0f6a0e355a7466237",
+  "isolation": {
+    "id": "ostack-isolation-JWiZeC",
+    "copiedFiles": 25342,
+    "copiedBytes": 529598549,
+    "excludedPathCount": 17
+  }
+}

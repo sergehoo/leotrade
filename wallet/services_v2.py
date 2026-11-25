@@ -164,6 +164,7 @@ class WalletLedgerService:
         wallet_id: int,
         amount,
         external_event_id: str,
+        transaction_obj: WalletTransaction | None = None,
         description: str = "Lock pour retrait",
         metadata: dict | None = None,
     ) -> WalletLedgerEntry:
@@ -194,6 +195,7 @@ class WalletLedgerService:
 
         entry = WalletLedgerEntry.objects.create(
             wallet=wallet,
+            transaction=transaction_obj,
             entry_type="LOCK",
             amount=amount,
             balance_before=balance_before,
@@ -215,6 +217,7 @@ class WalletLedgerService:
         wallet_id: int,
         amount,
         external_event_id: str,
+        transaction_obj: WalletTransaction | None = None,
         to_available: bool = True,
         description: str = "",
         metadata: dict | None = None,
@@ -251,6 +254,7 @@ class WalletLedgerService:
 
         entry = WalletLedgerEntry.objects.create(
             wallet=wallet,
+            transaction=transaction_obj,
             entry_type="UNLOCK",
             amount=amount if to_available else -amount,  # signe = sens
             balance_before=balance_before,
@@ -292,8 +296,7 @@ class WalletLedgerService:
                     avail += e.amount
                     locked -= e.amount
                 else:
-                    locked += e.amount  # -(-amount) = amount ; soustrait du locked
-                    locked -= abs(e.amount) * 2 + e.amount  # placeholder, voir test
+                    locked += e.amount
             elif e.entry_type == "REFUND":
                 avail += e.amount
         return {"available": avail.quantize(MONEY), "locked": locked.quantize(MONEY)}

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from strategies.models import Signal, Strategy
 from trading.models import TradeIdea
@@ -12,6 +14,7 @@ from trading.services.opportunity_scoring import OpportunityScoringService
 
 class TradeIdeaGenerationService:
     MIN_OVERALL_SCORE = 0.65
+    MAX_CANDLE_AGE_MULTIPLIER = 3
 
     @staticmethod
     def _get_or_create_strategy(asset, timeframe):
@@ -98,6 +101,24 @@ class TradeIdeaGenerationService:
         if direction in ["SELL", "PUT"]:
             return "SELL"
         return "HOLD"
+
+    @staticmethod
+    def _parse_candle_time(value) -> datetime | None:
+        if isinstance(value, datetime):
+            candle_time = value
+        elif isinstance(value, str):
+            candle_time = parse_datetime(value)
+        else:
+            return None
+
+        if candle_time is None:
+            return None
+        if timezone.is_naive(candle_time):
+            candle_time = timezone.make_aware(
+                candle_time,
+                timezone.get_current_timezone(),
+            )
+        return candle_time
 
     @staticmethod
     def _find_strategy(asset, timeframe):
@@ -250,11 +271,18 @@ class TradeIdeaGenerationService:
             timeframe_code_value = getattr(timeframe, "code", None) or "5m"
             timeframe_minutes = cls._safe_minutes_from_timeframe(timeframe)
 
+            close = cls._to_decimal(features.get("close"), default="0")
+            atr = cls._to_decimal(features.get("atr_14"), default="0")
+            if close <= 0 or atr <= 0:
+                continue
+
             entry, stop, take, expected_rr = cls.compute_levels(
                 direction=direction,
-                close=features.get("close") or 0,
-                atr=features.get("atr_14"),
+                close=close,
+                atr=atr,
             )
+            if min(entry, stop, take) <= 0 or expected_rr <= 0:
+                continue
 
             symbol = getattr(asset, "symbol", "") or ""
 
@@ -266,15 +294,25 @@ class TradeIdeaGenerationService:
                 features=features,
             )
 
-            expires_at = timezone.now() + timezone.timedelta(minutes=timeframe_minutes * 3)
-            candle_time = (
+            candle_time = cls._parse_candle_time(
                 features.get("candle_time")
+                or features.get("open_time")
                 or market_snapshot.get("candle_time")
                 or market_snapshot.get("open_time")
+                or market_snapshot.get("latest_open_time")
             )
-
             if candle_time is None:
-                candle_time = timezone.now()
+                continue
+
+            now = timezone.now()
+            max_age = timezone.timedelta(
+                minutes=timeframe_minutes * cls.MAX_CANDLE_AGE_MULTIPLIER
+            )
+            if candle_time > now + timezone.timedelta(minutes=timeframe_minutes):
+                continue
+            expires_at = candle_time + max_age
+            if expires_at <= now:
+                continue
 
             already_exists = TradeIdea.objects.filter(
                 user=user,

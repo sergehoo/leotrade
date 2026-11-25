@@ -1,0 +1,8 @@
+{
+  "name": "lyneci-quality-gate",
+  "private": true,
+  "scripts": {
+    "check": "node scripts/quality.mjs check",
+    "test": "node scripts/quality.mjs test"
+  }
+}

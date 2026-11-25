@@ -13,9 +13,11 @@ from __future__ import annotations
 
 import json
 import logging
+from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, redirect
 from django.utils import timezone
@@ -155,20 +157,16 @@ class QuotaSuccessView(LoginRequiredMixin, View):
     """Page de retour après paiement Stripe réussi."""
     def get(self, request):
         session_id = request.GET.get("session_id")
-        if session_id:
-            # Marquer le paiement comme complété
-            payment = AIQuotaPayment.objects.filter(
+        completed = bool(
+            session_id
+            and AIQuotaPayment.objects.filter(
                 stripe_session_id=session_id,
                 quota__user=request.user,
-                status=AIQuotaPayment.STATUS_PENDING,
-            ).first()
-            if payment:
-                payment.status = AIQuotaPayment.STATUS_COMPLETED
-                payment.completed_at = timezone.now()
-                payment.save(update_fields=["status", "completed_at"])
-                payment.quota.top_up(payment.plan)
-        # Rediriger vers le dashboard avec un message de succès
-        return redirect("/dashboard/?quota_ok=1")
+                status=AIQuotaPayment.STATUS_COMPLETED,
+            ).exists()
+        )
+        suffix = "quota_ok=1" if completed else "quota_processing=1"
+        return redirect(f"/dashboard/?{suffix}")
 
 
 class QuotaCancelView(LoginRequiredMixin, View):
@@ -179,6 +177,7 @@ class QuotaCancelView(LoginRequiredMixin, View):
 
 @csrf_exempt
 @require_POST
+@transaction.atomic
 def stripe_webhook(request):
     """Webhook Stripe pour les paiements de quota Lyneci AI."""
     payload = request.body
@@ -196,7 +195,10 @@ def stripe_webhook(request):
         log.warning("stripe.webhook.invalid err=%s", exc)
         return HttpResponse(status=400)
 
-    if event["type"] == "checkout.session.completed":
+    if event["type"] in {
+        "checkout.session.completed",
+        "checkout.session.async_payment_succeeded",
+    }:
         session = event["data"]["object"]
         session_id = session.get("id")
         metadata = session.get("metadata", {})
@@ -204,16 +206,46 @@ def stripe_webhook(request):
         plan = metadata.get("plan")
 
         if session_id and user_id and plan:
-            payment = AIQuotaPayment.objects.filter(
+            payment = AIQuotaPayment.objects.select_for_update().select_related(
+                "quota"
+            ).filter(
                 stripe_session_id=session_id,
                 status=AIQuotaPayment.STATUS_PENDING,
             ).first()
             if payment:
+                try:
+                    paid_amount = (
+                        Decimal(str(session.get("amount_total"))) / Decimal("100")
+                    )
+                except (InvalidOperation, TypeError, ValueError):
+                    paid_amount = None
+
+                valid = all(
+                    (
+                        session.get("payment_status") == "paid",
+                        str(session.get("currency") or "").upper() == "USD",
+                        paid_amount == payment.amount_usd,
+                        str(user_id) == str(payment.quota.user_id),
+                        plan == payment.plan,
+                    )
+                )
+                if not valid:
+                    log.warning(
+                        "quota.stripe.mismatch session=%s payment=%s",
+                        session_id,
+                        payment.pk,
+                    )
+                    return HttpResponse(status=400)
+
                 payment.status = AIQuotaPayment.STATUS_COMPLETED
                 payment.completed_at = timezone.now()
                 payment.save(update_fields=["status", "completed_at"])
-                payment.quota.top_up(plan)
-                log.info("quota.stripe.completed user=%s plan=%s", user_id, plan)
+                payment.quota.top_up(payment.plan)
+                log.info(
+                    "quota.stripe.completed user=%s plan=%s",
+                    payment.quota.user_id,
+                    payment.plan,
+                )
 
     return HttpResponse(status=200)
 

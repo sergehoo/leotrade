@@ -175,7 +175,11 @@ def test_compose_uses_shared_external_traefik():
 
 
 def test_optional_sentry_dsn_is_empty_by_default():
-    environment = (PROJECT_ROOT / ".env.prod.example").read_text().splitlines()
+    portable_example = PROJECT_ROOT / "deploy" / "production.env.example"
+    dotfile_example = PROJECT_ROOT / ".env.prod.example"
+    if dotfile_example.exists():
+        assert dotfile_example.read_text() == portable_example.read_text()
+    environment = portable_example.read_text().splitlines()
     assert "SENTRY_DSN=" in environment
     assert not any(line.startswith("SENTRY_DSN=REPLACE_") for line in environment)
     assert "TRAEFIK_SHARED_MIDDLEWARES=compress@docker,ratelimit@docker" in environment
