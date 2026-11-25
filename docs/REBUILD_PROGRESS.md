@@ -90,7 +90,24 @@ scripts/          quality.mjs (gate `npm run check` / `npm test`, cwd = backend/
   l'exclusion `/auth/` de l'intercepteur empêchait le refresh sur `/auth/me/`,
   donc la session ne survivait pas au rechargement.
 
-### Lot 3 — Portage fonctionnel ⏳
+### Lot 3 — Socle mobile Flutter ✅
+- Flutter 3.38 / Dart 3.10, Riverpod, Dio, GoRouter, `flutter_secure_storage`.
+- **Jetons dans le Keychain / Keystore**, jamais dans SharedPreferences :
+  sur un appareil rooté, SharedPreferences se lit en clair, et un refresh
+  token vaut un accès complet au compte pendant quatorze jours. L'access
+  reste en mémoire (15 min de durée de vie).
+- Client Dio miroir du web : rafraîchissement JWT mutualisé, mêmes routes
+  exclues (`login`, `login/mfa`, `refresh` — et surtout **pas** `/auth/me/`).
+- Montants transportés en `String` de bout en bout : le backend calcule en
+  `Decimal`, Dart n'a pas d'équivalent natif, et un arrondi binaire sur un
+  solde est une erreur comptable. Conversion en `double` au seul affichage.
+- `Capabilities.closed` : en l'absence d'information serveur, aucune capacité
+  n'est ouverte. Un défaut permissif, c'est un ordre réel passé sans droit.
+- Thème miroir du web (vert/rouge réservés au P&L), interface en français.
+- Connexion avec étape MFA, reprise de session, tableau de bord.
+- `flutter analyze` propre, **8 tests** passés.
+
+### Lot 4 — Portage fonctionnel ⏳
 Prochain. Voir la matrice et l'ordre de bataille ci-dessous.
 
 ---

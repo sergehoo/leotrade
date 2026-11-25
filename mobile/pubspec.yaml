@@ -1,0 +1,50 @@
+name: lyneci
+description: "Lyneci — trading assisté par intelligence artificielle."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # État et injection
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Réseau
+  dio: ^5.7.0
+  # Les jetons ne vont jamais dans SharedPreferences : Keychain / Keystore.
+  flutter_secure_storage: ^9.2.2
+  web_socket_channel: ^3.0.1
+
+  # Navigation
+  go_router: ^14.6.2
+
+  # Modèles immuables et sérialisation
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+
+  # Formatage (devises, dates) — locale fr
+  intl: ^0.20.2
+
+  # Biométrie pour la reprise de session
+  local_auth: ^2.3.0
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  build_runner: ^2.4.13
+  freezed: ^2.5.7
+  json_serializable: ^6.9.0
+  riverpod_generator: ^2.6.3
+
+flutter:
+  uses-material-design: true
