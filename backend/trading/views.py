@@ -242,7 +242,7 @@ class OrderDetailView(LoginRequiredMixin, DetailView):
         except Exception as exc:
             # ProgrammingError (table missing), ImportError, etc. → page reste lisible
             import logging
-            logging.getLogger("lyneci.trading.views").warning(
+            logging.getLogger("leotrade.trading.views").warning(
                 "order_detail.broker_refs_unavailable order_id=%s err=%s",
                 order.id, exc,
             )

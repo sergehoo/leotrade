@@ -1,5 +1,5 @@
 """
-Admin du chat persistant Lyneci AI : conversations, messages, statistiques
+Admin du chat persistant LeoTrade AI : conversations, messages, statistiques
 (tokens, coûts, erreurs IA, latence) et quotas.
 """
 

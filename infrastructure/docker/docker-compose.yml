@@ -1,17 +1,17 @@
 x-app-image: &app-image
-  image: ${APP_IMAGE:-lyneci:local}
+  image: ${APP_IMAGE:-leotrade:local}
   build:
     context: ../..
     dockerfile: infrastructure/docker/Dockerfile
 
 x-app-environment: &app-environment
   DJANGO_ENV: prod
-  POSTGRES_HOST: lyneci-db
+  POSTGRES_HOST: leotrade-db
   POSTGRES_PORT: "5432"
-  REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD manquant}@lyneci-redis:6379/1
-  CHANNELS_REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD manquant}@lyneci-redis:6379/2
-  CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD manquant}@lyneci-redis:6379/0
-  CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD manquant}@lyneci-redis:6379/0
+  REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD manquant}@leotrade-redis:6379/1
+  CHANNELS_REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD manquant}@leotrade-redis:6379/2
+  CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD manquant}@leotrade-redis:6379/0
+  CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD manquant}@leotrade-redis:6379/0
 
 x-app-defaults: &app-defaults
   <<: *app-image
@@ -30,7 +30,7 @@ x-app-defaults: &app-defaults
       max-file: "5"
 
 services:
-  lyneci-db:
+  leotrade-db:
     image: postgres:16
     restart: unless-stopped
     environment:
@@ -53,7 +53,7 @@ services:
         max-size: 10m
         max-file: "5"
 
-  lyneci-redis:
+  leotrade-redis:
     image: redis:7
     restart: unless-stopped
     environment:
@@ -77,7 +77,7 @@ services:
         max-size: 10m
         max-file: "5"
 
-  lyneci-release:
+  leotrade-release:
     <<: *app-defaults
     restart: "no"
     command: >-
@@ -85,19 +85,19 @@ services:
       python manage.py migrate --noinput &&
       python manage.py configure_site_identity'
     depends_on:
-      lyneci-db:
+      leotrade-db:
         condition: service_healthy
-      lyneci-redis:
+      leotrade-redis:
         condition: service_healthy
 
-  lyneci-web:
+  leotrade-web:
     <<: *app-defaults
     restart: unless-stopped
     command: >-
       uvicorn leoTrade.asgi:application --host 0.0.0.0 --port 8000
       --workers ${WEB_CONCURRENCY:-2} --proxy-headers --forwarded-allow-ips=*
     depends_on:
-      lyneci-release:
+      leotrade-release:
         condition: service_completed_successfully
     volumes:
       - media_volume:/app/media
@@ -114,47 +114,47 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=${TRAEFIK_NETWORK:-proxy}
-      - traefik.http.routers.lyneci-web.rule=Host(`${TRAEFIK_APP_HOST:?TRAEFIK_APP_HOST manquant}`)
-      - traefik.http.routers.lyneci-web.entrypoints=websecure
-      - traefik.http.routers.lyneci-web.tls=true
-      - traefik.http.routers.lyneci-web.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-lets}
-      - traefik.http.routers.lyneci-web.service=lyneci-web-svc
-      - traefik.http.services.lyneci-web-svc.loadbalancer.server.port=8000
-      - traefik.http.routers.lyneci-web.middlewares=lyneci-web-sec-headers@docker,${TRAEFIK_SHARED_MIDDLEWARES:-compress@docker,ratelimit@docker}
-      - traefik.http.middlewares.lyneci-web-sec-headers.headers.stsSeconds=31536000
-      - traefik.http.middlewares.lyneci-web-sec-headers.headers.stsIncludeSubdomains=true
-      - traefik.http.middlewares.lyneci-web-sec-headers.headers.stsPreload=true
-      - traefik.http.middlewares.lyneci-web-sec-headers.headers.frameDeny=true
-      - traefik.http.middlewares.lyneci-web-sec-headers.headers.contentTypeNosniff=true
-      - traefik.http.middlewares.lyneci-web-sec-headers.headers.referrerPolicy=strict-origin-when-cross-origin
+      - traefik.http.routers.leotrade-web.rule=Host(`${TRAEFIK_APP_HOST:?TRAEFIK_APP_HOST manquant}`)
+      - traefik.http.routers.leotrade-web.entrypoints=websecure
+      - traefik.http.routers.leotrade-web.tls=true
+      - traefik.http.routers.leotrade-web.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-lets}
+      - traefik.http.routers.leotrade-web.service=leotrade-web-svc
+      - traefik.http.services.leotrade-web-svc.loadbalancer.server.port=8000
+      - traefik.http.routers.leotrade-web.middlewares=leotrade-web-sec-headers@docker,${TRAEFIK_SHARED_MIDDLEWARES:-compress@docker,ratelimit@docker}
+      - traefik.http.middlewares.leotrade-web-sec-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.leotrade-web-sec-headers.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.leotrade-web-sec-headers.headers.stsPreload=true
+      - traefik.http.middlewares.leotrade-web-sec-headers.headers.frameDeny=true
+      - traefik.http.middlewares.leotrade-web-sec-headers.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.leotrade-web-sec-headers.headers.referrerPolicy=strict-origin-when-cross-origin
 
-  lyneci-worker:
+  leotrade-worker:
     <<: *app-defaults
     restart: unless-stopped
     command: >-
-      celery -A leoTrade worker -l info --hostname=lyneci-worker@%h --events
+      celery -A leoTrade worker -l info --hostname=leotrade-worker@%h --events
       --concurrency=${CELERY_WORKER_CONCURRENCY:-2}
     depends_on:
-      lyneci-release:
+      leotrade-release:
         condition: service_completed_successfully
     volumes:
       - media_volume:/app/media
     healthcheck:
-      test: ["CMD-SHELL", "celery -A leoTrade inspect ping -d lyneci-worker@$$HOSTNAME --timeout=5 | grep -q pong"]
+      test: ["CMD-SHELL", "celery -A leoTrade inspect ping -d leotrade-worker@$$HOSTNAME --timeout=5 | grep -q pong"]
       interval: 20s
       timeout: 10s
       retries: 8
       start_period: 45s
     stop_grace_period: 90s
 
-  lyneci-beat:
+  leotrade-beat:
     <<: *app-defaults
     restart: unless-stopped
     command: >-
       celery -A leoTrade beat -l info --pidfile=/tmp/celerybeat.pid
       --schedule=/tmp/celerybeat-schedule
     depends_on:
-      lyneci-release:
+      leotrade-release:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "test -s /tmp/celerybeat.pid && kill -0 $$(cat /tmp/celerybeat.pid)"]
@@ -164,14 +164,14 @@ services:
       start_period: 30s
     stop_grace_period: 45s
 
-  lyneci-flower:
+  leotrade-flower:
     <<: *app-defaults
     restart: unless-stopped
     command: >-
       sh -c 'test -n "$$FLOWER_BASIC_AUTH" &&
       celery -A leoTrade flower --port=5555 --basic-auth="$$FLOWER_BASIC_AUTH"'
     depends_on:
-      lyneci-worker:
+      leotrade-worker:
         condition: service_healthy
     networks:
       - proxy
@@ -185,19 +185,19 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=${TRAEFIK_NETWORK:-proxy}
-      - traefik.http.routers.lyneci-flower.rule=Host(`${TRAEFIK_FLOWER_HOST:?TRAEFIK_FLOWER_HOST manquant}`)
-      - traefik.http.routers.lyneci-flower.entrypoints=websecure
-      - traefik.http.routers.lyneci-flower.tls=true
-      - traefik.http.routers.lyneci-flower.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-lets}
-      - traefik.http.routers.lyneci-flower.service=lyneci-flower-svc
-      - traefik.http.routers.lyneci-flower.middlewares=lyneci-flower-sec-headers@docker,${TRAEFIK_SHARED_MIDDLEWARES:-compress@docker,ratelimit@docker}
-      - traefik.http.middlewares.lyneci-flower-sec-headers.headers.stsSeconds=31536000
-      - traefik.http.middlewares.lyneci-flower-sec-headers.headers.stsIncludeSubdomains=true
-      - traefik.http.middlewares.lyneci-flower-sec-headers.headers.stsPreload=true
-      - traefik.http.middlewares.lyneci-flower-sec-headers.headers.frameDeny=true
-      - traefik.http.middlewares.lyneci-flower-sec-headers.headers.contentTypeNosniff=true
-      - traefik.http.middlewares.lyneci-flower-sec-headers.headers.referrerPolicy=strict-origin-when-cross-origin
-      - traefik.http.services.lyneci-flower-svc.loadbalancer.server.port=5555
+      - traefik.http.routers.leotrade-flower.rule=Host(`${TRAEFIK_FLOWER_HOST:?TRAEFIK_FLOWER_HOST manquant}`)
+      - traefik.http.routers.leotrade-flower.entrypoints=websecure
+      - traefik.http.routers.leotrade-flower.tls=true
+      - traefik.http.routers.leotrade-flower.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-lets}
+      - traefik.http.routers.leotrade-flower.service=leotrade-flower-svc
+      - traefik.http.routers.leotrade-flower.middlewares=leotrade-flower-sec-headers@docker,${TRAEFIK_SHARED_MIDDLEWARES:-compress@docker,ratelimit@docker}
+      - traefik.http.middlewares.leotrade-flower-sec-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.leotrade-flower-sec-headers.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.leotrade-flower-sec-headers.headers.stsPreload=true
+      - traefik.http.middlewares.leotrade-flower-sec-headers.headers.frameDeny=true
+      - traefik.http.middlewares.leotrade-flower-sec-headers.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.leotrade-flower-sec-headers.headers.referrerPolicy=strict-origin-when-cross-origin
+      - traefik.http.services.leotrade-flower-svc.loadbalancer.server.port=5555
 
 networks:
   proxy:

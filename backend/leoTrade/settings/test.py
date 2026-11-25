@@ -53,7 +53,7 @@ CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 
 # ── Sécurité : clé statique pour les tests ──────────────────────────────────
-SECRET_KEY = "test-secret-key-not-for-production-lyneci"
+SECRET_KEY = "test-secret-key-not-for-production-leotrade"
 
 # ── Staticfiles : pas de manifest ───────────────────────────────────────────
 STORAGES["staticfiles"] = {

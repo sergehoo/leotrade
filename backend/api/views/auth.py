@@ -39,9 +39,13 @@ from api.serializers.auth import (
     UserSerializer,
 )
 
-log = logging.getLogger("lyneci.api.auth")
+log = logging.getLogger("leotrade.api.auth")
 User = get_user_model()
 
+# Sel historique conservé malgré le renommage en LeoTrade : il signe les
+# défis MFA en cours de validité. Le changer invaliderait, au moment du
+# déploiement, les défis déjà envoyés aux utilisateurs en train de se
+# connecter.
 MFA_CHALLENGE_SALT = "lyneci.api.auth.mfa-challenge"
 MFA_CHALLENGE_MAX_AGE = 300  # secondes
 

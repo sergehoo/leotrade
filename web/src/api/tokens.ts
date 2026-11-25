@@ -10,6 +10,10 @@
  * sur des données serveur.
  */
 
+// Nom historique conservé volontairement malgré le renommage en LeoTrade :
+// cette clé vit dans le localStorage des utilisateurs. La renommer
+// rendrait le jeton existant introuvable et déconnecterait tout le monde
+// au premier déploiement.
 const REFRESH_KEY = "lyneci.refresh"
 
 let accessToken: string | null = null

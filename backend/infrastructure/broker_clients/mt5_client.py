@@ -564,7 +564,7 @@ class MT5BrokerClient(BaseBrokerClient):
             request = {
                 "action": mt5.TRADE_ACTION_REMOVE,
                 "order": int(order.broker_order_id),
-                "comment": f"Lyneci-cancel-{order.id}",
+                "comment": f"LeoTrade-cancel-{order.id}",
             }
 
             result = mt5.order_send(request)

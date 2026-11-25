@@ -35,7 +35,7 @@ from portfolio.models_trade import Trade
 from portfolio.services import PortfolioAccountingService, PortfolioService
 
 
-log = logging.getLogger("lyneci.execution.close")
+log = logging.getLogger("leotrade.execution.close")
 
 
 class PositionCloseError(Exception):
@@ -95,7 +95,7 @@ class PositionCloseService:
         profit: Decimal | None = None,
     ) -> Trade | None:
         """
-        Cas 1 : on a un Order interne (cycle normal Lyneci).
+        Cas 1 : on a un Order interne (cycle normal LeoTrade).
         Trouve la Position liée et applique la clôture.
 
         :param profit: pour Deriv (option binaire), profit fourni directement

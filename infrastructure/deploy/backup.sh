@@ -14,12 +14,12 @@ mkdir -p "$BACKUP_DIR"
 COMPOSE=(docker compose -f "$ROOT_DIR/docker_compose.yml" --env-file "$ENV_FILE")
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-destination="$BACKUP_DIR/lyneci-$timestamp.dump"
+destination="$BACKUP_DIR/leotrade-$timestamp.dump"
 
-"${COMPOSE[@]}" exec -T lyneci-db \
+"${COMPOSE[@]}" exec -T leotrade-db \
   sh -c 'pg_dump --format=custom --no-owner --no-privileges -U "$POSTGRES_USER" "$POSTGRES_DB"' \
   > "$destination"
 
 test -s "$destination" || { rm -f "$destination"; echo "Sauvegarde vide." >&2; exit 1; }
-find "$BACKUP_DIR" -type f -name 'lyneci-*.dump' -mtime "+$RETENTION_DAYS" -delete
+find "$BACKUP_DIR" -type f -name 'leotrade-*.dump' -mtime "+$RETENTION_DAYS" -delete
 echo "$destination"

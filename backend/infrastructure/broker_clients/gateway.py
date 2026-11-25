@@ -28,7 +28,7 @@ from django.core.cache import cache
 from core.retry import is_retryable_exception
 from infrastructure.broker_clients import BrokerClientFactory
 
-log = logging.getLogger("lyneci.brokers.gateway")
+log = logging.getLogger("leotrade.brokers.gateway")
 
 
 class CircuitOpenError(Exception):

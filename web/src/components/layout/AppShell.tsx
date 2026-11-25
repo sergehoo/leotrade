@@ -34,7 +34,7 @@ export default function AppShell() {
       <aside className="shrink-0 border-b border-border lg:w-60 lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between gap-3 px-4 py-4 lg:block">
           <div>
-            <p className="font-semibold tracking-tight">Lyneci</p>
+            <p className="font-semibold tracking-tight">LeoTrade</p>
             <p className="text-xs text-muted-foreground">Intelligent Trading</p>
           </div>
         </div>

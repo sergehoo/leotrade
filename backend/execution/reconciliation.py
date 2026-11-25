@@ -30,7 +30,7 @@ def _json_safe(value):
 
 class BrokerReconciliationService:
     """
-    Réconciliation broker -> Lyneci
+    Réconciliation broker -> LeoTrade
     - ordres ouverts / partiellement exécutés
     - fills manquants
     - positions broker

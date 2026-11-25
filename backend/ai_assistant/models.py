@@ -120,7 +120,7 @@ class AssistantMessage(models.Model):
     ROLE_SYSTEM = "SYSTEM"
     ROLE_CHOICES = [
         (ROLE_USER, "Utilisateur"),
-        (ROLE_ASSISTANT, "Lyneci AI"),
+        (ROLE_ASSISTANT, "LeoTrade AI"),
         (ROLE_SYSTEM, "Système"),
     ]
 
@@ -252,7 +252,7 @@ class AssistantAction(models.Model):
         (STATUS_FAILED, "Échec"),
     ]
 
-    # Types d'actions autorisées dans le périmètre Lyneci
+    # Types d'actions autorisées dans le périmètre LeoTrade
     TYPE_DRAFT_ORDER = "DRAFT_ORDER"       # prépare un formulaire d'ordre
     TYPE_ADJUST_SL = "ADJUST_SL"          # suggère un stop-loss
     TYPE_ADJUST_TP = "ADJUST_TP"          # suggère un take-profit
@@ -323,7 +323,7 @@ class AssistantAction(models.Model):
 
 class AIUserQuota(models.Model):
     """
-    Quota d'utilisation de Lyneci AI par utilisateur.
+    Quota d'utilisation de LeoTrade AI par utilisateur.
 
     Plans :
       FREE  — 20 messages offerts (réinitialisés chaque mois)
@@ -446,7 +446,7 @@ class AIQuotaPayment(models.Model):
     METHOD_WALLET = "WALLET"
     METHOD_STRIPE = "STRIPE"
     METHOD_CHOICES = [
-        (METHOD_WALLET, "Portefeuille Lyneci"),
+        (METHOD_WALLET, "Portefeuille LeoTrade"),
         (METHOD_STRIPE, "Stripe (carte / lien)"),
     ]
     STATUS_PENDING   = "PENDING"

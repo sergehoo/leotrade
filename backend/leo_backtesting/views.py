@@ -23,7 +23,7 @@ from leo_backtesting.services import (
 from strategies.models import Strategy
 
 
-log = logging.getLogger("lyneci.backtesting.views")
+log = logging.getLogger("leotrade.backtesting.views")
 
 
 def _available_strategies_for(user):

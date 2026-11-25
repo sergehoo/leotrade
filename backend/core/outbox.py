@@ -12,7 +12,7 @@ from django.utils import timezone
 from core.models import OutboxEvent
 
 
-logger = logging.getLogger("lyneci.outbox")
+logger = logging.getLogger("leotrade.outbox")
 OutboxHandler = Callable[[OutboxEvent], None]
 _HANDLERS: dict[str, OutboxHandler] = {}
 

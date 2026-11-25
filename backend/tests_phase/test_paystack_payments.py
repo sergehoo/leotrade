@@ -25,11 +25,11 @@ from wallet.services import (
 
 User = get_user_model()
 PAYSTACK_SETTINGS = {
-    "PAYSTACK_SECRET_KEY": "sk_test_lyneci",
+    "PAYSTACK_SECRET_KEY": "sk_test_leotrade",
     "PAYSTACK_API_BASE_URL": "https://api.paystack.co",
     "PAYSTACK_TIMEOUT_SECONDS": 5,
     "PAYSTACK_SUPPORTED_CURRENCIES": ["USD", "XOF"],
-    "SITE_BASE_URL": "https://lyneci.example",
+    "SITE_BASE_URL": "https://leotrade.example",
 }
 
 
@@ -60,7 +60,7 @@ def _response(payload, status_code=200):
     return response
 
 
-def _pending_transaction(wallet, reference="LYNECI-DEP-TEST-001", amount="10.00"):
+def _pending_transaction(wallet, reference="LEOTRADE-DEP-TEST-001", amount="10.00"):
     return WalletTransaction.objects.create(
         wallet=wallet,
         tx_type="DEPOSIT",
@@ -131,11 +131,11 @@ def test_paystack_checkout_initializes_server_side_and_redirects(client):
     assert response["Location"] == "https://checkout.paystack.com/access-code"
     assert captured["method"] == "POST"
     assert captured["url"] == "https://api.paystack.co/transaction/initialize"
-    assert captured["headers"]["Authorization"] == "Bearer sk_test_lyneci"
+    assert captured["headers"]["Authorization"] == "Bearer sk_test_leotrade"
     assert captured["json"]["amount"] == "1234"
     assert captured["json"]["currency"] == "USD"
     assert captured["json"]["callback_url"].startswith(
-        "https://lyneci.example/wallet/deposit/success/"
+        "https://leotrade.example/wallet/deposit/success/"
     )
 
     tx = WalletTransaction.objects.get(wallet=wallet, provider="PAYSTACK")
@@ -293,7 +293,7 @@ def test_paystack_callback_verifies_then_confirms_payment(client):
 def test_paystack_callback_cannot_confirm_another_users_transaction(client):
     user, wallet = _user_and_wallet("owner-a")
     _, other_wallet = _user_and_wallet("owner-b")
-    other_tx = _pending_transaction(other_wallet, reference="LYNECI-DEP-OTHER-001")
+    other_tx = _pending_transaction(other_wallet, reference="LEOTRADE-DEP-OTHER-001")
     client.force_login(user)
 
     with patch("wallet.services.requests.request") as request_mock:

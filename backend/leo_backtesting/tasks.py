@@ -10,7 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 
 
-log = logging.getLogger("lyneci.backtesting.tasks")
+log = logging.getLogger("leotrade.backtesting.tasks")
 
 
 @shared_task(

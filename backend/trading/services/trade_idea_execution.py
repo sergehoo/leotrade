@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 #         """
 #         Sizing pour les contrats Deriv (options binaires / multipliers).
 #
-#         Convention Lyneci pour Deriv :
+#         Convention LeoTrade pour Deriv :
 #           - 1 contrat = 1 unité de position
 #           - le ``stake_amount`` est à la fois la mise et le notional
 #           - la quantité doit donc rester à 1 (et NON pas égale au stake)

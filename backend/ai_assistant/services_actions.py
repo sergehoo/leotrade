@@ -25,7 +25,7 @@ from django.utils import timezone
 
 from .models import AssistantActionRequest
 
-log = logging.getLogger("lyneci.ai_assistant.actions")
+log = logging.getLogger("leotrade.ai_assistant.actions")
 
 REQUEST_TTL_MINUTES = 10
 

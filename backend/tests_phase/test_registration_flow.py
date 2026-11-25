@@ -34,14 +34,14 @@ ACCOUNT_PAGE_TEMPLATES = [
 ]
 
 
-def test_account_pages_use_the_lyneci_layout():
+def test_account_pages_use_the_leotrade_layout():
     for template_name in ACCOUNT_PAGE_TEMPLATES:
         get_template(template_name)
         source = (PROJECT_ROOT / "templates" / template_name).read_text()
 
         assert '{% extends "account/base.html" %}' in source
         assert "Best-Épargne" not in source
-        assert "LeoTrade" not in source
+        assert "Lyneci" not in source
         assert "account/_base.html" not in source
 
 
@@ -67,51 +67,51 @@ def test_transactional_account_emails_are_branded_and_multipart():
         assert (email_dir / f"{prefix}_message.html").is_file()
 
     combined = "\n".join(path.read_text() for path in email_dir.iterdir())
-    assert "Lyneci" in combined
+    assert "LeoTrade" in combined
     assert "Best-Épargne" not in combined
-    assert "LeoTrade" not in combined
+    assert "Lyneci" not in combined
 
 
 @pytest.mark.django_db
 @override_settings(
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     ACCOUNT_DEFAULT_HTTP_PROTOCOL="https",
-    ALLOWED_HOSTS=["lyneci.test", "testserver"],
+    ALLOWED_HOSTS=["leotrade.test", "testserver"],
 )
 def test_signup_sends_confirmation_and_confirmation_activates_login(client, settings):
     Site.objects.update_or_create(
         pk=settings.SITE_ID,
-        defaults={"domain": "lyneci.test", "name": "Lyneci — Intelligent Trading"},
+        defaults={"domain": "leotrade.test", "name": "LeoTrade — Intelligent Trading"},
     )
 
     response = client.post(
         reverse("account_signup"),
         {
-            "email": "new.trader@lyneci.test",
+            "email": "new.trader@leotrade.test",
             "password1": "SafeRegistration42!",
             "password2": "SafeRegistration42!",
             "website": "",
         },
         secure=True,
-        HTTP_HOST="lyneci.test",
+        HTTP_HOST="leotrade.test",
     )
 
     assert response.status_code == 302
     assert response.url == reverse("account_email_verification_sent")
 
-    user = get_user_model().objects.get(email="new.trader@lyneci.test")
+    user = get_user_model().objects.get(email="new.trader@leotrade.test")
     email_address = EmailAddress.objects.get(user=user, email=user.email)
     assert email_address.verified is False
     assert "_auth_user_id" not in client.session
 
     assert len(mail.outbox) == 1
     confirmation_email = mail.outbox[0]
-    assert confirmation_email.subject.startswith("[Lyneci]")
-    assert "https://lyneci.test/accounts/confirm-email/" in confirmation_email.body
+    assert confirmation_email.subject.startswith("[LeoTrade]")
+    assert "https://leotrade.test/accounts/confirm-email/" in confirmation_email.body
     assert confirmation_email.alternatives
     # Django ≤ 5.1 : `alternatives` est une liste de tuples (contenu, mimetype).
     # L'accès par attribut `.content` n'existe qu'à partir de Django 5.2.
-    assert "Lyneci" in confirmation_email.alternatives[0][0]
+    assert "LeoTrade" in confirmation_email.alternatives[0][0]
 
     confirmation_url = next(
         line.strip()
@@ -123,7 +123,7 @@ def test_signup_sends_confirmation_and_confirmation_activates_login(client, sett
     confirmation_page = client.get(
         confirmation_path,
         secure=True,
-        HTTP_HOST="lyneci.test",
+        HTTP_HOST="leotrade.test",
     )
     assert confirmation_page.status_code == 200
     assert user.email in confirmation_page.content.decode()
@@ -131,7 +131,7 @@ def test_signup_sends_confirmation_and_confirmation_activates_login(client, sett
     confirmation_response = client.post(
         confirmation_path,
         secure=True,
-        HTTP_HOST="lyneci.test",
+        HTTP_HOST="leotrade.test",
     )
     assert confirmation_response.status_code == 302
 
@@ -144,16 +144,16 @@ def test_signup_sends_confirmation_and_confirmation_activates_login(client, sett
 @override_settings(
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     ACCOUNT_DEFAULT_HTTP_PROTOCOL="https",
-    ALLOWED_HOSTS=["lyneci.test", "testserver"],
+    ALLOWED_HOSTS=["leotrade.test", "testserver"],
 )
 def test_password_reset_email_is_branded_and_does_not_enumerate(client, settings):
     Site.objects.update_or_create(
         pk=settings.SITE_ID,
-        defaults={"domain": "lyneci.test", "name": "Lyneci — Intelligent Trading"},
+        defaults={"domain": "leotrade.test", "name": "LeoTrade — Intelligent Trading"},
     )
     user = get_user_model().objects.create_user(
         username="recovery-user",
-        email="recovery@lyneci.test",
+        email="recovery@leotrade.test",
         password="ExistingPassword42!",
     )
     EmailAddress.objects.create(user=user, email=user.email, primary=True, verified=True)
@@ -162,20 +162,20 @@ def test_password_reset_email_is_branded_and_does_not_enumerate(client, settings
         reverse("account_reset_password"),
         {"email": user.email},
         secure=True,
-        HTTP_HOST="lyneci.test",
+        HTTP_HOST="leotrade.test",
     )
     unknown_response = client.post(
         reverse("account_reset_password"),
-        {"email": "unknown@lyneci.test"},
+        {"email": "unknown@leotrade.test"},
         secure=True,
-        HTTP_HOST="lyneci.test",
+        HTTP_HOST="leotrade.test",
     )
 
     assert known_response.status_code == 302
     assert unknown_response.status_code == 302
     assert known_response.url == unknown_response.url == reverse("account_reset_password_done")
     assert len(mail.outbox) == 2
-    assert all(message.subject.startswith("[Lyneci]") for message in mail.outbox)
+    assert all(message.subject.startswith("[LeoTrade]") for message in mail.outbox)
     assert all(message.alternatives for message in mail.outbox)
     assert "password/reset/key/" in mail.outbox[0].body
-    assert "aucun compte Lyneci" in mail.outbox[1].body
+    assert "aucun compte LeoTrade" in mail.outbox[1].body

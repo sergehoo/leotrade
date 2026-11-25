@@ -6,7 +6,7 @@ DerivSettlementService : règlement complet d'un contrat Deriv à sa clôture.
 
 FLUX APPLIQUÉ
 =============
-1. Lyneci achète le contrat  → DerivContract(status=OPEN) créé,
+1. LeoTrade achète le contrat  → DerivContract(status=OPEN) créé,
                                   Position ouverte,
                                   -buy_price débité du Portfolio (TRADE_EXECUTION)
 
@@ -57,7 +57,7 @@ from portfolio.services import PortfolioAccountingService, PortfolioService
 from trading.models import DerivContract
 
 
-log = logging.getLogger("lyneci.trading.settlement")
+log = logging.getLogger("leotrade.trading.settlement")
 
 
 def _d(value, default: str = "0") -> Decimal:

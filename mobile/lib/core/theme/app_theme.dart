@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Thème Lyneci — miroir de web/src/index.css.
+/// Thème LeoTrade — miroir de web/src/index.css.
 ///
 /// Même règle que sur le web : le vert et le rouge sont réservés au P&L et
 /// aux états de risque. Un vert décoratif rendrait illisible la seule

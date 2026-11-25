@@ -24,7 +24,7 @@ from infrastructure.broker_clients.dto import (
 )
 
 
-log = logging.getLogger("lyneci.deriv.client")
+log = logging.getLogger("leotrade.deriv.client")
 logger = logging.getLogger(__name__)
 
 def _d(value, default: str = "0") -> Decimal:
@@ -36,7 +36,7 @@ def _d(value, default: str = "0") -> Decimal:
         return Decimal(default)
 
 
-# Mapping côté Lyneci ↔ Deriv pour les options binaires
+# Mapping côté LeoTrade ↔ Deriv pour les options binaires
 SIDE_TO_CONTRACT_TYPE = {
     "BUY": "CALL",
     "SELL": "PUT",

@@ -27,7 +27,7 @@ from wallet.models import Wallet
 from wallet.services_v2 import WalletLedgerService, InsufficientFundsError
 
 
-log = logging.getLogger("lyneci.accounting.transfer")
+log = logging.getLogger("leotrade.accounting.transfer")
 
 MONEY = Decimal("0.01")
 

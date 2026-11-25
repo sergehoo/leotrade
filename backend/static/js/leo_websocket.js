@@ -1,5 +1,5 @@
 /* =============================================================================
- * leo_websocket.js — Manager central des connexions WebSocket Lyneci
+ * leo_websocket.js — Manager central des connexions WebSocket LeoTrade
  * =============================================================================
  *
  * Caractéristiques :

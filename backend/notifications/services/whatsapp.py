@@ -15,7 +15,7 @@ from django.conf import settings
 
 from notifications.services.renderer import NotificationTemplateRenderer
 
-log = logging.getLogger("lyneci.notifications.whatsapp")
+log = logging.getLogger("leotrade.notifications.whatsapp")
 
 
 def _twilio_whatsapp_send(to: str, body: str) -> dict:
@@ -93,7 +93,7 @@ class WhatsAppNotificationService:
                     "response": {}, "error": "Pas de numéro WhatsApp configuré."}
 
         rendered = NotificationTemplateRenderer.render(notification, "WHATSAPP", language)
-        body = f"*Lyneci — {rendered['subject']}*\n{rendered['body']}"[:1500]
+        body = f"*LeoTrade — {rendered['subject']}*\n{rendered['body']}"[:1500]
 
         primary = getattr(settings, "NOTIFY_WHATSAPP_PRIMARY", "twilio")
         chain = (

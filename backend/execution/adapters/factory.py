@@ -6,7 +6,7 @@ from .live_mt5 import LiveMT5Adapter
 from .live_deriv import LiveDerivAdapter
 
 
-log = logging.getLogger("lyneci.execution.adapters.factory")
+log = logging.getLogger("leotrade.execution.adapters.factory")
 
 
 class BrokerAdapterFactory:

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lyneci/core/format.dart';
-import 'package:lyneci/features/auth/domain/models.dart';
+import 'package:leotrade/core/format.dart';
+import 'package:leotrade/features/auth/domain/models.dart';
 
 void main() {
   group('Capabilities', () {

@@ -29,7 +29,7 @@ from brokers.services.deriv_sync import (
 )
 
 
-log = logging.getLogger("lyneci.deriv.tasks")
+log = logging.getLogger("leotrade.deriv.tasks")
 
 
 def _redis_lock(name: str, ttl_seconds: int = 50):

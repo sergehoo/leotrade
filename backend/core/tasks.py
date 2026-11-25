@@ -20,7 +20,7 @@ from core.monitoring import (
 from core.outbox import OutboxPublisher
 
 
-logger = logging.getLogger("lyneci.monitoring")
+logger = logging.getLogger("leotrade.monitoring")
 
 
 @shared_task(

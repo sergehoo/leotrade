@@ -8,7 +8,7 @@ from django.dispatch import receiver
 from .models import Wallet, WalletTransaction
 
 User = get_user_model()
-log = logging.getLogger("lyneci.wallet.signals")
+log = logging.getLogger("leotrade.wallet.signals")
 
 
 @receiver(post_save, sender=User)

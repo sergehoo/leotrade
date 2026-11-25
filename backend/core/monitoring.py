@@ -9,7 +9,7 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 
-logger = logging.getLogger("lyneci.monitoring")
+logger = logging.getLogger("leotrade.monitoring")
 
 MONITORING_SNAPSHOT_CACHE_KEY = "monitoring:operational:snapshot:v1"
 MONITORING_ALERT_STATE_CACHE_KEY = "monitoring:operational:alert-state:v1"

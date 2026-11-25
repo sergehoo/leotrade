@@ -229,9 +229,9 @@ def test_prometheus_collector_exposes_trading_metrics():
         for metric in metrics
         for sample in metric.samples
     }
-    assert samples["lyneci_operational_snapshot_available"] == 1
-    assert samples["lyneci_live_orders_unknown"] == 2
-    assert samples['lyneci_outbox_events'] == 1
+    assert samples["leotrade_operational_snapshot_available"] == 1
+    assert samples["leotrade_live_orders_unknown"] == 2
+    assert samples['leotrade_outbox_events'] == 1
 
 
 @pytest.mark.django_db
@@ -248,7 +248,7 @@ def test_prometheus_endpoint_publishes_operational_metrics(client):
 
     response = client.get("/metrics", HTTP_AUTHORIZATION="Bearer metrics-test-token")
     assert response.status_code == 200
-    assert b"lyneci_live_orders_unknown 3.0" in response.content
+    assert b"leotrade_live_orders_unknown 3.0" in response.content
 
 
 @pytest.mark.django_db
@@ -270,7 +270,7 @@ def test_deployment_enforces_flower_auth_and_declares_alert_rules():
     compose = (INFRA_ROOT / "docker" / "docker-compose.yml").read_text()
     requirements = (PROJECT_ROOT / "requirements.txt").read_text()
     alert_rules = yaml.safe_load(
-        (INFRA_ROOT / "deploy/observability/lyneci-alerts.yml").read_text()
+        (INFRA_ROOT / "deploy/observability/leotrade-alerts.yml").read_text()
     )
 
     assert "flower==2.0.1" in requirements
@@ -279,7 +279,7 @@ def test_deployment_enforces_flower_auth_and_declares_alert_rules():
     assert "celerybeat.pid" in compose
     alerts = alert_rules["groups"][0]["rules"]
     assert {rule["alert"] for rule in alerts} >= {
-        "LyneciOperationalSnapshotMissing",
-        "LyneciUnknownLiveOrder",
-        "LyneciOutboxDeadLetter",
+        "LeoTradeOperationalSnapshotMissing",
+        "LeoTradeUnknownLiveOrder",
+        "LeoTradeOutboxDeadLetter",
     }

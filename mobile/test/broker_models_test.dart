@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lyneci/features/brokers/data/brokers_repository.dart';
-import 'package:lyneci/features/brokers/domain/models.dart';
+import 'package:leotrade/features/brokers/data/brokers_repository.dart';
+import 'package:leotrade/features/brokers/domain/models.dart';
 
 /// Réponse telle que la sert `api/serializers/brokers.py` : les secrets
 /// n'y figurent que sous forme de métadonnées.

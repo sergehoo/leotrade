@@ -25,7 +25,7 @@ const {
   WidthType,
 } = require("docx");
 
-const OUTPUT = path.join(__dirname, "Lyneci_Audit_Architecture_2026-07-18.docx");
+const OUTPUT = path.join(__dirname, "LeoTrade_Audit_Architecture_2026-07-18.docx");
 const CONTENT_WIDTH = 9026;
 const colors = {
   navy: "112B45",
@@ -156,7 +156,7 @@ function link(label, url) {
 const children = [];
 
 children.push(
-  new Paragraph({ spacing: { before: 900, after: 160 }, children: [run("LYNECI", { bold: true, size: 52, color: colors.blue })] }),
+  new Paragraph({ spacing: { before: 900, after: 160 }, children: [run("LEOTRADE", { bold: true, size: 52, color: colors.blue })] }),
   new Paragraph({ spacing: { after: 250 }, children: [run("Audit technique, correctifs critiques et architecture cible", { bold: true, size: 38, color: colors.navy })] }),
   new Paragraph({
     border: { bottom: { style: BorderStyle.SINGLE, size: 20, color: colors.cyan, space: 1 } },
@@ -193,7 +193,7 @@ children.push(
 
 children.push(
   heading("1. Synthèse exécutive", 1),
-  para("Lyneci dispose déjà d’un socle riche : moteur de risque, portefeuille et ledger, exécution multi-broker, signaux, IA, backtesting, notifications, Celery, Channels, Prometheus et Sentry. execution.Order est l’unique writer de production et une Outbox PostgreSQL garantit la reprise des commandes et projections. Le Recovery Worker ne rejoue jamais une mutation Live ambiguë, recherche l’ordre précis chez Binance, MT5 ou Deriv, puis déclenche le kill switch si l’incertitude dépasse le SLO. Un collecteur opérationnel persiste toutes les 30 secondes les ordres inconnus, retards de réconciliation, brokers dégradés, dead-letters et kill switches ; la readiness vérifie ce heartbeat, Prometheus l’expose et l’alerting signale incident puis rétablissement. Le suivi Deriv reste actif jusqu’au règlement, la protection SL/TP/trailing Paper est reduce-only et le Backtesting Engine réconcilie equity, PnL et frais. Les stratégies, signaux et validations sont isolés par utilisateur ; chaque ordre de stratégie Live exige un StrategyDeployment actif et auditable."),
+  para("LeoTrade dispose déjà d’un socle riche : moteur de risque, portefeuille et ledger, exécution multi-broker, signaux, IA, backtesting, notifications, Celery, Channels, Prometheus et Sentry. execution.Order est l’unique writer de production et une Outbox PostgreSQL garantit la reprise des commandes et projections. Le Recovery Worker ne rejoue jamais une mutation Live ambiguë, recherche l’ordre précis chez Binance, MT5 ou Deriv, puis déclenche le kill switch si l’incertitude dépasse le SLO. Un collecteur opérationnel persiste toutes les 30 secondes les ordres inconnus, retards de réconciliation, brokers dégradés, dead-letters et kill switches ; la readiness vérifie ce heartbeat, Prometheus l’expose et l’alerting signale incident puis rétablissement. Le suivi Deriv reste actif jusqu’au règlement, la protection SL/TP/trailing Paper est reduce-only et le Backtesting Engine réconcilie equity, PnL et frais. Les stratégies, signaux et validations sont isolés par utilisateur ; chaque ordre de stratégie Live exige un StrategyDeployment actif et auditable."),
   heading("Décision recommandée", 2),
   callout(
     "GO conditionnel pour Paper et environnement contrôlé",
@@ -300,7 +300,7 @@ children.push(
 children.push(
   pageBreak(),
   heading("5. Architecture cible", 1),
-  para("Pour Lyneci, Redis Streams est le meilleur premier bus événementiel : il réutilise Redis déjà présent, réduit la complexité opérationnelle et apporte groupes de consommateurs, replay et backpressure. Kafka devient pertinent lorsque le volume, la rétention ou le nombre d’équipes dépasse les capacités d’un Redis Streams correctement dimensionné."),
+  para("Pour LeoTrade, Redis Streams est le meilleur premier bus événementiel : il réutilise Redis déjà présent, réduit la complexité opérationnelle et apporte groupes de consommateurs, replay et backpressure. Kafka devient pertinent lorsque le volume, la rétention ou le nombre d’équipes dépasse les capacités d’un Redis Streams correctement dimensionné."),
   heading("Schéma logique", 2),
   table(
     ["Étape", "Composant", "Événement / contrat"],
@@ -487,15 +487,15 @@ children.push(
   bullet("Vérifier les limites de risque, kill switch, 2FA et permissions API sans retrait."),
   bullet("Confirmer writer OMS unique, prix Paper positif, fills uniques et suivi Deriv jusqu’au terminal."),
   bullet("Rejouer sur comptes demo les tests automatisés : panne Redis, timeout broker, worker tué et réponse perdue."),
-  bullet("Brancher lyneci-alerts.yml à Prometheus/Alertmanager, tester la restauration puis déployer progressivement."),
+  bullet("Brancher leotrade-alerts.yml à Prometheus/Alertmanager, tester la restauration puis déployer progressivement."),
   heading("Conclusion", 2),
-  para("Lyneci a dépassé le prototype : OMS unique, événements durables, reprise Live sans doublon, isolation, protections, backtesting et supervision métier. Priorité : brancher Alertmanager puis valider ces garanties sur comptes demo avant d’augmenter l’autonomie."),
+  para("LeoTrade a dépassé le prototype : OMS unique, événements durables, reprise Live sans doublon, isolation, protections, backtesting et supervision métier. Priorité : brancher Alertmanager puis valider ces garanties sur comptes demo avant d’augmenter l’autonomie."),
 );
 
 const doc = new Document({
   creator: "OpenAI Codex",
-  title: "Lyneci — Intelligent Trading — Audit technique et architecture cible",
-  description: "Audit production-ready de la plateforme Lyneci",
+  title: "LeoTrade — Intelligent Trading — Audit technique et architecture cible",
+  description: "Audit production-ready de la plateforme LeoTrade",
   styles: {
     default: { document: { run: { font: "Arial", size: 21, color: colors.black } } },
     paragraphStyles: [
@@ -563,7 +563,7 @@ const doc = new Document({
         default: new Header({ children: [
           new Paragraph({
             border: { bottom: { style: BorderStyle.SINGLE, size: 5, color: colors.cyan, space: 1 } },
-            children: [run("LYNECI  ·  INTELLIGENT TRADING  ·  AUDIT & ARCHITECTURE", { bold: true, size: 16, color: colors.gray })],
+            children: [run("LEOTRADE  ·  INTELLIGENT TRADING  ·  AUDIT & ARCHITECTURE", { bold: true, size: 16, color: colors.gray })],
           }),
         ] }),
       },

@@ -39,7 +39,7 @@ import websockets
 from asgiref.sync import sync_to_async
 
 
-log = logging.getLogger("lyneci.deriv.stream")
+log = logging.getLogger("leotrade.deriv.stream")
 
 
 WS_URL_TEMPLATE = "wss://ws.binaryws.com/websockets/v3?app_id={app_id}"

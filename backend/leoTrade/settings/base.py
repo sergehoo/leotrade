@@ -42,7 +42,7 @@ ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "127.0.0.1,localhost")
 SITE_ID = env("SITE_ID", 1, int)
 TRAEFIK_APP_HOST = env("TRAEFIK_APP_HOST", "")
 
-BRAND_NAME = "Lyneci"
+BRAND_NAME = "LeoTrade"
 BRAND_TAGLINE = "Intelligent Trading"
 BRAND_FULL_NAME = f"{BRAND_NAME} — {BRAND_TAGLINE}"
 
@@ -149,7 +149,7 @@ TEMPLATES = [
 DATABASES = {
     "default": {
         "ENGINE": env("DB_ENGINE", "django.db.backends.postgresql"),
-        "NAME": env("POSTGRES_DB", "lyneci2"),
+        "NAME": env("POSTGRES_DB", "leotrade2"),
         "USER": env("POSTGRES_USER", "postgres"),
         "PASSWORD": env("POSTGRES_PASSWORD", ""),
         "HOST": env("POSTGRES_HOST", "127.0.0.1"),
@@ -232,7 +232,7 @@ REST_FRAMEWORK = {
 SPECTACULAR_SETTINGS = {
     "TITLE": f"{BRAND_NAME} API",
     "DESCRIPTION": (
-        "API de la plateforme de trading assistée par IA Lyneci. "
+        "API de la plateforme de trading assistée par IA LeoTrade. "
         "Toute action de trading passe par le Risk Engine : les clients "
         "n'appellent jamais un broker directement."
     ),
@@ -266,7 +266,7 @@ ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 ACCOUNT_PREVENT_ENUMERATION = True
 ACCOUNT_SIGNUP_FORM_HONEYPOT_FIELD = "website"
 ACCOUNT_SESSION_REMEMBER = False
-ACCOUNT_EMAIL_SUBJECT_PREFIX = "[Lyneci] "
+ACCOUNT_EMAIL_SUBJECT_PREFIX = "[LeoTrade] "
 ACCOUNT_EMAIL_NOTIFICATIONS = True
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
 ACCOUNT_CONFIRM_EMAIL_ON_GET = False
@@ -288,7 +288,7 @@ LOGIN_URL = "/accounts/login/"
 ACCOUNT_LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Lyneci <no-reply@lyneci.com>")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "LeoTrade <no-reply@leotrade.com>")
 SERVER_EMAIL = env("SERVER_EMAIL", DEFAULT_FROM_EMAIL)
 EMAIL_HOST = env("EMAIL_HOST", "")
 EMAIL_PORT = env("EMAIL_PORT", 587, int)
@@ -312,13 +312,13 @@ TWILIO_WHATSAPP_FROM = env("TWILIO_WHATSAPP_FROM", "")
 
 SMS_LOCAL_CI_URL = env("SMS_LOCAL_CI_URL", "")
 SMS_LOCAL_CI_API_KEY = env("SMS_LOCAL_CI_API_KEY", "")
-SMS_LOCAL_CI_SENDER = env("SMS_LOCAL_CI_SENDER", "Lyneci")
+SMS_LOCAL_CI_SENDER = env("SMS_LOCAL_CI_SENDER", "LeoTrade")
 
 WHATSAPP_CLOUD_TOKEN = env("WHATSAPP_CLOUD_TOKEN", "")
 WHATSAPP_CLOUD_PHONE_ID = env("WHATSAPP_CLOUD_PHONE_ID", "")
 
 MFA_SUPPORTED_TYPES = ["totp", "recovery_codes"]
-MFA_TOTP_ISSUER = env("MFA_TOTP_ISSUER", "Lyneci")
+MFA_TOTP_ISSUER = env("MFA_TOTP_ISSUER", "LeoTrade")
 MFA_RECOVERY_CODES_SHOW_ONCE = True
 MFA_TRUST_ENABLED = False
 
@@ -328,7 +328,7 @@ CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", "")
 CACHES = {
     "default": {
         "BACKEND": env("CACHE_BACKEND", "django.core.cache.backends.locmem.LocMemCache"),
-        "LOCATION": env("CACHE_LOCATION", "lyneci-cache"),
+        "LOCATION": env("CACHE_LOCATION", "leotrade-cache"),
     }
 }
 
@@ -760,7 +760,7 @@ LOGGING = {
             "level": LOG_LEVEL,
             "propagate": False,
         },
-        "lyneci.backtesting": {
+        "leotrade.backtesting": {
             "handlers": ["console_json"],
             "level": LOG_LEVEL,
             "propagate": False,
@@ -967,7 +967,7 @@ if SENTRY_DSN_IS_VALID:
 # CACHES = {
 #     "default": {
 #         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-#         "LOCATION": "lyneci-cache",
+#         "LOCATION": "leotrade-cache",
 #     }
 # }
 # CELERY_BROKER_CONNECTION_RETRY = True

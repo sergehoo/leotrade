@@ -26,7 +26,7 @@ def user(db):
     """Utilisateur Django de base pour tous les tests."""
     return User.objects.create_user(
         username="testuser",
-        email="test@lyneci.com",
+        email="test@leotrade.com",
         password="StrongPass123!",
     )
 

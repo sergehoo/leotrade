@@ -1,4 +1,4 @@
-Lyneci - Activation Paystack
+LeoTrade - Activation Paystack
 ==============================
 
 Variables d'environnement de production :
@@ -9,11 +9,11 @@ PAYSTACK_PUBLIC_KEY=pk_live_xxx
 PAYSTACK_SUPPORTED_CURRENCIES=XOF
 PAYSTACK_TIMEOUT_SECONDS=10
 WALLET_DEFAULT_CURRENCY=XOF
-SITE_BASE_URL=https://lyneci.com
+SITE_BASE_URL=https://leotrade.com
 
 Webhook à déclarer dans le dashboard Paystack :
 
-https://lyneci.com/wallet/webhooks/paystack/
+https://leotrade.com/wallet/webhooks/paystack/
 
 Déploiement :
 

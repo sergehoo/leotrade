@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 
-log = logging.getLogger("lyneci.notifications")
+log = logging.getLogger("leotrade.notifications")
 
 
 def notify(user, event_type: str, **kwargs):

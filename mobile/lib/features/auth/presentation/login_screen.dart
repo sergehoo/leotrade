@@ -23,7 +23,7 @@ class LoginScreen extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Lyneci', style: Theme.of(context).textTheme.headlineSmall),
+                  Text('LeoTrade', style: Theme.of(context).textTheme.headlineSmall),
                   const SizedBox(height: 6),
                   const Text(
                     'Trading assisté par intelligence artificielle',

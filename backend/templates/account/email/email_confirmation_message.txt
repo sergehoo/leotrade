@@ -1,9 +1,9 @@
 {% extends "account/email/base_message.txt" %}
-{% block content %}Une demande de vérification a été créée pour cette adresse email sur Lyneci.
+{% block content %}Une demande de vérification a été créée pour cette adresse email sur LeoTrade.
 
 {% if code %}Votre code de vérification : {{ code }}
 
-Saisissez ce code dans la fenêtre Lyneci ouverte.{% else %}Confirmez votre adresse en ouvrant ce lien sécurisé :
+Saisissez ce code dans la fenêtre LeoTrade ouverte.{% else %}Confirmez votre adresse en ouvrant ce lien sécurisé :
 {{ activate_url }}{% endif %}
 
 Si vous n’êtes pas à l’origine de cette demande, ignorez cet email.{% endblock %}

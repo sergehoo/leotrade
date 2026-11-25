@@ -1,5 +1,5 @@
 {% extends "layout/base.html" %}
-{% block title %}Lyneci — Conversations Lyneci AI{% endblock %}
+{% block title %}LeoTrade — Conversations LeoTrade AI{% endblock %}
 {% block page_title %}Assistant — Conversations{% endblock %}
 
 {% block content %}
@@ -66,7 +66,7 @@
       <div class="text-3xl mb-3">💬</div>
       <h3 class="text-white text-sm font-semibold">Aucune conversation</h3>
       <p class="mt-2 text-xs text-gray-500 max-w-md mx-auto">
-        Ouvre le panneau Lyneci AI (bouton en bas à droite) pour démarrer une
+        Ouvre le panneau LeoTrade AI (bouton en bas à droite) pour démarrer une
         conversation. Chaque trade idea, position ou portefeuille possède son
         propre fil, conservé définitivement.
       </p>
@@ -109,7 +109,7 @@ function conversationCenter() {
     },
 
     resume(c) {
-      // Ouvre le panneau Lyneci AI sur cette conversation
+      // Ouvre le panneau LeoTrade AI sur cette conversation
       if (window.LeoAssistant && typeof LeoAssistant.openConversation === "function") {
         LeoAssistant.openConversation(c.id);
       } else {

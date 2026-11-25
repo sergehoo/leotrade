@@ -1,5 +1,5 @@
 {
-  "name": "lyneci-quality-gate",
+  "name": "leotrade-quality-gate",
   "private": true,
   "scripts": {
     "check": "node scripts/quality.mjs check",

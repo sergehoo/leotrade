@@ -2,7 +2,7 @@
 core/concurrency.py
 -------------------
 
-Outils de concurrence pour Lyneci.
+Outils de concurrence pour LeoTrade.
 
 Fournit :
 
@@ -134,6 +134,11 @@ class RedisLock:
         sleep: temps entre tentatives quand blocking.
     """
 
+    # Préfixe historique conservé malgré le renommage en LeoTrade : il
+    # identifie des verrous vivants dans Redis. Le changer ferait ignorer
+    # les verrous détenus par les workers encore en place pendant un
+    # déploiement progressif — deux processus croiraient alors détenir le
+    # même verrou logique, ce que ce verrou existe précisément pour empêcher.
     PREFIX = "lyneci:lock:"
 
     def __init__(

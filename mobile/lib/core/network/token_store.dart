@@ -19,6 +19,10 @@ class TokenStore {
               ),
             );
 
+  // Nom historique conservé volontairement malgré le renommage en
+  // LeoTrade : cette clé vit dans le Keychain / Keystore de l'appareil.
+  // La renommer rendrait le jeton existant introuvable et déconnecterait
+  // tout le monde à la première mise à jour.
   static const _refreshKey = 'lyneci.refresh';
 
   final FlutterSecureStorage _storage;

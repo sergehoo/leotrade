@@ -24,7 +24,7 @@ from datetime import timedelta
 from django.db.models import Avg, Count, Q
 from django.utils import timezone
 
-log = logging.getLogger("lyneci.ai.performance")
+log = logging.getLogger("leotrade.ai.performance")
 
 # Décisions IA considérées comme "engagées" (l'IA a pris position)
 ACTIONABLE_DECISIONS = ("EXECUTE", "PLAN")

@@ -29,23 +29,23 @@ ENV PATH="/opt/venv/bin:$PATH" \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd --gid 10001 lyneci \
-    && useradd --uid 10001 --gid 10001 --no-log-init --create-home lyneci
+    && groupadd --gid 10001 leotrade \
+    && useradd --uid 10001 --gid 10001 --no-log-init --create-home leotrade
 
 COPY --from=builder /opt/venv /opt/venv
 
 WORKDIR /app
-COPY --chown=lyneci:lyneci backend/ /app
+COPY --chown=leotrade:leotrade backend/ /app
 
 RUN mkdir -p /app/media /app/staticfiles \
-    && chown -R lyneci:lyneci /app/media /app/staticfiles \
+    && chown -R leotrade:leotrade /app/media /app/staticfiles \
     && FERNET_SECRET_KEY="$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" \
        SECRET_KEY="build-only-secret-key-not-used-at-runtime-000000000000000000000000" \
        DJANGO_SETTINGS_MODULE=leoTrade.settings.base \
        python manage.py collectstatic --noinput --skip-checks \
-    && chown -R lyneci:lyneci /app/staticfiles
+    && chown -R leotrade:leotrade /app/staticfiles
 
-USER lyneci
+USER leotrade
 
 EXPOSE 8000
 

@@ -2,7 +2,7 @@
 ai_engine/integrations.py
 =========================
 
-Glue entre AITradeAdvisor et le reste de Lyneci :
+Glue entre AITradeAdvisor et le reste de LeoTrade :
   - build_context_from_trade_idea(idea) → MarketContext rempli
   - advise_for_trade_idea(idea, user)   → AIDecision + persistance
 
@@ -21,7 +21,7 @@ from .providers.base import MarketContext
 from .services import AITradeAdvisor
 
 
-log = logging.getLogger("lyneci.ai_engine.integrations")
+log = logging.getLogger("leotrade.ai_engine.integrations")
 
 
 def _safe_decimal(v):

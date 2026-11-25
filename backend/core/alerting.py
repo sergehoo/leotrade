@@ -1,5 +1,5 @@
 """
-Unified alerting for Lyneci.
+Unified alerting for LeoTrade.
 
 Provides a single ``send_alert`` API that routes to all enabled channels
 (Email, Telegram, Slack-compatible webhook). Each channel is best-effort —
@@ -46,9 +46,9 @@ def _send_email(level: str, title: str, message: str, payload: dict) -> bool:
             return False
         body = f"{message}\n\nPayload:\n{json.dumps(payload, indent=2, default=str)}"
         send_mail(
-            subject=f"[Lyneci {level}] {title}",
+            subject=f"[LeoTrade {level}] {title}",
             message=body,
-            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@lyneci.local"),
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@leotrade.local"),
             recipient_list=recipients,
             fail_silently=False,
         )

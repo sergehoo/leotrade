@@ -16,7 +16,7 @@ from django.template.loader import render_to_string
 
 from notifications.services.renderer import NotificationTemplateRenderer
 
-log = logging.getLogger("lyneci.notifications.email")
+log = logging.getLogger("leotrade.notifications.email")
 
 
 class EmailNotificationService:
@@ -33,7 +33,7 @@ class EmailNotificationService:
             }
 
         rendered = NotificationTemplateRenderer.render(notification, "EMAIL", language)
-        subject = f"[Lyneci] {rendered['subject']}"
+        subject = f"[LeoTrade] {rendered['subject']}"
 
         html_body = render_to_string("notifications/email/notification.html", {
             "notification": notification,

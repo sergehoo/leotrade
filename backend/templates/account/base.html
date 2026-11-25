@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}Lyneci — Intelligent Trading{% endblock %}</title>
+  <title>{% block title %}LeoTrade — Intelligent Trading{% endblock %}</title>
 
   {# Tailwind buildé statiquement (tailwind.config.js) — le CDN est déconseillé en prod #}
   <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
@@ -101,7 +101,7 @@
   <!-- État marché : aucune valeur n'est simulée avant authentification. -->
   <div class="ticker relative z-10">
     <div class="flex items-center gap-6 px-6 py-2 text-xs mono text-gray-500 overflow-hidden">
-      <span class="font-bold tracking-widest" style="color: var(--green);">LYNECI</span>
+      <span class="font-bold tracking-widest" style="color: var(--green);">LEOTRADE</span>
       <span>Données marché disponibles après connexion à une source réelle.</span>
     </div>
   </div>
@@ -119,7 +119,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 17l4-8 4 4 4-6 4 5"/>
             </svg>
           </div>
-          <span class="text-xl font-semibold tracking-tight">Lyneci</span>
+          <span class="text-xl font-semibold tracking-tight">LeoTrade</span>
         </div>
         <p class="text-gray-500 text-sm">{% block subtitle %}Intelligent Trading{% endblock %}</p>
       </div>

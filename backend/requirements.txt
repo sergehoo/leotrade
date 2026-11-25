@@ -1,5 +1,5 @@
 # =============================================================================
-# Lyneci — requirements (dédupliqué + versions épinglées)
+# LeoTrade — requirements (dédupliqué + versions épinglées)
 # Mis à jour pendant la refonte fiabilité financière 2026-04-28
 # =============================================================================
 

@@ -1,5 +1,5 @@
 {% extends "account/email/base_message.txt" %}
-{% block content %}Une tentative de récupération a été effectuée pour {{ email }}, mais aucun compte Lyneci ne correspond à cette adresse.
+{% block content %}Une tentative de récupération a été effectuée pour {{ email }}, mais aucun compte LeoTrade ne correspond à cette adresse.
 
 Vous pouvez créer un compte ici :
 {{ signup_url }}

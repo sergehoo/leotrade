@@ -6,16 +6,16 @@ import 'core/router.dart';
 import 'core/theme/app_theme.dart';
 
 void main() {
-  runApp(const ProviderScope(child: LyneciApp()));
+  runApp(const ProviderScope(child: LeoTradeApp()));
 }
 
-class LyneciApp extends ConsumerWidget {
-  const LyneciApp({super.key});
+class LeoTradeApp extends ConsumerWidget {
+  const LeoTradeApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
-      title: 'Lyneci',
+      title: 'LeoTrade',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       // L'interface, les montants et les dates sont en français.

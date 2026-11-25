@@ -1,5 +1,5 @@
 /**
- * leo_assistant.js — Panel IA conversationnel Lyneci AI
+ * leo_assistant.js — Panel IA conversationnel LeoTrade AI
  * ==================================================
  *
  * Gestion complète du panel :
@@ -23,7 +23,7 @@
   const WS_URL = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/assistant/chat/`;
   const RECONNECT_DELAY_BASE = 2000;
   const RECONNECT_DELAY_MAX = 30000;
-  const WELCOME_MSG = "Bonjour ! Je suis **Lyneci AI**, votre copilote de trading.\n\nJe peux :\n• Analyser vos opportunités et positions\n• Calculer votre exposition et taille de position\n• Expliquer les scores et décisions du moteur IA\n• Vous avertir sur les risques\n\nComment puis-je vous aider ?";
+  const WELCOME_MSG = "Bonjour ! Je suis **LeoTrade AI**, votre copilote de trading.\n\nJe peux :\n• Analyser vos opportunités et positions\n• Calculer votre exposition et taille de position\n• Expliquer les scores et décisions du moteur IA\n• Vous avertir sur les risques\n\nComment puis-je vous aider ?";
 
   // ── État ──────────────────────────────────────────────────────────────────
 
@@ -83,14 +83,14 @@
     state.ws.onopen = () => {
       state.isConnected = true;
       state.reconnectAttempts = 0;
-      setStatus("connected", "Lyneci AI connecté");
+      setStatus("connected", "LeoTrade AI connecté");
     };
 
     state.ws.onmessage = (event) => {
       try {
         handleServerMessage(JSON.parse(event.data));
       } catch (e) {
-        console.warn("[Lyneci AI] parse error", e);
+        console.warn("[LeoTrade AI] parse error", e);
       }
     };
 
@@ -544,7 +544,7 @@
   // ── Draft order modal ────────────────────────────────────────────────────
 
   function openDraftOrderModal(params) {
-    // Tente d'ouvrir le formulaire d'ordre existant de Lyneci
+    // Tente d'ouvrir le formulaire d'ordre existant de LeoTrade
     // On dispatch un événement custom que les pages peuvent écouter
     window.dispatchEvent(new CustomEvent("leo:draft-order", { detail: params }));
 
@@ -741,7 +741,7 @@ Analyse les indicateurs, le R/R, les risques, et donne-moi un conseil.`;
           <div class="leo-ai-quota-plan-btns">
             <button class="leo-ai-quota-btn-wallet" data-plan="${escapeHtml(plan.plan)}"
                     onclick="LeoAssistant.payWallet('${escapeHtml(plan.plan)}')">
-              💳 Wallet Lyneci
+              💳 Wallet LeoTrade
             </button>
             <button class="leo-ai-quota-btn-stripe" data-plan="${escapeHtml(plan.plan)}"
                     onclick="LeoAssistant.payStripe('${escapeHtml(plan.plan)}')">

@@ -6,4 +6,4 @@ Origine de l’opération :
 - Navigateur : {{ user_agent|default:"Non disponible" }}
 - Date : {{ timestamp|default:"Non disponible" }}
 
-Si vous ne reconnaissez pas cette opération, changez immédiatement votre mot de passe et contactez l’assistance Lyneci.{% endblock %}
+Si vous ne reconnaissez pas cette opération, changez immédiatement votre mot de passe et contactez l’assistance LeoTrade.{% endblock %}

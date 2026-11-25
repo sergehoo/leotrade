@@ -25,7 +25,7 @@ from typing import Iterable, Mapping
 
 from django.db import transaction
 
-log = logging.getLogger("lyneci.brokers.accounts")
+log = logging.getLogger("leotrade.brokers.accounts")
 
 
 # Champ d'entrée (clair, write-only) → type de secret stocké chiffré.

@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 
 class Command(BaseCommand):
-    help = "Synchronise le domaine public et l'identité Lyneci pour Django Sites."
+    help = "Synchronise le domaine public et l'identité LeoTrade pour Django Sites."
 
     def handle(self, *args, **options):
         site_url = str(getattr(settings, "SITE_BASE_URL", "") or "").strip()
@@ -22,7 +22,7 @@ class Command(BaseCommand):
                 "name": getattr(
                     settings,
                     "BRAND_FULL_NAME",
-                    "Lyneci — Intelligent Trading",
+                    "LeoTrade — Intelligent Trading",
                 ),
             },
         )

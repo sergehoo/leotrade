@@ -739,7 +739,7 @@ def trading_mode_toggle(request):
     from brokers.models import BrokerAccount
     from brokers.services_accounts import BrokerAccountService, LiveModeNotAllowed
 
-    log = logging.getLogger("lyneci.dashboard.mode_toggle")
+    log = logging.getLogger("leotrade.dashboard.mode_toggle")
 
     mode = (request.POST.get("mode") or "").strip().upper()
     if mode not in ("PAPER", "LIVE"):

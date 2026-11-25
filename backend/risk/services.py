@@ -1399,7 +1399,7 @@ class RiskGuardService:
                 )
             except Exception as _audit_exc:
                 import logging as _log
-                _log.getLogger("lyneci.risk.audit").error(
+                _log.getLogger("leotrade.risk.audit").error(
                     "risk_override_audit.hook_failed symbol=%s err=%s",
                     symbol, _audit_exc,
                 )

@@ -1,11 +1,11 @@
 {% load static %}
-{# ── Panel IA Lyneci AI ── inclus dans base.html juste avant </body> ── #}
+{# ── Panel IA LeoTrade AI ── inclus dans base.html juste avant </body> ── #}
 
 {# Overlay mobile #}
 <div id="leo-ai-overlay" aria-hidden="true"></div>
 
 {# Toggle button flottant #}
-<button id="leo-ai-toggle" aria-label="Ouvrir l'assistant Lyneci AI" title="Lyneci AI — Assistant IA">
+<button id="leo-ai-toggle" aria-label="Ouvrir l'assistant LeoTrade AI" title="LeoTrade AI — Assistant IA">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2"/>
@@ -16,14 +16,14 @@
 </button>
 
 {# Panel principal #}
-<aside id="leo-ai-panel" role="complementary" aria-label="Assistant Lyneci AI" aria-hidden="true">
+<aside id="leo-ai-panel" role="complementary" aria-label="Assistant LeoTrade AI" aria-hidden="true">
 
     {# ── Header ── #}
     <div class="leo-ai-header">
         <div class="leo-ai-header-left">
             <div class="leo-ai-avatar" aria-hidden="true">🤖</div>
             <div>
-                <div class="leo-ai-title">Lyneci AI</div>
+                <div class="leo-ai-title">LeoTrade AI</div>
                 <div class="leo-ai-subtitle flex items-center gap-1.5">
                     <span class="leo-ai-status-dot" id="leo-ai-status-dot"></span>
                     <span id="leo-ai-status-text">Connexion…</span>
@@ -106,10 +106,10 @@
 
     {# ── Modale quota épuisé ── #}
     <div class="leo-ai-quota-modal" id="leo-ai-quota-modal" style="display:none" role="dialog"
-         aria-modal="true" aria-label="Quota Lyneci AI épuisé">
+         aria-modal="true" aria-label="Quota LeoTrade AI épuisé">
         <div class="leo-ai-quota-modal-inner">
             <div class="leo-ai-quota-modal-icon">🚀</div>
-            <h3>Quota Lyneci AI épuisé</h3>
+            <h3>Quota LeoTrade AI épuisé</h3>
             <p id="leo-ai-quota-modal-desc">Vous avez utilisé tous vos messages IA disponibles.</p>
             <div class="leo-ai-quota-plans" id="leo-ai-quota-plans">
                 {# Plans injectés par JS #}
@@ -125,10 +125,10 @@
         <div class="leo-ai-input-wrapper">
             <textarea
                 id="leo-ai-input"
-                placeholder="Posez votre question à Lyneci AI…"
+                placeholder="Posez votre question à LeoTrade AI…"
                 rows="1"
                 maxlength="2000"
-                aria-label="Message pour Lyneci AI"></textarea>
+                aria-label="Message pour LeoTrade AI"></textarea>
             <button class="leo-ai-send-btn" id="leo-ai-send-btn"
                     aria-label="Envoyer" disabled>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -140,7 +140,7 @@
 
     {# ── Footer ── #}
     <div class="leo-ai-footer">
-        <span class="leo-ai-footer-note">Lyneci AI · Conseil uniquement · Aucune exécution auto</span>
+        <span class="leo-ai-footer-note">LeoTrade AI · Conseil uniquement · Aucune exécution auto</span>
         <span class="leo-ai-footer-cost" id="leo-ai-cost"></span>
     </div>
 

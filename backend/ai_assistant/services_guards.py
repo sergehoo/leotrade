@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-log = logging.getLogger("lyneci.ai_assistant.guards")
+log = logging.getLogger("leotrade.ai_assistant.guards")
 
 
 class GuardResult(dict):

@@ -17,7 +17,7 @@ from core.monitoring import (
 
 
 class Command(BaseCommand):
-    help = "Diagnostic système et trading Lyneci"
+    help = "Diagnostic système et trading LeoTrade"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -86,13 +86,13 @@ class Command(BaseCommand):
         if options["json"]:
             self.stdout.write(json.dumps(result, ensure_ascii=False, default=str))
         else:
-            self.stdout.write(self.style.NOTICE("== Lyneci diagnostics =="))
+            self.stdout.write(self.style.NOTICE("== LeoTrade diagnostics =="))
             for name, passed in checks.items():
                 style = self.style.SUCCESS if passed else self.style.ERROR
                 self.stdout.write(style(f"{name}: {'OK' if passed else 'ERROR'}"))
             self.stdout.write(f"operational_status: {operational_status}")
 
         if not healthy and not options["no_fail"]:
-            raise CommandError("Lyneci est dégradé ; consulter le diagnostic.")
+            raise CommandError("LeoTrade est dégradé ; consulter le diagnostic.")
 
         return None

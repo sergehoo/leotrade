@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lyneci/features/auth/domain/models.dart';
+import 'package:leotrade/features/auth/domain/models.dart';
 
 void main() {
   test('MfaRequired et LoginSucceeded sont bien distincts', () {
@@ -28,7 +28,7 @@ void main() {
   test('displayName retombe sur l\'email quand le nom est vide', () {
     const user = CurrentUser(
       id: 1,
-      email: 'trader@lyneci.test',
+      email: 'trader@leotrade.test',
       firstName: '',
       lastName: '',
       kycStatus: KycStatus.approved,
@@ -37,6 +37,6 @@ void main() {
       emailVerified: true,
       capabilities: Capabilities.closed,
     );
-    expect(user.displayName, 'trader@lyneci.test');
+    expect(user.displayName, 'trader@leotrade.test');
   });
 }

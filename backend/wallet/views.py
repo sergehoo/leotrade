@@ -35,7 +35,7 @@ from .services import (
 )
 
 
-log = logging.getLogger("lyneci.wallet.views")
+log = logging.getLogger("leotrade.wallet.views")
 
 
 # =========================================================

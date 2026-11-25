@@ -2,7 +2,7 @@
 trading.services.ai
 -------------------
 
-New AI subsystem for Lyneci. Replaces the previous heuristic blob in
+New AI subsystem for LeoTrade. Replaces the previous heuristic blob in
 ``opportunity_scoring.py`` with a modular pipeline:
 
 - :mod:`trading.services.ai.features`  → robust technical features

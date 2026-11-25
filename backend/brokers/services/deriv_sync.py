@@ -45,7 +45,7 @@ from portfolio.models import CashLedgerEntry, Portfolio, Position
 from portfolio.services import PortfolioAccountingService, PortfolioService
 
 
-log = logging.getLogger("lyneci.deriv.sync")
+log = logging.getLogger("leotrade.deriv.sync")
 
 
 def _d(value, default: str = "0") -> Decimal:
@@ -199,7 +199,7 @@ def on_open_contract_update(
     2. trading.models.DerivContract trouvé par contract_id (HISTORIQUE)
 
     3. Contrat inconnu → import externe
-       (contrat ouvert directement sur deriv.com sans passer par Lyneci)
+       (contrat ouvert directement sur deriv.com sans passer par LeoTrade)
     """
     broker_account = BrokerAccount.objects.filter(pk=broker_account_id).first()
     if not broker_account:
@@ -443,7 +443,7 @@ def _record_external_only_position(
     payload: dict,
 ) -> None:
     """
-    Cas où un contrat est créé hors Lyneci. On crée une Position importée
+    Cas où un contrat est créé hors LeoTrade. On crée une Position importée
     pour visibilité, mais sans débit cash (ces opérations ont été faites côté broker).
     """
     portfolio = _portfolio_for_broker_account(broker_account)

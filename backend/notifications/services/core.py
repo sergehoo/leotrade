@@ -35,7 +35,7 @@ from notifications.services.preferences import NotificationPreferenceService
 from notifications.services.sms import SMSNotificationService
 from notifications.services.whatsapp import WhatsAppNotificationService
 
-log = logging.getLogger("lyneci.notifications")
+log = logging.getLogger("leotrade.notifications")
 
 CHANNEL_SERVICES = {
     Channel.EMAIL: EmailNotificationService,

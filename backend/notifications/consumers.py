@@ -21,7 +21,7 @@ import logging
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
-log = logging.getLogger("lyneci.notifications.ws")
+log = logging.getLogger("leotrade.notifications.ws")
 
 
 class NotificationCenterConsumer(AsyncJsonWebsocketConsumer):

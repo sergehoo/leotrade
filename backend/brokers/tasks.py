@@ -44,7 +44,7 @@ def check_all_brokers_health_task():
     from brokers.services_accounts import BrokerAccountService
     from infrastructure.broker_clients.gateway import BrokerGateway, CircuitOpenError
 
-    logger = logging.getLogger("lyneci.brokers.health")
+    logger = logging.getLogger("leotrade.brokers.health")
 
     checked = healthy = 0
     for account in BrokerAccount.objects.filter(is_active=True):

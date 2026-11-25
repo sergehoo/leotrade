@@ -2,7 +2,7 @@
 {% load extra_filters %}
 {% load static %}
 
-{% block title %}Lyneci Premium Cockpit{% endblock %}
+{% block title %}LeoTrade Premium Cockpit{% endblock %}
 
 {% block extra_head %}
 {# Chart.js via CDN — remplacer par local en production #}
@@ -18,7 +18,7 @@
             <div class="flex items-center gap-3">
                 <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 text-lg font-black">L</div>
                 <div>
-                    <h1 class="text-2xl font-black tracking-tight">Lyneci Cockpit</h1>
+                    <h1 class="text-2xl font-black tracking-tight">LeoTrade Cockpit</h1>
                     <p class="text-xs text-slate-400">AI-assisted trading · temps réel</p>
                 </div>
             </div>
@@ -122,7 +122,7 @@
 
 {% if portfolio %}
 <script>
-    window.LYNECI_COCKPIT = {
+    window.LEOTRADE_COCKPIT = {
         portfolioId:      {{ portfolio.id }},
         cockpitDataUrl:   "{% url 'dashboard:premium_cockpit_data' %}",
         // Données initiales pour les graphiques

@@ -2,7 +2,7 @@ Bonjour,
 
 {% block content %}{% endblock %}
 
-— L’équipe Lyneci
+— L’équipe LeoTrade
 Intelligent Trading
 https://{{ current_site.domain }}
 

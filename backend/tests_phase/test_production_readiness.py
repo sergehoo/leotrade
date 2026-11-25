@@ -125,22 +125,22 @@ def test_runtime_templates_are_loadable():
         assert get_template(template_name)
 
 
-def test_public_home_uses_lyneci_identity(client):
+def test_public_home_uses_leotrade_identity(client):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Lyneci — Intelligent Trading" in response.content.decode()
-    assert "LeoTrade" not in response.content.decode()
+    assert "LeoTrade — Intelligent Trading" in response.content.decode()
+    assert "Lyneci" not in response.content.decode()
 
 
 @pytest.mark.django_db
-def test_email_verification_sent_page_has_visible_lyneci_content(client):
+def test_email_verification_sent_page_has_visible_leotrade_content(client):
     response = client.get(reverse("account_email_verification_sent"))
     content = response.content.decode()
 
     assert response.status_code == 200
     assert "Confirmez votre adresse email" in content
-    assert "Vérifiez votre email — Lyneci" in content
+    assert "Vérifiez votre email — LeoTrade" in content
     assert "Best-Épargne" not in content
 
 
@@ -150,32 +150,32 @@ def test_compose_uses_shared_external_traefik():
 
     assert "traefik" not in services
     assert set(services) == {
-        "lyneci-db",
-        "lyneci-redis",
-        "lyneci-release",
-        "lyneci-web",
-        "lyneci-worker",
-        "lyneci-beat",
-        "lyneci-flower",
+        "leotrade-db",
+        "leotrade-redis",
+        "leotrade-release",
+        "leotrade-web",
+        "leotrade-worker",
+        "leotrade-beat",
+        "leotrade-flower",
     }
     assert compose["networks"]["proxy"]["external"] is True
 
-    web_labels = services["lyneci-web"]["labels"]
+    web_labels = services["leotrade-web"]["labels"]
     assert "traefik.docker.network=${TRAEFIK_NETWORK:-proxy}" in web_labels
     assert any("tls.certresolver=${TRAEFIK_CERT_RESOLVER:-lets}" in label for label in web_labels)
     assert any(
-        "lyneci-web-sec-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
+        "leotrade-web-sec-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
         in label
         for label in web_labels
     )
     router_middlewares = next(
         label
         for label in web_labels
-        if label.startswith("traefik.http.routers.lyneci-web.middlewares=")
+        if label.startswith("traefik.http.routers.leotrade-web.middlewares=")
     )
     assert ",sec-headers@docker" not in router_middlewares
-    assert "Host: $$TRAEFIK_APP_HOST" in services["lyneci-web"]["healthcheck"]["test"][1]
-    assert "X-Forwarded-Proto: https" in services["lyneci-web"]["healthcheck"]["test"][1]
+    assert "Host: $$TRAEFIK_APP_HOST" in services["leotrade-web"]["healthcheck"]["test"][1]
+    assert "X-Forwarded-Proto: https" in services["leotrade-web"]["healthcheck"]["test"][1]
 
 
 def test_optional_sentry_dsn_is_empty_by_default():
@@ -201,7 +201,7 @@ def test_production_check_rejects_placeholder_smtp_configuration():
         for error in production_configuration_checks(None)
     }
 
-    assert "lyneci.E015" in error_ids
+    assert "leotrade.E015" in error_ids
 
 
 def test_docker_image_builds_a_writable_production_static_manifest():
@@ -211,7 +211,7 @@ def test_docker_image_builds_a_writable_production_static_manifest():
         "       python manage.py collectstatic --noinput --skip-checks"
     )
     final_chown = dockerfile.index(
-        "chown -R lyneci:lyneci /app/staticfiles",
+        "chown -R leotrade:leotrade /app/staticfiles",
         collectstatic,
     )
 
@@ -221,12 +221,12 @@ def test_docker_image_builds_a_writable_production_static_manifest():
 @pytest.mark.django_db
 @override_settings(
     SITE_ID=1,
-    SITE_BASE_URL="https://lyneci.com",
-    BRAND_FULL_NAME="Lyneci — Intelligent Trading",
+    SITE_BASE_URL="https://leotrade.com",
+    BRAND_FULL_NAME="LeoTrade — Intelligent Trading",
 )
 def test_site_identity_command_configures_public_brand():
     call_command("configure_site_identity")
 
     site = Site.objects.get(pk=1)
-    assert site.domain == "lyneci.com"
-    assert site.name == "Lyneci — Intelligent Trading"
+    assert site.domain == "leotrade.com"
+    assert site.name == "LeoTrade — Intelligent Trading"

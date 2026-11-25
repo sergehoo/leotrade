@@ -357,7 +357,7 @@ class FillProcessingService:
                 # position dans le sens OPPOSÉ (ex: SELL sur LONG → crée un SHORT).
                 # On loggue l'échec et on laisse la réconciliation corriger.
                 import logging
-                logging.getLogger("lyneci.execution.services").exception(
+                logging.getLogger("leotrade.execution.services").exception(
                     "register_fill.close_failed order_id=%s err=%s — "
                     "position update skipped, reconcile will fix",
                     order.id, exc,

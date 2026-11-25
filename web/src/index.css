@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Lyneci — système de design
+   LeoTrade — système de design
    Sombre par défaut (terminal de trading), clair disponible.
    Règle : le vert et le rouge sont RÉSERVÉS au P&L et aux états de risque.
    Jamais de vert décoratif — un chiffre vert doit toujours vouloir dire gain.

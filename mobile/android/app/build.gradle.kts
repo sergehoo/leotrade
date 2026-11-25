@@ -6,6 +6,10 @@ plugins {
 }
 
 android {
+    // Identifiant applicatif historique conservé malgré le renommage en
+    // LeoTrade : le changer ferait apparaître une SECONDE application sur
+    // les appareils au lieu d'une mise à jour, avec perte des données
+    // locales, et invaliderait la signature de publication.
     namespace = "com.lyneci.lyneci"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion

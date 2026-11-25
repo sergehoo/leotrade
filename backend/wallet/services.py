@@ -18,7 +18,7 @@ from .models import Wallet, WalletTransaction, WithdrawalRequest, PaymentMethod
 from .services_v2 import WalletLedgerService
 
 
-log = logging.getLogger("lyneci.wallet.payments")
+log = logging.getLogger("leotrade.wallet.payments")
 
 
 class PaymentGatewayError(RuntimeError):
@@ -262,7 +262,7 @@ class StripeWalletService:
             line_items=[{
                 "price_data": {
                     "currency": currency.lower(),
-                    "product_data": {"name": "Lyneci Wallet Deposit"},
+                    "product_data": {"name": "LeoTrade Wallet Deposit"},
                     "unit_amount": int(amount * 100),
                 },
                 "quantity": 1,
@@ -283,7 +283,7 @@ class AdyenWalletService:
         return "https://checkout-test.adyen.com"
 
     @classmethod
-    def create_deposit_session(cls, user, wallet: Wallet, amount: Decimal, currency="USD", reference_prefix="LYNECI-DEP"):
+    def create_deposit_session(cls, user, wallet: Wallet, amount: Decimal, currency="USD", reference_prefix="LEOTRADE-DEP"):
         if not settings.ADYEN_API_KEY or not settings.ADYEN_MERCHANT_ACCOUNT:
             raise RuntimeError("Adyen n'est pas configuré")
 
@@ -499,7 +499,7 @@ class PaystackWalletService:
             provider=cls.PROVIDER,
             description="Paystack deposit checkout",
         )
-        reference = f"LYNECI-DEP-{tx.id}-{uuid.uuid4().hex[:16]}"
+        reference = f"LEOTRADE-DEP-{tx.id}-{uuid.uuid4().hex[:16]}"
         tx.provider_reference = reference
         tx.save(update_fields=["provider_reference", "updated_at"])
 

@@ -1,5 +1,5 @@
 {% extends "layout/base.html" %}
-{% block title %}Opportunités IA — Lyneci{% endblock %}
+{% block title %}Opportunités IA — LeoTrade{% endblock %}
 {% block page_title %}Opportunités IA{% endblock %}
 
 {% block content %}
@@ -253,7 +253,7 @@
         <div class="matrix-loader-wrap mx-auto">
           <div class="matrix-loader-core"></div>
         </div>
-        <div class="text-sm text-gray-400 mt-4">Lyneci AI analyse les marchés...</div>
+        <div class="text-sm text-gray-400 mt-4">LeoTrade AI analyse les marchés...</div>
       </div>
     </template>
 
@@ -383,7 +383,7 @@
 
                 <td class="px-4 py-4 text-right">
                   <div class="flex items-center justify-end gap-2">
-                    {# Bouton Lyneci AI — explication intelligente de l'opportunité #}
+                    {# Bouton LeoTrade AI — explication intelligente de l'opportunité #}
                     <button
                         type="button"
                         class="leo-quick-explain"
@@ -394,7 +394,7 @@
                         :data-score="idea.overall_score"
                         :data-confidence="idea.confidence_score"
                         data-leo-explain-opp
-                        title="Demander une explication à Lyneci AI"
+                        title="Demander une explication à LeoTrade AI"
                         @click.stop="
                           if (window.LeoAssistant) {
                             LeoAssistant.explainOpportunity(
@@ -408,7 +408,7 @@
                         <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
                         <line x1="12" y1="17" x2="12.01" y2="17"/>
                       </svg>
-                      Lyneci AI
+                      LeoTrade AI
                     </button>
 
                     <a :href="idea.detail_url"
@@ -512,8 +512,8 @@ function tradeIdeasRealtime() {
       if (this.paused) return "Le scan IA est en pause.";
       if (!this.isLive) return "Le flux IA est momentanément indisponible.";
       if (this.stats.executeCount > 0) return `${this.stats.executeCount} opportunité(s) exécutable(s) détectée(s).`;
-      if (this.filteredIdeas.length === 0) return "Lyneci AI analyse les marchés et recherche des setups exploitables.";
-      return "Lyneci AI analyse les signaux, le risque, la volatilité et les régimes de marché.";
+      if (this.filteredIdeas.length === 0) return "LeoTrade AI analyse les marchés et recherche des setups exploitables.";
+      return "LeoTrade AI analyse les signaux, le risque, la volatilité et les régimes de marché.";
     },
 
     get filteredIdeas() {

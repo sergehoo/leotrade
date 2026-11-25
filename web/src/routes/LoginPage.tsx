@@ -39,7 +39,7 @@ export default function LoginPage() {
     <div className="flex min-h-dvh items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-sm space-y-6">
         <div className="space-y-1.5 text-center">
-          <p className="text-xl font-semibold tracking-tight">Lyneci</p>
+          <p className="text-xl font-semibold tracking-tight">LeoTrade</p>
           <p className="text-sm text-muted-foreground">Trading assisté par intelligence artificielle</p>
         </div>
         {mfaToken ? <MfaStep /> : <CredentialsStep />}

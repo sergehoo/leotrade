@@ -27,7 +27,7 @@ from django.utils import timezone
 
 from .models import RiskAuditLog
 
-log = logging.getLogger("lyneci.risk.control")
+log = logging.getLogger("leotrade.risk.control")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────

@@ -55,7 +55,7 @@ def _reset_throttle_bucket():
 def api_user(db):
     return User.objects.create_user(
         username="broker-owner",
-        email="owner@lyneci.test",
+        email="owner@leotrade.test",
         password=PASSWORD,
     )
 
@@ -64,7 +64,7 @@ def api_user(db):
 def other_user(db):
     return User.objects.create_user(
         username="broker-intruder",
-        email="intruder@lyneci.test",
+        email="intruder@leotrade.test",
         password=PASSWORD,
     )
 

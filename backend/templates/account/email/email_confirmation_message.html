@@ -1,12 +1,12 @@
 {% extends "account/email/base_message.html" %}
-{% block email_title %}Confirmation email — Lyneci{% endblock %}
-{% block preheader %}Confirmez votre adresse email Lyneci{% endblock %}
+{% block email_title %}Confirmation email — LeoTrade{% endblock %}
+{% block preheader %}Confirmez votre adresse email LeoTrade{% endblock %}
 {% block content %}
   <h1 style="margin:0 0 14px;font-size:24px;line-height:1.3;color:#ffffff;">Confirmez votre adresse email</h1>
-  <p style="margin:0 0 22px;">Une demande de vérification a été créée pour cette adresse sur Lyneci.</p>
+  <p style="margin:0 0 22px;">Une demande de vérification a été créée pour cette adresse sur LeoTrade.</p>
   {% if code %}
     <div style="margin:22px 0;padding:16px;border:1px solid #2d6a55;border-radius:12px;background:#0b2b22;text-align:center;font-size:26px;font-weight:700;letter-spacing:4px;color:#00ff9d;">{{ code }}</div>
-    <p style="margin:0;">Saisissez ce code dans la fenêtre Lyneci ouverte.</p>
+    <p style="margin:0;">Saisissez ce code dans la fenêtre LeoTrade ouverte.</p>
   {% else %}
     <p style="margin:24px 0;text-align:center;">
       <a href="{{ activate_url }}" style="display:inline-block;padding:13px 22px;border-radius:10px;background:#00ff9d;color:#080c14;font-weight:700;text-decoration:none;">Confirmer mon adresse</a>

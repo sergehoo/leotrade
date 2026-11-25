@@ -1,5 +1,5 @@
 """
-API REST des conversations Lyneci AI (DRF) — montée sous /assistant/api/.
+API REST des conversations LeoTrade AI (DRF) — montée sous /assistant/api/.
 
   GET    /assistant/api/conversations/            liste (pagination, ?q=, ?context_type=, ?archived=)
   POST   /assistant/api/conversations/            créer (contexte optionnel)

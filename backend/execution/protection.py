@@ -14,7 +14,7 @@ from execution.trailing import TrailingStopService
 from portfolio.models import Position
 
 
-log = logging.getLogger("lyneci.execution.protection")
+log = logging.getLogger("leotrade.execution.protection")
 
 PRICE_QUANT = Decimal("0.00000001")
 ACTIVE_CLOSE_STATUSES = (

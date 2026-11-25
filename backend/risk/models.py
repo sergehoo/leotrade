@@ -459,7 +459,7 @@ class RiskOverrideAudit(models.Model):
         sans lever d'exception pour ne pas bloquer l'exécution du trade.
         """
         import logging
-        log = logging.getLogger("lyneci.risk.audit")
+        log = logging.getLogger("leotrade.risk.audit")
         try:
             return cls.objects.create(
                 user_id=user_id,

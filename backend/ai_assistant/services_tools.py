@@ -22,7 +22,7 @@ from decimal import Decimal
 from .services_actions import AssistantActionService
 from .services_guards import AssistantRiskValidationService
 
-log = logging.getLogger("lyneci.ai_assistant.tools")
+log = logging.getLogger("leotrade.ai_assistant.tools")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

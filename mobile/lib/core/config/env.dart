@@ -1,6 +1,6 @@
 /// Configuration d'environnement, injectée à la compilation.
 ///
-///   flutter run --dart-define=API_BASE_URL=https://staging.lyneci.com
+///   flutter run --dart-define=API_BASE_URL=https://staging.leotrade.com
 ///
 /// Aucune valeur de production n'est codée en dur : une URL oubliée dans le
 /// binaire est une fuite, et un build de test pointant sur la production est

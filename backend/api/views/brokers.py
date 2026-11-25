@@ -33,7 +33,7 @@ from brokers.models import BrokerAccount, BrokerConstraint
 from brokers.services.base import BrokerConstraintSyncService
 from brokers.services_accounts import BrokerAccountError, BrokerAccountService
 
-log = logging.getLogger("lyneci.api.brokers")
+log = logging.getLogger("leotrade.api.brokers")
 
 
 def _business_error(exc: BrokerAccountError, http_status=status.HTTP_400_BAD_REQUEST) -> Response:

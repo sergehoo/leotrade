@@ -30,7 +30,7 @@ from .base import BaseAIProvider, MarketContext, AIDecision, ProviderUnavailable
 from .claude import SYSTEM_PROMPT, _build_user_prompt, _extract_json, _parsed_to_decision
 
 
-log = logging.getLogger("lyneci.ai_engine.ollama")
+log = logging.getLogger("leotrade.ai_engine.ollama")
 
 
 class OllamaProvider(BaseAIProvider):

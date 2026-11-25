@@ -15,7 +15,7 @@ from portfolio.models import Portfolio
 from risk.services import RiskStateService, RiskGuardService
 from .reconciliation import BrokerReconciliationService
 
-log = logging.getLogger("lyneci.execution.tasks")
+log = logging.getLogger("leotrade.execution.tasks")
 
 
 @shared_task

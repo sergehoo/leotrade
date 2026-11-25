@@ -42,7 +42,7 @@ except Exception:  # pragma: no cover
     stripe = None
 
 
-log = logging.getLogger("lyneci.wallet.webhooks")
+log = logging.getLogger("leotrade.wallet.webhooks")
 
 
 def _stripe_session_matches_transaction(session, tx: WalletTransaction) -> bool:

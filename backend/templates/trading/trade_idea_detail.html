@@ -1,7 +1,7 @@
 {% extends "layout/base.html" %}
 {% load l10n %}
 
-{% block title %}Pourquoi l’IA recommande ce trade — Lyneci{% endblock %}
+{% block title %}Pourquoi l’IA recommande ce trade — LeoTrade{% endblock %}
 {% block page_title %}Pourquoi l’IA recommande ce trade{% endblock %}
 
 {% block content %}
@@ -65,7 +65,7 @@
       </div>
 
       <div class="flex flex-wrap gap-3">
-        {# ── Bouton Lyneci AI ── #}
+        {# ── Bouton LeoTrade AI ── #}
         <button type="button"
                 class="leo-quick-explain px-4 py-2.5"
                 data-leo-explain-opp
@@ -76,12 +76,12 @@
                 data-score="{{ idea.overall_score|default:0 }}"
                 data-confidence="{{ idea.confidence_score|default:0 }}"
                 onclick="if(window.LeoAssistant) LeoAssistant.explainOpportunity('{{ idea.pk }}','{{ idea.direction }}','{{ idea.symbol }}','{{ idea.timeframe|default:'' }}','{{ idea.overall_score|default:0 }}','{{ idea.confidence_score|default:0 }}');"
-                title="Analyse complète par Lyneci AI">
+                title="Analyse complète par LeoTrade AI">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
             <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
             <line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
-          Analyser avec Lyneci AI
+          Analyser avec LeoTrade AI
         </button>
 
         <form method="post" action="{% url 'trading:trade-idea-approve' idea.pk %}">
@@ -367,7 +367,7 @@
           <li>tu agis en toute connaissance de cause sur ton propre capital ;</li>
           <li>l'analyse du RiskEngine et de l'IA n'est qu'un outil d'aide, pas un conseil financier ;</li>
           <li>les pertes éventuelles sont à ta charge exclusive ;</li>
-          <li>Lyneci et Anthropic sont déchargés de toute responsabilité liée à ce trade ;</li>
+          <li>LeoTrade et Anthropic sont déchargés de toute responsabilité liée à ce trade ;</li>
           <li>chaque override est consigné dans le journal d'audit (utilisateur, motif, horodatage).</li>
         </ul>
         <p class="text-amber-200/80 text-xs">
@@ -387,7 +387,7 @@
              data-leo-risk-override-checkbox>
       <span>
         <span class="font-semibold">Je passe outre, j'assume le risque.</span>
-        Forcer l'exécution sous ma responsabilité ; Lyneci est déchargé.
+        Forcer l'exécution sous ma responsabilité ; LeoTrade est déchargé.
       </span>
     </label>
 
@@ -439,7 +439,7 @@
             ? "Tu vas passer outre le RiskEngine et exécuter ce trade en LIVE.\n\n"
               + "Confirmes-tu que :\n"
               + "  • tu acceptes les pertes potentielles ;\n"
-              + "  • tu déchargés Lyneci de toute responsabilité ;\n"
+              + "  • tu déchargés LeoTrade de toute responsabilité ;\n"
               + "  • tu autorises l'enregistrement de cet override pour audit ?"
             : "Tu vas passer outre le RiskEngine.\n\n"
               + "Confirmer ?";

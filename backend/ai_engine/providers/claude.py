@@ -28,7 +28,7 @@ from django.conf import settings
 from .base import BaseAIProvider, MarketContext, AIDecision, ProviderUnavailable
 
 
-log = logging.getLogger("lyneci.ai_engine.claude")
+log = logging.getLogger("leotrade.ai_engine.claude")
 
 
 SYSTEM_PROMPT = """Tu es un assistant trading systémique senior. Tu analyses des features

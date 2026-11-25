@@ -79,14 +79,14 @@
 
 **Vérification d'adresse email obligatoire**
 <br>_Confirmation d'email par lien signé, obligatoire avant usage du compte, avec connexion automatique après confirmation._
-<br>Points d'entrée : `backend/leoTrade/settings/base.py:205,214-216`, `backend/core/checks.py:production_configuration_checks (lyneci.E017)`
+<br>Points d'entrée : `backend/leoTrade/settings/base.py:205,214-216`, `backend/core/checks.py:production_configuration_checks (leotrade.E017)`
 
-- ACCOUNT_EMAIL_VERIFICATION='mandatory' : le check de déploiement lyneci.E017 fait échouer la prod si on relâche cette règle
+- ACCOUNT_EMAIL_VERIFICATION='mandatory' : le check de déploiement leotrade.E017 fait échouer la prod si on relâche cette règle
 - ACCOUNT_CONFIRM_EMAIL_ON_GET=False : la confirmation ne s'opère QUE sur POST (le GET affiche une page de confirmation) — protège des scanners de liens des clients mail
 - ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION=True : l'utilisateur est connecté automatiquement une fois l'email confirmé
 - ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS=3
-- Tous les emails transactionnels doivent rester multipart (txt + html), de marque Lyneci, préfixe de sujet '[Lyneci] ' (test_registration_flow.py verrouille les 11 familles d'emails)
-- Les checks lyneci.E005/E015/E016 bloquent la prod si le SMTP est absent/placeholder : sans SMTP, inscription et reset sont cassés
+- Tous les emails transactionnels doivent rester multipart (txt + html), de marque LeoTrade, préfixe de sujet '[LeoTrade] ' (test_registration_flow.py verrouille les 11 familles d'emails)
+- Les checks leotrade.E005/E015/E016 bloquent la prod si le SMTP est absent/placeholder : sans SMTP, inscription et reset sont cassés
 
 **Connexion par email / mot de passe (session Django)**
 <br>_Authentification allauth par email, session serveur, redirection vers le dashboard._
@@ -110,7 +110,7 @@
 <br>_Demande de lien de réinitialisation, puis définition d'un nouveau mot de passe via clé signée._
 <br>Points d'entrée : `backend/leoTrade/urls.py: include("allauth.urls")`, `backend/leoTrade/settings/base.py:209,217`
 
-- Anti-énumération stricte : un email est envoyé même pour une adresse inconnue (contenu unknown_account_message, 'aucun compte Lyneci') et la redirection est strictement identique dans les deux cas — verrouillé par tests_phase/test_registration_flow.py
+- Anti-énumération stricte : un email est envoyé même pour une adresse inconnue (contenu unknown_account_message, 'aucun compte LeoTrade') et la redirection est strictement identique dans les deux cas — verrouillé par tests_phase/test_registration_flow.py
 - ACCOUNT_LOGIN_ON_PASSWORD_RESET=False : pas de connexion automatique après réinitialisation
 - Le template from_key gère explicitement l'état 'lien invalide ou expiré' et propose un logout d'étape (le flux allauth connecte temporairement l'utilisateur pendant l'étape de clé)
 
@@ -285,20 +285,20 @@
 
 **Protection de l'endpoint de métriques**
 <br>_L'endpoint Prometheus /metrics est protégé par un bearer token, et fermé si aucun token n'est configuré hors DEBUG._
-<br>Points d'entrée : `backend/core/middleware.py:MetricsAccessMiddleware`, `backend/leoTrade/settings/base.py:322 (METRICS_AUTH_TOKEN)`, `backend/core/checks.py (lyneci.E009)`
+<br>Points d'entrée : `backend/core/middleware.py:MetricsAccessMiddleware`, `backend/leoTrade/settings/base.py:322 (METRICS_AUTH_TOKEN)`, `backend/core/checks.py (leotrade.E009)`
 
 - Comparaison du token en temps constant via hmac.compare_digest — ne pas remplacer par ==
 - Sans METRICS_AUTH_TOKEN et hors DEBUG, l'endpoint renvoie 503 (fail-closed) au lieu d'exposer les métriques
-- Le check de déploiement lyneci.E009 échoue si le token est absent
+- Le check de déploiement leotrade.E009 échoue si le token est absent
 
 **Contrôles de configuration de sécurité au déploiement**
 <br>_Checks Django personnalisés qui bloquent un déploiement dont la configuration d'authentification, d'email ou de secrets est dangereuse._
 <br>Points d'entrée : `backend/core/checks.py:production_configuration_checks`, `backend/leoTrade/settings/prod.py`
 
-- lyneci.E017 : ACCOUNT_EMAIL_VERIFICATION doit valoir 'mandatory'
-- lyneci.E005/E015/E016 : backend SMTP réel obligatoire, pas de placeholders REPLACE_, TLS et SSL mutuellement exclusifs — l'inscription et le reset de mot de passe en dépendent
-- lyneci.E001/E002/E003/E004 : DEBUG off, ALLOWED_HOSTS explicite sans wildcard, SITE_BASE_URL en HTTPS et présent dans CSRF_TRUSTED_ORIGINS
-- lyneci.E008 : FERNET_SECRET_KEY doit être une clé Fernet valide (base.py lève RuntimeError si elle est absente, au chargement des settings)
+- leotrade.E017 : ACCOUNT_EMAIL_VERIFICATION doit valoir 'mandatory'
+- leotrade.E005/E015/E016 : backend SMTP réel obligatoire, pas de placeholders REPLACE_, TLS et SSL mutuellement exclusifs — l'inscription et le reset de mot de passe en dépendent
+- leotrade.E001/E002/E003/E004 : DEBUG off, ALLOWED_HOSTS explicite sans wildcard, SITE_BASE_URL en HTTPS et présent dans CSRF_TRUSTED_ORIGINS
+- leotrade.E008 : FERNET_SECRET_KEY doit être une clé Fernet valide (base.py lève RuntimeError si elle est absente, au chargement des settings)
 - prod.py refuse de démarrer si SECRET_KEY est faible (valeur par défaut, préfixe django-insecure-, moins de 50 caractères ou moins de 5 caractères distincts)
 - prod.py impose SECURE_SSL_REDIRECT, HSTS 1 an avec preload, cookies Secure/HttpOnly, SECURE_PROXY_SSL_HEADER pour le reverse proxy
 
@@ -451,7 +451,7 @@
 
 - Chiffrement Fernet; FERNET_SECRET_KEY absente → RuntimeError explicite (jamais de stockage en clair en secours)
 - Un déchiffrement impossible lève ValueError("Impossible de déchiffrer la valeur") et ne retourne jamais la valeur chiffrée brute
-- CHAQUE déchiffrement est journalisé sur le logger lyneci.brokers.secret_access (event credential.decrypted) avec credential_id, broker_account_id, secret_type, key_version — JAMAIS la valeur déchiffrée
+- CHAQUE déchiffrement est journalisé sur le logger leotrade.brokers.secret_access (event credential.decrypted) avec credential_id, broker_account_id, secret_type, key_version — JAMAIS la valeur déchiffrée
 - get_secret retourne la credential active la plus récente (filter is_active=True, order_by -created_at) et une chaîne vide si aucune — jamais None, jamais d'exception
 - Le formulaire n'affiche jamais un secret enregistré (PasswordInput render_value=False, autocomplete=new-password)
 - L'admin exclut secret_value_encrypted du formulaire d'édition
@@ -2138,7 +2138,7 @@
 <br>Points d'entrée : `backend/trading/views.py:market_data_api`, `backend/trading/market_data.py:get_landing_market_data`
 
 - Endpoint NON authentifié (seul de ce domaine).
-- Double cache : 30 s sur la clé landing_market_data dans la vue, 60 s sur lyneci:market:landing dans le service, pour amortir le rate limit de la source externe.
+- Double cache : 30 s sur la clé landing_market_data dans la vue, 60 s sur leotrade:market:landing dans le service, pour amortir le rate limit de la source externe.
 - La réponse porte un drapeau available=False quand la source est indisponible : le frontend affiche un état dédié plutôt que des données vides ou inventées.
 
 **Administration des objets d'exécution**
@@ -2341,7 +2341,7 @@
 <br>Points d'entrée : `risk/models.py:RiskOverrideAudit.record`, `risk/services.py:RiskGuardService.validate_trade (hook de fin)`, `risk/admin.py:RiskOverrideAuditAdmin`, `risk/admin.py:_export_override_audit_csv`
 
 - L'enregistrement n'est créé QUE si risk_override=True ET decision finale == APPROVE : un override tenté sur un blocage HARD ne produit aucun audit
-- RiskOverrideAudit.record est fail-safe : toute exception est loguée (lyneci.risk.audit) et renvoie None, sans jamais remonter — un échec d'audit ne doit pas bloquer l'exécution du trade
+- RiskOverrideAudit.record est fail-safe : toute exception est loguée (leotrade.risk.audit) et renvoie None, sans jamais remonter — un échec d'audit ne doit pas bloquer l'exécution du trade
 - Le hook complet est lui aussi entouré d'un try/except pour la même raison
 - profile_snapshot fige les valeurs clés du profil au moment de l'override, pour reconstituer le contexte si le profil change ensuite
 - Admin strictement en lecture seule : has_add/has_change/has_delete_permission renvoient False ; tous les champs sont readonly
@@ -2587,7 +2587,7 @@
 | **Commande en langage naturel hors WebSocket** | ✅ | MOBILE |  | — |
 | **Actions inline proposées par le LLM (AssistantAction)** | 🟡 | WEB/MOBILE | ⚡ | Les actions sont lues via les serializers de message, mais confirm/reject/pending ne sont exposés que par des vues Django JsonResponse hors DRF (pas dans /assistant/api/) ET sont cassés (filtre message__session__user). Il faut les réimplémenter en DRF avec le bon lookup message__conversation__user. |
 | **Quota d'utilisation de l'IA par utilisateur** | 🟡 | WEB/MOBILE | ⚡ | GET /assistant/quota/ est une vue Django hors DRF (pas de pagination/auth JWT garantie) et il n'existe AUCUN endpoint REST de paiement : pay_with_wallet et create_paystack_session ne sont joignables que par messages WebSocket (quota_pay_wallet / quota_pay_stripe). Pour Flutter il faut exposer POST /api/v1/ai/quota/ et POST /api/v1/ai/quota/checkout/. |
-| **Paiement du quota IA par portefeuille Lyneci** | ❌ | WEB/MOBILE | ⚡ | Uniquement accessible par WebSocket. Il faut un POST REST dédié (ex. /api/v1/ai/quota/pay-wallet/) renvoyant le quota mis à jour, le motif d'échec et le flag insufficient_funds. |
+| **Paiement du quota IA par portefeuille LeoTrade** | ❌ | WEB/MOBILE | ⚡ | Uniquement accessible par WebSocket. Il faut un POST REST dédié (ex. /api/v1/ai/quota/pay-wallet/) renvoyant le quota mis à jour, le motif d'échec et le flag insufficient_funds. |
 | **Paiement du quota IA par passerelle externe (Paystack / Stripe)** | 🟡 | WEB/MOBILE | ⚡ | Le webhook est un endpoint serveur-à-serveur correct, mais l'initialisation de session n'est accessible qu'en WebSocket et les retours sont des redirections HTML vers /dashboard/. Pour mobile il faut un POST REST renvoyant l'URL de checkout et un deep link de retour. |
 | **Panel IA front et explication contextuelle d'opportunité** | ❌ | WEB/MOBILE | ⚡ | Entièrement en templates Django + JS vanilla global (window.LeoAssistant) couplé au DOM par identifiants. À reconstruire intégralement en composant React partagé et en widget Flutter ; le contrat WS est la seule partie réutilisable. |
 | **Orchestrateur multi-provider d'avis IA (AITradeAdvisor)** | 🟡 | WEB/MOBILE |  | Exposé uniquement par une vue Django JsonResponse (/ai/advise/trade-idea/<id>/) hors DRF, sans serializer ni schéma OpenAPI. À porter en DRF sous /api/v1/. |
@@ -2617,7 +2617,7 @@
 <details><summary>Règles métier invariantes à préserver</summary>
 
 **Chat IA temps réel en streaming**
-<br>_Conversation libre avec « Lyneci AI » via WebSocket : le texte arrive token par token depuis DeepSeek puis Claude en secours, avec fallback heuristique diagnostique si les deux échouent._
+<br>_Conversation libre avec « LeoTrade AI » via WebSocket : le texte arrive token par token depuis DeepSeek puis Claude en secours, avec fallback heuristique diagnostique si les deux échouent._
 <br>Points d'entrée : `backend/ai_assistant/consumers.py:AssistantConsumer._handle_chat`, `backend/ai_assistant/services.py:AssistantStreamService.stream`, `backend/ai_assistant/services.py:AssistantStreamService._stream_deepseek`, `backend/ai_assistant/services.py:AssistantStreamService._stream_claude`, `backend/ai_assistant/services.py:AssistantStreamService._heuristic_response`
 
 - Chaîne de providers stricte : AI_PRIMARY_PROVIDER puis AI_SECONDARY_PROVIDER, puis heuristique — le heuristique n'est JAMAIS silencieux : il affiche le diagnostic réel de chaque échec (401 clé invalide, 402 solde, 429 quota, SDK absent).
@@ -2809,7 +2809,7 @@
 - top_up remet messages_used à 0, applique la limite du nouveau plan, cumule total_spent_usd et redémarre la période.
 - monthly_reset ne remet à zéro QUE le plan FREE.
 
-**Paiement du quota IA par portefeuille Lyneci**
+**Paiement du quota IA par portefeuille LeoTrade**
 <br>_Débit direct du wallet plateforme pour activer un plan IA, avec transaction wallet idempotente et activation immédiate._
 <br>Points d'entrée : `backend/ai_assistant/services.py:QuotaService.pay_with_wallet`, `backend/ai_assistant/consumers.py:AssistantConsumer._handle_quota_pay_wallet`
 
@@ -2833,7 +2833,7 @@
 - La référence Paystack est stockée dans stripe_session_id et l'URL dans stripe_payment_url (réutilisation assumée des champs).
 
 **Panel IA front et explication contextuelle d'opportunité**
-<br>_Panneau flottant global (statut connexion, barre de quota, pastilles de contexte, bandeau kill switch, suggestions rapides, modale d'upgrade) et boutons « Lyneci AI » sur les cartes d'opportunité et les trade ideas._
+<br>_Panneau flottant global (statut connexion, barre de quota, pastilles de contexte, bandeau kill switch, suggestions rapides, modale d'upgrade) et boutons « LeoTrade AI » sur les cartes d'opportunité et les trade ideas._
 <br>Points d'entrée : `backend/static/js/leo_assistant.js:explainOpportunity`, `backend/static/js/leo_assistant.js:openConversation`, `backend/templates/assistant/_panel.html`
 
 - Le contexte de page est injecté automatiquement depuis document.body.dataset.leoPage et propagé au serveur (context_update) — la conversation suit la page.
@@ -3222,7 +3222,7 @@
 - La devise doit appartenir à PAYSTACK_SUPPORTED_CURRENCIES sinon refus
 - Fail-closed : sans PAYSTACK_SECRET_KEY → PaymentGatewayConfigurationError, aucune transaction n'est initiée
 - Hors DEBUG, l'API Paystack et le callback SITE_BASE_URL doivent être en HTTPS, sinon refus
-- La référence est générée serveur : LYNECI-DEP-<tx.id>-<uuid16>, et Paystack doit renvoyer exactement la même référence sinon PaymentGatewayError
+- La référence est générée serveur : LEOTRADE-DEP-<tx.id>-<uuid16>, et Paystack doit renvoyer exactement la même référence sinon PaymentGatewayError
 - Si l'appel Paystack échoue, la transaction PENDING est repassée à FAILED (update conditionné à status='PENDING') — jamais laissée en PENDING orpheline
 - Les erreurs passerelle sont loguées par type d'exception uniquement et l'utilisateur reçoit un message générique : aucune fuite de détail provider
 
@@ -3240,7 +3240,7 @@
 <br>_Crée une WalletTransaction DEPOSIT PENDING et une session /v71/sessions Adyen, puis réaffiche la page de dépôt avec le payload de session._
 <br>Points d'entrée : `/Users/ogahserge/Documents/leoTrade/backend/wallet/views.py:wallet_deposit`, `/Users/ogahserge/Documents/leoTrade/backend/wallet/services.py:AdyenWalletService.create_deposit_session`, `/Users/ogahserge/Documents/leoTrade/backend/templates/wallet/deposit.html`
 
-- La référence marchande est déterministe : LYNECI-DEP-<tx.id>, et c'est elle que le webhook AUTHORISATION utilise pour retrouver la transaction PENDING — ne jamais changer ce format sans migrer le webhook
+- La référence marchande est déterministe : LEOTRADE-DEP-<tx.id>, et c'est elle que le webhook AUTHORISATION utilise pour retrouver la transaction PENDING — ne jamais changer ce format sans migrer le webhook
 - base_url bascule checkout-live / checkout-test selon settings.ADYEN_ENV
 - Refus immédiat si ADYEN_API_KEY ou ADYEN_MERCHANT_ACCOUNT est vide
 - countryCode est codé en dur à 'US' dans le payload (incohérent avec les destinations XOF/CI : à traiter lors de la refonte)
@@ -3640,11 +3640,11 @@
 - Un CHANNEL_SERVICES.get() qui ne trouve pas le canal passe silencieusement (continue) sans créer de log.
 
 **Canal Email (prioritaire)**
-<br>_Envoi SMTP via django.core.mail avec gabarit HTML + texte brut, préfixe de sujet [Lyneci], bandeau CRITIQUE/ATTENTION et CTA vers le centre de notifications._
+<br>_Envoi SMTP via django.core.mail avec gabarit HTML + texte brut, préfixe de sujet [LeoTrade], bandeau CRITIQUE/ATTENTION et CTA vers le centre de notifications._
 <br>Points d'entrée : `/Users/ogahserge/Documents/leoTrade/backend/notifications/services/email.py:EmailNotificationService.send`, `/Users/ogahserge/Documents/leoTrade/backend/templates/notifications/email/notification.html`, `/Users/ogahserge/Documents/leoTrade/backend/templates/notifications/email/notification.txt`
 
 - Utilisateur sans email → ok=False et skipped ABSENT → compté comme FAILED (asymétrie à noter: SMS/WhatsApp sans numéro sont SKIPPED, l'email sans adresse est FAILED et sera retenté).
-- Sujet toujours préfixé '[Lyneci] ' + sujet rendu par le gabarit.
+- Sujet toujours préfixé '[LeoTrade] ' + sujet rendu par le gabarit.
 - Email multipart obligatoire: corps texte + alternative HTML.
 - fail_silently=False volontaire: l'erreur SMTP doit remonter dans error_message du delivery log pour alimenter le retry.
 - Le pied de page affirme qu'aucune clé API ni donnée sensible ne transite par email — contrat à ne pas violer en ajoutant des variables de gabarit.
@@ -3666,7 +3666,7 @@
 - Pas de numéro dans les préférences → SKIPPED, jamais FAILED.
 - Provider non configuré (credentials manquants) → skipped=True → on passe au suivant SANS log d'erreur; seul un vrai échec réseau/HTTP est loggué en warning puis bascule.
 - L'ordre de la chaîne est piloté par NOTIFY_SMS_PRIMARY: 'local_ci' → [local_ci, twilio], sinon [twilio, local_ci].
-- Corps tronqué à 320 caractères (2 segments GSM) et préfixé 'Lyneci — {sujet}'.
+- Corps tronqué à 320 caractères (2 segments GSM) et préfixé 'LeoTrade — {sujet}'.
 - Timeout HTTP de 15 s sur chaque provider: un provider lent ne doit pas bloquer le worker indéfiniment.
 - Aucune credential ne doit apparaître dans response_payload (seuls sid, status, http_status et un extrait de corps y sont stockés).
 
@@ -3677,12 +3677,12 @@
 - Destinataire = whatsapp_number s'il existe, sinon repli sur phone_number. Absence des deux → SKIPPED.
 - Ordre de chaîne piloté par NOTIFY_WHATSAPP_PRIMARY ('cloud_api' → Meta d'abord, sinon Twilio d'abord).
 - Cloud API: le '+' initial est retiré du numéro (to.lstrip('+')), Twilio le conserve avec le préfixe whatsapp:.
-- Corps tronqué à 1500 caractères, format '*Lyneci — {sujet}*\n{corps}'.
+- Corps tronqué à 1500 caractères, format '*LeoTrade — {sujet}*\n{corps}'.
 - Provider non configuré → SKIPPED silencieux, jamais bloquant pour le flux de trading.
 
 **Gabarits de notification (event × canal × langue)**
 <br>_NotificationTemplate rendu par le moteur de template Django sur un contexte plat composé des champs standards + Notification.payload._
-<br>Points d'entrée : `/Users/ogahserge/Documents/leoTrade/backend/notifications/services/renderer.py:NotificationTemplateRenderer.render`, `/Users/ogahserge/Documents/leoTrade/backend/notifications/models.py:NotificationTemplate`, `/Users/ogahserge/Documents/leoTrade/backend/notifications/migrations/0002_seed_templates.py`, `/Users/ogahserge/Documents/leoTrade/backend/notifications/migrations/0003_rebrand_lyneci.py`
+<br>Points d'entrée : `/Users/ogahserge/Documents/leoTrade/backend/notifications/services/renderer.py:NotificationTemplateRenderer.render`, `/Users/ogahserge/Documents/leoTrade/backend/notifications/models.py:NotificationTemplate`, `/Users/ogahserge/Documents/leoTrade/backend/notifications/migrations/0002_seed_templates.py`, `/Users/ogahserge/Documents/leoTrade/backend/notifications/migrations/0003_rebrand_leotrade.py`
 
 - CHAÎNE DE REPLI À 3 NIVEAUX, non négociable: (1) gabarit actif dans la langue demandée, (2) gabarit actif en 'fr', (3) title/message bruts de la Notification. Un gabarit manquant ne doit jamais produire un message vide.
 - Une exception de rendu (variable manquante, syntaxe cassée) est capturée et retombe sur title/message bruts — un gabarit mal édité en admin ne doit pas faire échouer l'envoi.
@@ -4002,7 +4002,7 @@
 <details><summary>Règles métier invariantes à préserver</summary>
 
 **Landing page publique**
-<br>_Page marketing d'accueil servie à la racine du site : hero, section Lyneci, grille de 6 fonctionnalités, FAQ en accordéon Alpine, CTA d'inscription/connexion, footer._
+<br>_Page marketing d'accueil servie à la racine du site : hero, section LeoTrade, grille de 6 fonctionnalités, FAQ en accordéon Alpine, CTA d'inscription/connexion, footer._
 <br>Points d'entrée : `backend/dashboard/views.py:LandingPageView`, `backend/templates/landing/home.html`
 
 - Page entièrement statique : aucune donnée métier, aucun appel base de données.
@@ -4094,11 +4094,11 @@
 - Aucun appelant JS dans le code actuel — route exposée mais non consommée par le front.
 
 **AI Radar — liste des recommandations IA**
-<br>_Bloc du cockpit listant les recommandations IA : symbole, type, statut, résumé IA, confiance, stake, notional, ratio R/R, et actions Approuver / Rejeter / Exécuter + bouton d'explication par l'assistant Lyneci._
+<br>_Bloc du cockpit listant les recommandations IA : symbole, type, statut, résumé IA, confiance, stake, notional, ratio R/R, et actions Approuver / Rejeter / Exécuter + bouton d'explication par l'assistant LeoTrade._
 <br>Points d'entrée : `backend/templates/dashboard/partials/_ai_radar.html`, `backend/dashboard/services.py:DashboardPremiumService.build_cockpit_context`
 
 - Les trois actions sont des formulaires POST avec CSRF, pas des appels AJAX : chaque action recharge la page cockpit.
-- Le bouton « Lyneci AI » délègue à window.LeoAssistant.explainOpportunity avec id/direction/symbole/timeframe/score/confiance — no-op silencieux si l'assistant n'est pas chargé.
+- Le bouton « LeoTrade AI » délègue à window.LeoAssistant.explainOpportunity avec id/direction/symbole/timeframe/score/confiance — no-op silencieux si l'assistant n'est pas chargé.
 - État vide explicite : « Aucune recommandation IA disponible ».
 
 **Approuver une recommandation IA**
@@ -4448,7 +4448,7 @@
 | **Validation des fichiers du dossier KYC à l'upload** | `backend/dashboard/form.py:KYCSubmissionForm._validate_uploaded_file (taille max settings.KYC_MAX_FILE_SIZE_BYTES = 10 Mo, extensions .jpg/.jpeg/.png/.pdf, content-type image/jpeg\|image/png\|application/pdf) sur id_document_front, id_document_back, selfie_photo, proof_of_address` | La soumission KYC a été recensée comme un écran ; ses règles de validation de fichier n'ont pas été remontées. Elles doivent être rejouées côté API et côté capture photo mobile avant envoi. | backend/web/mobile |
 | **Journal d'audit applicatif structuré (métier / sécurité / erreur)** | `backend/audit/services.py:AuditLogService.log_business_event / log_security_event / log_error_event s'appuyant sur backend/core/logging.py:get_logger, log_event` | Le répertoire audit/ n'est pas une app Django installée (absent d'INSTALLED_APPS) et n'a ni modèle ni url : il est passé sous le radar. Distinct du RiskAuditLog du module Risk Control déjà recensé. | backend |
 | **Planification dynamique des tâches et persistance des résultats Celery** | `INSTALLED_APPS dans backend/leoTrade/settings/base.py : django_celery_beat et django_celery_results (modèles PeriodicTask / TaskResult administrables), en complément du CELERY_BEAT_SCHEDULE statique (~45 entrées)` | Les agents ont lu le dictionnaire statique du planificateur mais pas le fait qu'un second canal de planification, modifiable en base depuis l'admin, est actif — avec risque de doublon d'exécution si les deux définissent la même tâche. | backend/back-office |
-| **Socle d'exploitation : sauvegarde, déploiement, healthcheck et règles d'alerte** | `infrastructure/deploy/backup.sh, deploy.sh, healthcheck.sh, observability/lyneci-alerts.yml, PRODUCTION_RUNBOOK.txt, production.env.example ; infrastructure/docker/Dockerfile et docker-compose.yml` | Hors du répertoire backend/, donc hors du périmètre d'exploration des dix agents. Ce sont les briques directement concernées par les points 7 et 9 (migrations sécurisées, sauvegarde, rollback, staging/production). | infrastructure |
+| **Socle d'exploitation : sauvegarde, déploiement, healthcheck et règles d'alerte** | `infrastructure/deploy/backup.sh, deploy.sh, healthcheck.sh, observability/leotrade-alerts.yml, PRODUCTION_RUNBOOK.txt, production.env.example ; infrastructure/docker/Dockerfile et docker-compose.yml` | Hors du répertoire backend/, donc hors du périmètre d'exploration des dix agents. Ce sont les briques directement concernées par les points 7 et 9 (migrations sécurisées, sauvegarde, rollback, staging/production). | infrastructure |
 | **Registre extensible de fournisseurs de paiement (emplacements mobile money)** | `backend/wallet/services/registry.py:WalletProviderRegistry et backend/wallet/services/base.py:BaseWalletProvider (create_deposit_intent, create_payout, verify_webhook, parse_webhook_event) ; fichiers mtn_momo.py, orange_money.py, wave.py, payout_service.py, reconciliation.py présents mais VIDES (0 ligne)` | Les agents n'ont recensé que les trois intégrations réellement câblées (Paystack, Stripe, Adyen) implémentées dans backend/wallet/services.py et webhooks.py. Le point d'extension et l'intention produit mobile money Afrique de l'Ouest existent dans l'arborescence — à conserver comme décision d'architecture, sans les compter comme fonctionnalités livrées. | backend |
 | **Back-office Django des objets trading : absent (code entièrement commenté)** | `backend/trading/admin.py — les 11 déclarations @admin.register (TradingIntent, TradingIntentEvent, Order, TradeExecution, DerivContract, TradeIdea, TradeIdeaFeedback, AgentRun, MarketRegimeSnapshot, TradeIdeaReview, PortfolioAdvice) sont commentées sur 859 lignes ; seul backend/trading/admin_ai.py est actif (MarketScanRun, MarketOpportunity, TradeRecommendation, AIModelRegistry, AIInferenceLog, DecisionAudit)` | La matrice affirme « Administration des objets d'exécution » ; en réalité le support d'exploitation sur le cœur trading n'existe plus. C'est un manque fonctionnel réel à arbitrer dans la refonte (back-office React ou réactivation), pas une simple ligne de code mort. | back-office |
 | **Tolérance au décalage de schéma en base sur le tableau de bord** | `backend/dashboard/views.py:_existing_table_columns (introspection des colonnes réellement présentes), _hydrate_portfolio_defaults, _portfolio_safe_queryset, _safe_get_default_portfolio (capture de ProgrammingError / OperationalError)` | Comportement défensif invisible fonctionnellement : le dashboard fonctionne même si des colonnes de portfolio_portfolio manquent en base. Cela signale une dérive réelle entre les migrations et la production, à vérifier avant toute migration (point 7) — et à ne surtout pas reconduire dans l'API de la refonte. | backend/infrastructure |

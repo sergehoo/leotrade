@@ -16,7 +16,7 @@ import logging
 
 from django.template import Context, Template
 
-log = logging.getLogger("lyneci.notifications.renderer")
+log = logging.getLogger("leotrade.notifications.renderer")
 
 
 class NotificationTemplateRenderer:
