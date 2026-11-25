@@ -8,6 +8,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 
 from api.views.auth import LoginMFAView, LoginView, LogoutView, MeView
+from api.views.context import AppContextView
 
 from api.views.brokers import BrokerAccountViewSet, BrokerConstraintViewSet
 from api.views.portfolio import PortfolioViewSet, PositionViewSet, PortfolioSnapshotViewSet, CashLedgerEntryViewSet, \
@@ -75,6 +76,8 @@ urlpatterns = [
     path("auth/verify/", TokenVerifyView.as_view(), name="api-auth-verify"),
     path("auth/logout/", LogoutView.as_view(), name="api-auth-logout"),
     path("auth/me/", MeView.as_view(), name="api-auth-me"),
+    # ── Contexte applicatif ────────────────────────────────────────────
+    path("context/", AppContextView.as_view(), name="api-context"),
     # ── Contrat d'API ──────────────────────────────────────────────────
     path("schema/", SpectacularAPIView.as_view(), name="api-schema"),
     path("docs/", SpectacularSwaggerView.as_view(url_name="api-schema"), name="api-docs"),
