@@ -149,19 +149,47 @@ class Command(BaseCommand):
                 self._repair_positions(options)
             return
 
-        for portfolio_id in sorted(touched):
-            portfolio = Portfolio.objects.get(pk=portfolio_id)
-            PortfolioService.refresh_portfolio_metrics(portfolio)
-            portfolio.refresh_from_db()
-            self.stdout.write(
-                f"  portefeuille {portfolio_id} « {portfolio.name} » : "
-                f"solde {portfolio.current_balance}, valorisation {portfolio.equity}"
-            )
+        self._refresh(touched, "solde")
 
         self.stdout.write(self.style.SUCCESS("Corrections écrites."))
 
         if options["positions"]:
             self._repair_positions(options)
+
+    def _refresh(self, portfolio_ids, label: str) -> None:
+        """Recalcule les métriques, un portefeuille à la fois.
+
+        Un portefeuille dont l'enregistrement échoue ne doit pas priver
+        les autres de leur recalcul. `Portfolio.save()` appelle
+        `full_clean()`, et un portefeuille rattaché au compte broker d'un
+        AUTRE utilisateur devient par là même impossible à écrire : toute
+        mise à jour comptable y est bloquée, pas seulement celle-ci.
+        """
+        from portfolio.models import Portfolio
+        from portfolio.services import PortfolioService
+
+        for portfolio_id in sorted(portfolio_ids):
+            portfolio = Portfolio.objects.get(pk=portfolio_id)
+            try:
+                PortfolioService.refresh_portfolio_metrics(portfolio)
+            except Exception as exc:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"  portefeuille {portfolio_id} « {portfolio.name} » : "
+                        f"recalcul IMPOSSIBLE — {exc}"
+                    )
+                )
+                self.stdout.write(
+                    "      Les corrections sont écrites au grand livre, mais le "
+                    "champ de solde reste périmé tant que la cause n'est pas levée."
+                )
+                continue
+            portfolio.refresh_from_db()
+            self.stdout.write(
+                f"  portefeuille {portfolio_id} « {portfolio.name} » : "
+                f"{label} {portfolio.current_balance}, "
+                f"valorisation {portfolio.equity}"
+            )
 
     #: Une quantité dont l'écart au montant approuvé est sous ce seuil est
     #: tenue pour être ce montant, recopié dans le champ quantité.
@@ -300,11 +328,4 @@ class Command(BaseCommand):
         if not options["apply"]:
             return
 
-        for portfolio_id in sorted(touched):
-            portfolio = Portfolio.objects.get(pk=portfolio_id)
-            PortfolioService.refresh_portfolio_metrics(portfolio)
-            portfolio.refresh_from_db()
-            self.stdout.write(
-                f"  portefeuille {portfolio_id} « {portfolio.name} » : "
-                f"valorisation {portfolio.equity}, latent {portfolio.unrealized_pnl}"
-            )
+        self._refresh(touched, "valorisation")

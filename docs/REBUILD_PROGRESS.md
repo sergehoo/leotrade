@@ -856,3 +856,46 @@ sont laissées intactes et signalées par la commande.
 Les portefeuilles 1 et 3 présentent le même défaut (26 écritures,
 correction cumulée ≈ 10,9 M) et n'ont pas été touchés : la demande
 portait sur Cocody.
+
+### Extension à LeoTrade et Onon
+
+| Portefeuille | solde avant | solde après |
+|---|---:|---:|
+| Cocody | −1 588 843 224,53 | 2 530,57 |
+| Onon | −464 361,39 | 2 962,50 |
+| LeoTrade | 38 896,38 | 39 377,38 *(champ périmé, voir ci-dessous)* |
+
+26 écritures de correction supplémentaires, 5 quantités de position.
+
+### Un blocage découvert en route : portefeuille inenregistrable
+
+Le recalcul de « LeoTrade » échoue sur :
+
+> `{'broker_account': ['Le broker account doit appartenir au même utilisateur.']}`
+
+Le portefeuille appartient à **sergehoo@gmail.com** mais pointe sur le
+compte broker « DerivTradeOg », qui appartient à **sergeleo14@yahoo.fr**
+— et ce compte est en mode **LIVE**.
+
+Deux conséquences distinctes :
+
+1. **Cloisonnement.** Un ordre issu de ce portefeuille emprunterait les
+   identifiants broker d'un autre utilisateur. `Portfolio.clean()`
+   l'interdit, donc la donnée est antérieure à la règle ou a été écrite
+   par un chemin qui contourne `full_clean()`.
+2. **Comptabilité gelée.** `Portfolio.save()` appelant `full_clean()`,
+   **aucune écriture n'est plus possible sur ce portefeuille** : ni le
+   recalcul du solde, ni une mise à jour de valorisation, ni un
+   instantané. Le champ `current_balance` affiche 38 896,38 alors que son
+   grand livre dit 39 377,38, et restera périmé tant que le rattachement
+   n'est pas corrigé.
+
+Le propriétaire du portefeuille possède son propre compte DERIV/LIVE
+(id=4). Réaffecter le portefeuille change le courtier par lequel passent
+ses ordres réels : **cette décision ne m'appartient pas** et n'a pas été
+prise.
+
+La commande de réparation isole désormais les échecs par portefeuille et
+annonce le blocage plutôt que d'abandonner la série — un champ de solde
+périmé sans explication serait pire qu'une erreur, on croirait le chiffre
+à jour.

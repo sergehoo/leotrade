@@ -160,3 +160,83 @@ class TestPaperAdapterNotional:
 
         assert result["fills"][0]["notional"] == Decimal("20000.00")
         assert result["fills"][0]["quantity"] == Decimal("1")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  La réparation doit survivre à un portefeuille non enregistrable
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+class TestRepairResilience:
+    """`Portfolio.save()` appelle `full_clean()`. Un portefeuille rattaché
+    au compte broker d'un AUTRE utilisateur devient par là impossible à
+    écrire — toute mise à jour comptable y est bloquée, pas seulement la
+    réparation. La commande doit le signaler et poursuivre, pas abandonner
+    les autres portefeuilles en route.
+    """
+
+    def test_an_unsavable_portfolio_does_not_abort_the_run(self, db, capsys):
+        from io import StringIO
+
+        from django.contrib.auth import get_user_model
+        from django.core.management import call_command
+
+        from portfolio.models import Portfolio
+        from portfolio.services_onboarding import PaperOnboardingService
+
+        User = get_user_model()
+        owner = User.objects.create_user(
+            username="prop", email="prop@leotrade.test", password="StrongPass123!",
+        )
+        stranger = User.objects.create_user(
+            username="tiers", email="tiers@leotrade.test", password="StrongPass123!",
+        )
+        healthy = PaperOnboardingService.provision(owner)
+        foreign = PaperOnboardingService.provision(stranger)
+
+        # On force le rattachement croisé en contournant full_clean, comme
+        # l'a fait le chemin qui a produit la donnée réelle.
+        Portfolio.objects.filter(pk=healthy.pk).update(
+            broker_account=foreign.broker_account,
+        )
+
+        output = StringIO()
+        # Ne doit pas lever, même si ce portefeuille est inenregistrable.
+        call_command("repair_phantom_notional", "--positions", stdout=output)
+
+        assert "Aucun débit fantôme" in output.getvalue()
+
+    def test_the_blockage_is_reported_not_swallowed(self, db):
+        """Un champ de solde périmé sans explication serait pire qu'une
+        erreur : on croirait le chiffre à jour."""
+        from io import StringIO
+
+        from django.contrib.auth import get_user_model
+        from django.core.management import call_command
+
+        from portfolio.models import Portfolio
+        from portfolio.services_onboarding import PaperOnboardingService
+
+        User = get_user_model()
+        owner = User.objects.create_user(
+            username="prop2", email="prop2@leotrade.test", password="StrongPass123!",
+        )
+        stranger = User.objects.create_user(
+            username="tiers2", email="tiers2@leotrade.test", password="StrongPass123!",
+        )
+        broken = PaperOnboardingService.provision(owner)
+        foreign = PaperOnboardingService.provision(stranger)
+        Portfolio.objects.filter(pk=broken.pk).update(
+            broker_account=foreign.broker_account,
+        )
+
+        from portfolio.management.commands.repair_phantom_notional import Command
+
+        command = Command()
+        command.stdout = StringIO()
+        command.style = type("S", (), {"ERROR": str, "SUCCESS": str, "WARNING": str})()
+        command._refresh({broken.pk}, "solde")
+
+        printed = command.stdout.getvalue()
+        assert "IMPOSSIBLE" in printed
+        assert "broker_account" in printed
