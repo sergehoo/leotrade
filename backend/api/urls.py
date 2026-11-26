@@ -10,6 +10,22 @@ from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 from api.views.auth import LoginMFAView, LoginView, LogoutView, MeView
 from api.views.context import AppContextView
 
+# Leo — l'assistant est déjà écrit et déjà protégé par `IsAuthenticated`,
+# donc déjà compatible JWT. Il n'était simplement pas monté sous /api/v1/ :
+# les clients React et Flutter devaient viser /assistant/api/..., une URL
+# héritée du panneau Django. On l'expose ici sans le déplacer, pour que le
+# panneau historique continue de fonctionner.
+from ai_assistant.api import (
+    AssistantConversationViewSet,
+    action_request_cancel,
+    action_request_confirm,
+    action_requests,
+    assistant_analytics,
+    assistant_command,
+    assistant_history,
+    assistant_tools,
+)
+
 from api.views.brokers import BrokerAccountViewSet, BrokerConstraintViewSet
 from api.views.portfolio import PortfolioViewSet, PositionViewSet, PortfolioSnapshotViewSet, CashLedgerEntryViewSet, \
     PortfolioAllocationViewSet, PositionCorrelationViewSet
@@ -58,6 +74,12 @@ router.register(r"recommendations", TradeRecommendationViewSet, basename="api-re
 router.register(r"ai-models", AIModelRegistryViewSet, basename="api-ai-models")
 router.register(r"ai-inference-logs", AIInferenceLogViewSet, basename="api-ai-inference-logs")
 router.register(r"decision-audits", DecisionAuditViewSet, basename="api-decision-audits")
+router.register(
+    r"assistant/conversations",
+    AssistantConversationViewSet,
+    basename="api-assistant-conversations",
+)
+
 router.register(r"brokers", BrokerAccountViewSet, basename="api-brokers")
 router.register(r"broker-constraints", BrokerConstraintViewSet, basename="api-broker-constraints")
 
@@ -78,6 +100,26 @@ urlpatterns = [
     path("auth/me/", MeView.as_view(), name="api-auth-me"),
     # ── Contexte applicatif ────────────────────────────────────────────
     path("context/", AppContextView.as_view(), name="api-context"),
+    # ── Leo ────────────────────────────────────────────────────────────
+    path("assistant/history/", assistant_history, name="api-assistant-history"),
+    path("assistant/analytics/", assistant_analytics, name="api-assistant-analytics"),
+    path("assistant/tools/", assistant_tools, name="api-assistant-tools"),
+    path("assistant/command/", assistant_command, name="api-assistant-command"),
+    path(
+        "assistant/action-requests/",
+        action_requests,
+        name="api-assistant-action-requests",
+    ),
+    path(
+        "assistant/action-requests/<int:pk>/confirm/",
+        action_request_confirm,
+        name="api-assistant-action-confirm",
+    ),
+    path(
+        "assistant/action-requests/<int:pk>/cancel/",
+        action_request_cancel,
+        name="api-assistant-action-cancel",
+    ),
     # ── Contrat d'API ──────────────────────────────────────────────────
     path("schema/", SpectacularAPIView.as_view(), name="api-schema"),
     path("docs/", SpectacularSwaggerView.as_view(url_name="api-schema"), name="api-docs"),

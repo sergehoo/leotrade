@@ -10,9 +10,10 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", default_settings)
 from django.core.asgi import get_asgi_application
 django_asgi_app = get_asgi_application()
 
-from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
+
+from core.ws_auth import JWTAuthMiddlewareStack
 
 import execution.routing
 import notifications.routing
@@ -24,7 +25,8 @@ import ai_assistant.routing
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
     "websocket": AllowedHostsOriginValidator(
-        AuthMiddlewareStack(
+        # JWT d'abord (React, Flutter), session en repli (écrans Django).
+        JWTAuthMiddlewareStack(
             URLRouter(
                 ai_assistant.routing.websocket_urlpatterns   # panel IA — prioritaire
                 + notifications.routing.websocket_urlpatterns  # centre de notifications

@@ -44,7 +44,9 @@ class BaseUserStreamConsumer(AsyncWebsocketConsumer):
         # send. Si group_add échoue (Redis down), on log un warning mais on
         # garde la connexion vivante en mode "isolated" (les broadcasts ne
         # parviendront pas à ce client tant que le groupe n'est pas joint).
-        await self.accept()
+        # Écho du sous-protocole retenu par core.ws_auth : sans lui, un
+        # navigateur ferme une connexion authentifiée par JWT.
+        await self.accept(subprotocol=self.scope.get("ws_subprotocol"))
 
         # Inscription au groupe Redis — best-effort, ne ferme pas la WS
         try:

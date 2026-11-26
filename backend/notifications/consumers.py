@@ -37,7 +37,9 @@ class NotificationCenterConsumer(AsyncJsonWebsocketConsumer):
 
         # accept() AVANT group_add : si Redis est down, le WS reste vivant
         # (même pattern résilient que BaseUserStreamConsumer).
-        await self.accept()
+        # Écho du sous-protocole retenu par core.ws_auth : sans lui, un
+        # navigateur ferme une connexion authentifiée par JWT.
+        await self.accept(subprotocol=self.scope.get("ws_subprotocol"))
         try:
             await self.channel_layer.group_add(self.group_name, self.channel_name)
         except Exception:

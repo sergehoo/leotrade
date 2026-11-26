@@ -26,7 +26,9 @@ class CandleConsumer(AsyncJsonWebsocketConsumer):
             return
 
         await self.channel_layer.group_add(self.group_name, self.channel_name)
-        await self.accept()
+        # Écho du sous-protocole retenu par core.ws_auth : sans lui, un
+        # navigateur ferme une connexion authentifiée par JWT.
+        await self.accept(subprotocol=self.scope.get("ws_subprotocol"))
 
     async def disconnect(self, close_code):
         if hasattr(self, "group_name"):

@@ -68,7 +68,9 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         self.user = user
         self._group = None
 
-        await self.accept()
+        # Un navigateur ferme la connexion si le serveur n'écho pas l'un des
+        # sous-protocoles proposés. `core.ws_auth` a mémorisé celui retenu.
+        await self.accept(subprotocol=self.scope.get("ws_subprotocol"))
 
         # Route /ws/assistant/conversation/<id>/ → épingle la conversation
         pinned_id = (self.scope.get("url_route", {}).get("kwargs") or {}).get("conversation_id")

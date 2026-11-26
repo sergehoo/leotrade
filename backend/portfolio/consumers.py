@@ -22,7 +22,9 @@ class PortfolioConsumer(AsyncWebsocketConsumer):
         self.group_name = f"portfolio_{self.portfolio_id}"
 
         await self.channel_layer.group_add(self.group_name, self.channel_name)
-        await self.accept()
+        # Écho du sous-protocole retenu par core.ws_auth : sans lui, un
+        # navigateur ferme une connexion authentifiée par JWT.
+        await self.accept(subprotocol=self.scope.get("ws_subprotocol"))
 
         await self.send(text_data=json.dumps({
             "event": "connection.established",

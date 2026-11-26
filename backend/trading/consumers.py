@@ -42,7 +42,9 @@ class DashboardConsumer(AsyncWebsocketConsumer):
         # FIX résilience : accept d'abord, group_add ensuite (best-effort).
         # Si Redis tombe, la WS reste ouverte mais sans broadcast — l'utilisateur
         # voit le badge topbar passer en orange/rouge mais pas une boucle de reconnect.
-        await self.accept()
+        # Écho du sous-protocole retenu par core.ws_auth : sans lui, un
+        # navigateur ferme une connexion authentifiée par JWT.
+        await self.accept(subprotocol=self.scope.get("ws_subprotocol"))
 
         try:
             await self.channel_layer.group_add(self.group_name, self.channel_name)
