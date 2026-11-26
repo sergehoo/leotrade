@@ -775,3 +775,84 @@ cosmétique : elle sera traitée avec les indicateurs superposés.
 654 tests backend (+10), 75 Flutter (+3), build web OK. Validé au
 navigateur : ADAUSDT affiche 0,1696 et des centaines de bougies
 distinctes là où la version précédente montrait une ligne plate.
+
+---
+
+## Métriques fantômes — diagnostic et correction
+
+### Ce qui était en base
+
+Le portefeuille « Cocody » affichait un solde de **−1 588 843 224,53** et
+une valorisation de −12 401 590. Le portefeuille « Onon », −464 361.
+
+### La cause, en une ligne
+
+`Order.approved_quantity` n'a pas d'unité garantie — défaut documenté au
+lot « dimensionnement ». L'adaptateur paper calculait
+`notional = prix × approved_quantity` :
+
+```
+ordre 93, BTCUSDT
+  montant voulu par l'utilisateur : 20 000 USD
+  approved_quantity                : 20 000      ← le montant, recopié
+  prix                             : 78 776,62
+  débit écrit au grand livre       : 1 575 532 400
+```
+
+La branche Deriv du même adaptateur utilisait déjà `requested_stake_amount`
+au lieu du produit : quelqu'un savait que le champ quantité n'est pas
+fiable, mais n'avait corrigé qu'un cas.
+
+### Prévention
+
+- `AccountingBridgeService` refuse désormais d'écrire un débit dont le
+  notionnel dépasse de plus de 50 % le notionnel approuvé par le moteur
+  de risque. Un slippage réel reste très en deçà ; au-delà, ce n'est plus
+  un écart de marché mais une erreur d'unité. **Refuser plutôt qu'écrire :
+  un débit faux au grand livre est irréversible dans les faits, alors
+  qu'un ordre refusé se rejoue.**
+- L'adaptateur paper se fonde sur `approved_notional` quand il existe.
+
+### Réparation
+
+`manage.py repair_phantom_notional [--positions] [--apply]`, inspection
+seule par défaut.
+
+La commande **ne réécrit pas l'historique**. Elle poste une écriture de
+correction, comme on le fait en comptabilité : un grand livre se corrige
+par une contre-écriture datée et motivée, jamais en effaçant une ligne.
+
+Pour les positions, elle ne touche que celles dont la quantité est, à 1 %
+près, égale au notionnel approuvé de son ordre — la signature
+démontrable du défaut. Quand la référence broker n'est pas exploitable,
+le rattachement à un ordre est authentifié **par cette signature**, et
+abandonné s'il est ambigu.
+
+### Résultat sur Cocody
+
+| | avant | après |
+|---|---:|---:|
+| solde | −1 588 843 224,53 | **2 530,57** |
+| latent | −12 404 120,90 | −8 170 916,38 |
+
+7 écritures corrigées, 5 quantités de position corrigées.
+
+### Ce qui n'a pas été réparé, et pourquoi
+
+Trois positions portent une quantité qui ne se réconcilie avec aucun
+ordre : 1HZ25V affiche 14 pour un unique ordre de 10, JD10 affiche 7 pour
+un ordre de 1. Le surplus vient d'imports broker dont la provenance n'est
+pas vérifiable depuis le dépôt.
+
+Leur `current_price` vaut par ailleurs 1000,00 — une valeur de
+remplissage, les marks venant d'une clé Redis alimentée par des flux qui
+ne tournent pas. Les rafraîchir depuis les bougies remplacerait un
+chiffre faux par un chiffre vieux de cinq mois, appliqué à une quantité
+elle-même fausse.
+
+**Reconstruire ces quantités reviendrait à inventer des positions.** Elles
+sont laissées intactes et signalées par la commande.
+
+Les portefeuilles 1 et 3 présentent le même défaut (26 écritures,
+correction cumulée ≈ 10,9 M) et n'ont pas été touchés : la demande
+portait sur Cocody.

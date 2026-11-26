@@ -497,7 +497,60 @@ class PositionService:
         return position
 
 
+#: Dépassement toléré entre le notionnel exécuté et celui approuvé par le
+#: moteur de risque. Un slippage réel reste très en deçà ; au-delà, ce
+#: n'est plus un écart de marché mais une erreur d'unité.
+MAX_NOTIONAL_OVERSHOOT = Decimal("1.5")
+
+
+class FillAccountingRefused(Exception):
+    """Un remplissage dont le notionnel ne correspond pas à ce qui a été
+    approuvé ne doit pas entrer au grand livre."""
+
+
 class AccountingBridgeService:
+    @staticmethod
+    def _assert_notional_is_sane(order: Order, fill_notional: Decimal) -> None:
+        """Refuse d'écrire un débit que le moteur de risque n'a pas sanctionné.
+
+        `Order.approved_quantity` n'a pas d'unité garantie : plusieurs
+        chemins y écrivent un MONTANT EN DEVISE au lieu d'une quantité
+        (cf. la note sur le champ dans execution/models.py). Quand c'est
+        le cas, l'adaptateur paper calcule `notional = prix × quantité` et
+        produit un nombre sans rapport avec l'opération voulue.
+
+        Cas réellement survenu, ordre 93 : l'utilisateur engage 20 000 USD
+        sur BTCUSDT. `approved_quantity` vaut 20 000, le prix 78 776,62,
+        et le grand livre reçoit un débit de 1 575 532 400 — soit 78 776
+        fois le montant approuvé. Le portefeuille est passé à
+        −1,59 milliard et n'en est jamais revenu.
+
+        `approved_notional` porte, lui, le montant que le risque a
+        validé : 20 000. Il sert de borne. Au-delà, on refuse plutôt que
+        d'écrire — un débit faux au grand livre est irréversible dans les
+        faits, alors qu'un ordre refusé se rejoue.
+        """
+        approved = _d(order.approved_notional)
+        if approved <= 0:
+            # Sans référence approuvée, on n'a rien à quoi comparer.
+            return
+        if fill_notional <= approved * MAX_NOTIONAL_OVERSHOOT:
+            return
+
+        ratio = (fill_notional / approved).quantize(Decimal("0.01"))
+        logger.error(
+            "execution.fill_notional_rejected order_id=%s symbol=%s "
+            "fill_notional=%s approved_notional=%s ratio=%s approved_quantity=%s",
+            order.id, order.symbol, fill_notional, approved, ratio,
+            order.approved_quantity,
+        )
+        raise FillAccountingRefused(
+            f"Notionnel exécuté {fill_notional} incohérent avec le notionnel "
+            f"approuvé {approved} (facteur {ratio}). Écriture refusée : "
+            f"c'est la signature d'une confusion d'unité sur la quantité, "
+            f"pas d'un écart de marché."
+        )
+
     @staticmethod
     @transaction.atomic
     def apply_fill_accounting(order: Order, fill: ExecutionFill):
@@ -505,6 +558,8 @@ class AccountingBridgeService:
 
         fill_notional = _d(fill.notional).quantize(Decimal("0.01"))
         fill_fee = _d(fill.fee).quantize(Decimal("0.01"))
+
+        AccountingBridgeService._assert_notional_is_sane(order, fill_notional)
 
         # 1. Déverrouiller le cash réservé
         PortfolioAccountingService.release_cash_from_order(

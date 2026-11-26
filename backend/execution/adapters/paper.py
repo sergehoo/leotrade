@@ -6,6 +6,15 @@ from django.utils import timezone
 from .base import BaseBrokerAdapter
 
 
+def _positive(value) -> Decimal | None:
+    """Montant strictement positif, ou None."""
+    try:
+        amount = Decimal(value or 0)
+    except Exception:
+        return None
+    return amount if amount > 0 else None
+
+
 class PaperBrokerAdapter(BaseBrokerAdapter):
     def submit_order(self, order):
         now = timezone.now()
@@ -21,11 +30,28 @@ class PaperBrokerAdapter(BaseBrokerAdapter):
                 "Paper execution requires a strictly positive reference price."
             )
         fill_qty = Decimal("1") if is_deriv_contract else order.approved_quantity
-        notional = (
-            order.requested_stake_amount
-            if is_deriv_contract
-            else fill_price * fill_qty
-        ).quantize(Decimal("0.01"))
+
+        # Le notionnel vient du montant APPROUVÉ quand il existe, pas d'un
+        # produit prix × quantité. `approved_quantity` n'a pas d'unité
+        # garantie — plusieurs chemins y écrivent un montant en devise —
+        # et le produit donne alors un nombre sans rapport avec
+        # l'opération voulue : 20 000 USD sur BTCUSDT à 78 776 avaient
+        # produit un débit de 1 575 532 400 au grand livre.
+        #
+        # La branche Deriv faisait déjà ce choix ; elle n'était simplement
+        # pas généralisée.
+        approved_notional = _positive(order.approved_notional)
+        deriv_stake = _positive(order.requested_stake_amount)
+
+        if is_deriv_contract and deriv_stake is not None:
+            notional = deriv_stake
+        elif approved_notional is not None:
+            notional = approved_notional
+        else:
+            # Dernier recours seulement : ce produit n'a de sens que si
+            # `approved_quantity` porte bien une quantité.
+            notional = fill_price * fill_qty
+        notional = Decimal(notional).quantize(Decimal("0.01"))
 
         return {
             "broker_order_id": f"PAPER-{order.id}",
