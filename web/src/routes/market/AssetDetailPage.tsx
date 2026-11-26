@@ -136,6 +136,15 @@ export default function AssetDetailPage() {
           ) : (
             <div className="space-y-2">
               <CandleChart candles={history.data.candles} />
+              {/* Le canevas est aria-hidden : sans cette alternative, un
+                  lecteur d'écran ne restituerait rien du graphique. */}
+              <p className="sr-only">
+                Graphique en chandeliers, {history.data.candles.length} bougies
+                sur {history.data.timeframe ?? "—"}. Première clôture{" "}
+                {history.data.candles[0]?.close ?? "—"}, dernière{" "}
+                {history.data.candles[history.data.candles.length - 1]?.close ?? "—"}.
+                Fraîcheur : {history.data.freshness_label}.
+              </p>
               <p className="text-xs text-muted-foreground tabular">
                 {history.data.candles.length} bougie
                 {history.data.candles.length > 1 ? "s" : ""} · {history.data.source} ·

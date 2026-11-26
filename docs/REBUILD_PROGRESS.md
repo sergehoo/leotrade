@@ -697,3 +697,81 @@ fonctionnelle.
   bandes de Bollinger — rien ne les trace).
 - Graphiques dans les réponses de Leo.
 - Temps réel des cotations par WebSocket.
+
+---
+
+## Lot 10 bis — Correction des trouvailles de la relecture adversariale
+
+Cinq chercheurs, un angle chacun ; 49 trouvailles brutes, chacune soumise
+à un réfutateur ayant consigne de réfuter par défaut. **12 ont survécu**,
+se ramenant à six défauts distincts.
+
+### 1. La précision d'affichage tronquait le transport
+
+`Asset.price_precision` vaut 2 par défaut et n'est renseigné nulle part.
+Le service arrondissait les bougies à cette précision **avant de les
+transmettre**. Mesuré sur la vraie base :
+
+```
+ADAUSDT 1h, avant : 300 bougies → 10 cours distincts, 263 bougies plates
+                    échantillon {open:'0.24' high:'0.24' low:'0.24' close:'0.24'}
+          après  : 300 bougies → 212 cours distincts, 9 bougies plates
+                    amplitude réelle 0,1498 → 0,2377 (+58,7 %)
+```
+
+Un mouvement de près de 60 % était rendu comme une ligne horizontale. La
+précision d'affichage est une indication pour le client ; le serveur
+transmet désormais la précision de STOCKAGE, et `price_precision` reste
+exposé à part pour le formatage.
+
+### 2. L'ancrage à zéro ne jouait que vers le bas
+
+`Math.min(0, minValue)` sans son pendant. Sur une série entièrement
+négative — rien ne borne le champ `equity` — zéro n'entrait jamais dans
+la plage et l'axe se recalait sur l'amplitude observée. Le réfutateur a
+trouvé en base un portefeuille à −464 361 qui deviendra traçable après
+cinq cycles de la tâche horaire ajoutée au Lot 10.
+
+Ancrage bidirectionnel, et une ligne de zéro est tracée dès que la série
+touche le négatif : sans elle, l'aire d'une courbe négative est peinte
+du même dégradé qu'une courbe positive.
+
+### 3. La médiane est aveugle à un trou unique
+
+365 points quotidiens avec une interruption de huit mois au milieu
+gardent une médiane de 24 h. Et l'axe des temps d'un graphique boursier
+est **ordinal** : le trou s'y dessine à la largeur d'un point, avec un
+segment de pente ordinaire par-dessus.
+
+Le plus grand écart est désormais calculé, exposé, et disqualifie la
+série au-delà de sept jours (motif `INTERRUPTED`).
+
+### 4. Traçable ne veut pas dire récent
+
+La courbe n'avait aucun verdict de fraîcheur, alors que le serveur en
+calculait l'âge et que les chandeliers, eux, affichaient un bandeau. Une
+série régulière arrêtée il y a six mois se dessinait sans un mot.
+`is_stale` ajouté, indépendant de `is_plottable`, avec son bandeau.
+
+### 5. Web et Flutter ne cadraient pas la même fenêtre
+
+300 bougies côté web, 200 côté mobile ; marges 12 % contre 8 %. Mesure
+du réfutateur sur BTCUSDT 1h : amplitude 15 067 sur le web contre 5 263
+sur mobile — **le même mouvement dessiné 3,16 fois plus haut sur le
+téléphone**. Fenêtre et marges alignées.
+
+### 6. Les graphiques ne disaient rien aux lecteurs d'écran
+
+`aria-hidden` sans alternative. Un résumé chiffré en `sr-only`
+accompagne désormais chaque graphique.
+
+### Non retenu
+
+L'absence d'échelle logarithmique a été confirmée comme réelle mais
+cosmétique : elle sera traitée avec les indicateurs superposés.
+
+### Vérification
+
+654 tests backend (+10), 75 Flutter (+3), build web OK. Validé au
+navigateur : ADAUSDT affiche 0,1696 et des centaines de bougies
+distinctes là où la version précédente montrait une ligne plate.

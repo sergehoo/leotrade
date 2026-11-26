@@ -217,3 +217,118 @@ class TestScheduledCapture:
         assert result["failed"] == 1
         assert result["captured"] == Portfolio.objects.filter(is_active=True).count() - 1
         assert second is not None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Régressions issues de la relecture adversariale des graphiques
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+class TestGapBlindness:
+    """La médiane est par construction aveugle à un trou unique.
+
+    365 points quotidiens dont le milieu comporte une interruption de
+    huit mois gardent une médiane de 24 h. Et l'axe des temps d'un
+    graphique boursier est ordinal : le trou s'y dessine à la largeur
+    d'un point, avec un segment de pente ordinaire par-dessus.
+    """
+
+    def test_a_single_hole_is_caught_even_when_the_median_is_fine(
+        self, client, portfolio,
+    ):
+        now = timezone.now()
+        # Vingt points quotidiens, puis un trou de 200 jours, puis vingt.
+        for index in range(20):
+            PortfolioSnapshot.objects.create(
+                portfolio=portfolio,
+                snapshot_time=now - timedelta(days=260 - index),
+                equity=Decimal("10000.00"),
+            )
+        for index in range(20):
+            PortfolioSnapshot.objects.create(
+                portfolio=portfolio,
+                snapshot_time=now - timedelta(days=20 - index),
+                equity=Decimal("10500.00"),
+            )
+
+        body = _curve(client, portfolio)
+
+        assert body["median_gap_seconds"] <= 36 * 3600, (
+            "La médiane reste bonne — c'est précisément le piège."
+        )
+        assert body["is_plottable"] is False
+        assert "INTERRUPTED" in body["not_plottable_reasons"]
+
+    def test_the_largest_hole_is_reported_not_just_the_median(
+        self, client, portfolio,
+    ):
+        """L'interface doit pouvoir dire la taille du trou, pas seulement
+        qu'il y en a un."""
+        now = timezone.now()
+        PortfolioSnapshot.objects.create(
+            portfolio=portfolio, snapshot_time=now - timedelta(days=100),
+            equity=Decimal("10000.00"),
+        )
+        for index in range(5):
+            PortfolioSnapshot.objects.create(
+                portfolio=portfolio,
+                snapshot_time=now - timedelta(hours=5 - index),
+                equity=Decimal("10000.00"),
+            )
+
+        body = _curve(client, portfolio)
+
+        assert body["max_gap_seconds"] > body["median_gap_seconds"]
+        assert body["max_gap_seconds"] > 7 * 24 * 3600
+
+    def test_a_regular_series_keeps_its_verdict(self, client, portfolio):
+        """La garde ne doit pas disqualifier une série saine."""
+        _snapshots(portfolio, 10)
+
+        body = _curve(client, portfolio)
+
+        assert body["is_plottable"] is True
+        assert "INTERRUPTED" not in body["not_plottable_reasons"]
+
+
+@pytest.mark.django_db
+class TestCurveStaleness:
+    """Traçable n'est pas récent : une série régulière mais arrêtée il y a
+    six mois décrit un état révolu, et le dessin n'en dit rien."""
+
+    def test_an_old_but_regular_series_is_flagged_stale(self, client, portfolio):
+        now = timezone.now()
+        for index in range(8):
+            PortfolioSnapshot.objects.create(
+                portfolio=portfolio,
+                snapshot_time=now - timedelta(days=200 - index),
+                equity=Decimal("10000.00"),
+            )
+
+        body = _curve(client, portfolio)
+
+        assert body["is_stale"] is True
+        assert body["age_seconds"] > 7 * 24 * 3600
+
+    def test_a_recent_series_is_not_flagged(self, client, portfolio):
+        _snapshots(portfolio, 8, hours_apart=2)
+
+        body = _curve(client, portfolio)
+
+        assert body["is_stale"] is False
+
+    def test_staleness_is_independent_from_plottability(self, client, portfolio):
+        """Les deux verdicts répondent à des questions différentes et ne
+        doivent pas être confondus."""
+        now = timezone.now()
+        for index in range(8):
+            PortfolioSnapshot.objects.create(
+                portfolio=portfolio,
+                snapshot_time=now - timedelta(days=200 - index),
+                equity=Decimal("10000.00"),
+            )
+
+        body = _curve(client, portfolio)
+
+        assert body["is_plottable"] is True, "La série est régulière et fournie."
+        assert body["is_stale"] is True, "Mais elle ne décrit plus le présent."

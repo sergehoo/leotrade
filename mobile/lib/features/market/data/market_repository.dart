@@ -26,7 +26,11 @@ class MarketRepository {
         .toList(growable: false);
   }
 
-  Future<CandleHistory> candles(int assetId, {String timeframe = '1d', int limit = 200}) async {
+    /// [limit] vaut 300 comme côté web : deux fenêtres différentes
+  /// cadrent deux amplitudes différentes pour le même instrument au même
+  /// instant, et le même mouvement s'y dessine jusqu'à trois fois plus
+  /// haut d'un support à l'autre.
+  Future<CandleHistory> candles(int assetId, {String timeframe = '1d', int limit = 300}) async {
     return CandleHistory.fromJson(
       await _client.get<Map<String, dynamic>>(
         '/market/assets/$assetId/candles/',

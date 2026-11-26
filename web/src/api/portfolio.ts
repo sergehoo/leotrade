@@ -167,8 +167,16 @@ export interface EquityCurve {
   age_seconds: number | null
   /** Écart médian entre deux mesures. */
   median_gap_seconds: number | null
+  /**
+   * Plus grand trou de la série. La médiane est aveugle à un trou
+   * unique, et l'axe des temps est ordinal : un trou de huit mois s'y
+   * dessine à la largeur d'un point.
+   */
+  max_gap_seconds: number | null
+  /** Indépendant de `is_plottable` : traçable n'est pas récent. */
+  is_stale: boolean
   is_plottable: boolean
-  not_plottable_reasons: Array<"TOO_FEW_POINTS" | "GAPS_TOO_WIDE" | string>
+  not_plottable_reasons: Array<"TOO_FEW_POINTS" | "GAPS_TOO_WIDE" | "INTERRUPTED" | string>
   minimum_points: number
 }
 

@@ -53,12 +53,26 @@ FRESHNESS_LABELS = {
 }
 
 
-def _money(value, precision: int = 8) -> str | None:
+#: Précision de STOCKAGE des bougies (`Candle.*`, decimal_places=10).
+#: C'est elle qui borne le transport, pas une préférence d'affichage.
+STORED_PRICE_PRECISION = 10
+
+
+def _money(value, precision: int = STORED_PRICE_PRECISION) -> str | None:
     """Montant en chaîne, sans notation exponentielle.
 
     `Decimal.normalize()` rend « 1E+2 » pour 100.00 : le client afficherait
     cela tel quel. On formate donc en virgule fixe, puis on retire les
     zéros de fin à la main.
+
+    La précision par défaut est celle du STOCKAGE, pas celle de
+    l'affichage. Tronquer au transport détruit de l'information que le
+    client ne peut plus retrouver : sur ADAUSDT, arrondir à deux
+    décimales ramenait 300 bougies à dix cours distincts et 263 bougies
+    plates, transformant un mouvement de +60 % en ligne horizontale.
+    `Asset.price_precision` reste exposé à part, comme indication de
+    formatage — c'est au client d'arrondir pour afficher, jamais au
+    serveur d'arrondir pour transmettre.
     """
     if value is None:
         return None
@@ -138,13 +152,13 @@ class MarketQuoteService:
             "source": asset.exchange,
             "timeframe": timeframe.code,
 
-            "price": _money(price, asset.price_precision or 8),
-            "open": _money(latest["open"], asset.price_precision or 8),
-            "high": _money(latest["high"], asset.price_precision or 8),
-            "low": _money(latest["low"], asset.price_precision or 8),
-            "volume": _money(latest["volume"], 8),
+            "price": _money(price),
+            "open": _money(latest["open"]),
+            "high": _money(latest["high"]),
+            "low": _money(latest["low"]),
+            "volume": _money(latest["volume"]),
 
-            "change": _money(change, asset.price_precision or 8),
+            "change": _money(change),
             "change_percent": str(change_percent.quantize(Decimal("0.01"))),
 
             "as_of": as_of,
@@ -205,7 +219,6 @@ class MarketQuoteService:
         )
         rows.reverse()
 
-        precision = asset.price_precision or 8
         as_of = rows[-1]["close_time"] if rows else None
         age = (timezone.now() - as_of).total_seconds() if as_of else None
         freshness = classify_freshness(age, timeframe.minutes)
@@ -222,11 +235,11 @@ class MarketQuoteService:
             "candles": [
                 {
                     "open_time": row["open_time"],
-                    "open": _money(row["open"], precision),
-                    "high": _money(row["high"], precision),
-                    "low": _money(row["low"], precision),
-                    "close": _money(row["close"], precision),
-                    "volume": _money(row["volume"], 8),
+                    "open": _money(row["open"]),
+                    "high": _money(row["high"]),
+                    "low": _money(row["low"]),
+                    "close": _money(row["close"]),
+                    "volume": _money(row["volume"]),
                 }
                 for row in rows
             ],

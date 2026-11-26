@@ -3,6 +3,7 @@ import {
   ColorType,
   createChart,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts"
@@ -13,11 +14,17 @@ import type { EquityPoint } from "@/api/portfolio"
 /**
  * Courbe de valorisation.
  *
- * L'échelle de valeur est volontairement NON tronquée : elle inclut
- * toujours zéro quand la série reste positive. Une courbe dont l'axe
- * démarre au minimum observé transforme une variation de 0,5 % en une
- * pente spectaculaire — c'est la manière la plus commune de mentir avec
- * un graphique honnête par ailleurs.
+ * L'échelle inclut toujours zéro, DANS LES DEUX SENS. Une première
+ * version n'ancrait que vers le bas (`Math.min(0, minValue)`) : sur une
+ * série entièrement négative — une valorisation peut l'être, rien ne
+ * borne le champ — zéro n'entrait jamais dans la plage et l'axe se
+ * recalait sur l'amplitude observée. Un portefeuille à −464 000 dérivant
+ * de 0,1 % était alors rendu comme un effondrement pleine hauteur.
+ *
+ * Une ligne de zéro est tracée dès que la série touche ou franchit le
+ * négatif. Sans elle, l'aire d'une courbe négative est peinte du même
+ * dégradé que celle d'une courbe positive, et le passage sous zéro — le
+ * seul point qui compte — n'est marqué par rien.
  */
 export function EquityChart({
   points,
@@ -29,6 +36,7 @@ export function EquityChart({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<"Area"> | null>(null)
+  const zeroLineRef = useRef<IPriceLine | null>(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -60,8 +68,8 @@ export function EquityChart({
       topColor: `hsl(${token("--primary", "168 70% 45%")} / 0.25)`,
       bottomColor: `hsl(${token("--primary", "168 70% 45%")} / 0.02)`,
       lineWidth: 2,
-      // Ancre l'échelle sur zéro : sans elle, l'axe se cale sur le
-      // minimum de la série et amplifie optiquement chaque variation.
+      // Ancrage bidirectionnel : zéro appartient toujours à la plage,
+      // que la série soit positive, négative ou à cheval.
       autoscaleInfoProvider: (original: () => { priceRange: { minValue: number; maxValue: number } } | null) => {
         const result = original()
         if (!result) return result
@@ -69,7 +77,7 @@ export function EquityChart({
           ...result,
           priceRange: {
             minValue: Math.min(0, result.priceRange.minValue),
-            maxValue: result.priceRange.maxValue,
+            maxValue: Math.max(0, result.priceRange.maxValue),
           },
         }
       },
@@ -104,6 +112,28 @@ export function EquityChart({
       .filter((point) => Number.isFinite(point.value))
 
     series.setData(data)
+
+    // Ligne de zéro, seulement quand elle a un sens : sur une série
+    // strictement positive elle encombrerait le bas du cadre sans rien
+    // apprendre. Dès que la valorisation touche le négatif, c'est la
+    // seule référence qui distingue « en baisse » de « à découvert ».
+    if (zeroLineRef.current) {
+      series.removePriceLine(zeroLineRef.current)
+      zeroLineRef.current = null
+    }
+    if (data.some((point) => point.value < 0)) {
+      zeroLineRef.current = series.createPriceLine({
+        price: 0,
+        color: `hsl(${getComputedStyle(document.documentElement)
+          .getPropertyValue("--loss")
+          .trim() || "0 72% 60%"})`,
+        lineWidth: 1,
+        lineStyle: 2,
+        axisLabelVisible: true,
+        title: "zéro",
+      })
+    }
+
     chartRef.current?.timeScale().fitContent()
   }, [points])
 

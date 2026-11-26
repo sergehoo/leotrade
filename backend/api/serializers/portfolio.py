@@ -324,6 +324,13 @@ class EquityCurveSerializer(serializers.Serializer):
     #: Écart médian entre deux mesures. Au-delà d'un jour et demi,
     #: l'interpolation invente plus qu'elle ne montre.
     median_gap_seconds = serializers.IntegerField(allow_null=True)
+    #: Plus grand trou de la série. La médiane est aveugle à un trou
+    #: unique, et l'axe des temps d'un graphique boursier est ordinal :
+    #: un trou de huit mois s'y dessine à la largeur d'un point.
+    max_gap_seconds = serializers.IntegerField(allow_null=True)
+    #: Indépendant de `is_plottable` : une série peut être traçable et
+    #: décrire néanmoins un état révolu.
+    is_stale = serializers.BooleanField()
     is_plottable = serializers.BooleanField()
     not_plottable_reasons = serializers.ListField(child=serializers.CharField())
     minimum_points = serializers.IntegerField()

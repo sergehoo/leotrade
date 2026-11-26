@@ -446,10 +446,37 @@ function EquityCurveSection({ portfolioId }: { portfolioId: number }) {
         <CardContent className="space-y-3 p-4">
           {data.is_plottable ? (
             <>
+              {/* Traçable n'est pas récent : une série régulière mais
+                  arrêtée il y a six mois décrit un état révolu, et rien
+                  dans le dessin ne le dit. */}
+              {data.is_stale ? (
+                <Alert variant="warning" title="Cette courbe ne décrit plus ton portefeuille">
+                  La dernière mesure date du{" "}
+                  {data.last_at ? new Date(data.last_at).toLocaleString("fr-FR") : "—"}.
+                  Ce qui s'est passé depuis n'apparaît nulle part sur ce
+                  graphique.
+                </Alert>
+              ) : null}
               <EquityChart points={data.points} />
               <p className="text-xs text-muted-foreground tabular">
                 {data.point_count} mesures · dernière le{" "}
                 {data.last_at ? new Date(data.last_at).toLocaleString("fr-FR") : "—"}
+              </p>
+              {/* Le graphique est aria-hidden : sans cette alternative, un
+                  lecteur d'écran ne restituerait rien du tout. */}
+              <p className="sr-only">
+                Courbe de valorisation : {data.point_count} mesures, de{" "}
+                {data.points[0]
+                  ? formatMoney(data.points[0].equity, data.base_currency)
+                  : "—"}{" "}
+                à{" "}
+                {data.points[data.points.length - 1]
+                  ? formatMoney(
+                      data.points[data.points.length - 1].equity,
+                      data.base_currency,
+                    )
+                  : "—"}
+                .
               </p>
             </>
           ) : (
@@ -464,6 +491,7 @@ function EquityCurveSection({ portfolioId }: { portfolioId: number }) {
 function NotPlottable({ curve }: { curve: EquityCurve }) {
   const tooFew = curve.not_plottable_reasons.includes("TOO_FEW_POINTS")
   const gaps = curve.not_plottable_reasons.includes("GAPS_TOO_WIDE")
+  const interrupted = curve.not_plottable_reasons.includes("INTERRUPTED")
 
   return (
     <div className="space-y-3">
@@ -475,6 +503,16 @@ function NotPlottable({ curve }: { curve: EquityCurve }) {
             nécessaires. Une courbe tracée sur si peu de points relierait des
             îlots en une ligne continue, et donnerait à voir une trajectoire
             qui n'a pas été mesurée.
+          </>
+        ) : interrupted ? (
+          <>
+            La série comporte une interruption de{" "}
+            {curve.max_gap_seconds
+              ? Math.round(curve.max_gap_seconds / 86400)
+              : "—"}{" "}
+            jours. Sur un graphique, l'axe du temps est ordinal : ce trou
+            serait dessiné à la largeur d'un point, et le segment qui
+            l'enjambe aurait la même pente apparente que ses voisins.
           </>
         ) : gaps ? (
           <>

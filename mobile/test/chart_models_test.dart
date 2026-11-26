@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:leotrade/features/market/domain/models.dart';
 import 'package:leotrade/shared/charts/candle_chart.dart';
@@ -95,6 +97,44 @@ void main() {
       });
 
       expect(history.hasData, isFalse);
+    });
+  });
+
+  group('Alignement web / Flutter', () {
+    test('la fenêtre par défaut vaut 300 bougies, comme le web', () {
+      // Deux fenêtres différentes cadrent deux amplitudes différentes
+      // pour le même instrument au même instant : sur BTCUSDT 1h, le
+      // même mouvement se dessinait 3,16x plus haut sur le téléphone.
+      final source = File(
+        'lib/features/market/data/market_repository.dart',
+      ).readAsStringSync();
+
+      expect(
+        source.contains("int limit = 300"),
+        isTrue,
+        reason: 'La fenêtre mobile doit valoir celle du web (300).',
+      );
+    });
+
+    test('les marges du painter valent celles du web', () {
+      // CandleChart.tsx utilise scaleMargins { top: 0.12, bottom: 0.12 }.
+      final source =
+          File('lib/shared/charts/candle_chart.dart').readAsStringSync();
+
+      expect(source.contains('const margin = 0.08;'), isFalse,
+          reason: 'Marge désalignée du web.');
+      expect(source.contains('const margin = 0.12;'), isTrue);
+    });
+
+    test("l'ancrage de la sparkline est bidirectionnel", () {
+      // N'ancrer que vers le bas laissait une série entièrement négative
+      // se recaler sur son amplitude observée.
+      final source =
+          File('lib/shared/charts/candle_chart.dart').readAsStringSync();
+
+      expect(source.contains('if (minValue > 0) minValue = 0;'), isTrue);
+      expect(source.contains('if (maxValue < 0) maxValue = 0;'), isTrue,
+          reason: 'Une série négative doit aussi inclure zéro.');
     });
   });
 }

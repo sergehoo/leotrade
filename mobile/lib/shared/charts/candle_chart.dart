@@ -89,8 +89,10 @@ class _CandlePainter extends CustomPainter {
       span = maxHigh - minLow;
     }
 
-    // Marge symétrique haut/bas.
-    const margin = 0.08;
+    // Marge symétrique haut/bas, alignée sur `scaleMargins` du web
+    // (CandleChart.tsx) : une marge différente cadre une amplitude
+    // différente pour la même série.
+    const margin = 0.12;
     final usable = size.height * (1 - 2 * margin);
     final top = size.height * margin;
 
@@ -178,13 +180,17 @@ class _SparklinePainter extends CustomPainter {
     var minValue = values.reduce((a, b) => a < b ? a : b);
     var maxValue = values.reduce((a, b) => a > b ? a : b);
 
-    // Ancrage sur zéro tant que la série ne descend pas en dessous.
-    if (minValue >= 0) minValue = 0;
+    // Ancrage bidirectionnel : zéro appartient toujours à la plage, que
+    // la série soit positive, négative ou à cheval. N'ancrer que vers le
+    // bas laissait une série entièrement négative se recaler sur son
+    // amplitude observée — exactement l'amplification qu'on interdit.
+    if (minValue > 0) minValue = 0;
+    if (maxValue < 0) maxValue = 0;
 
     var span = maxValue - minValue;
     if (span <= 0) span = maxValue.abs() > 0 ? maxValue.abs() : 1;
 
-    const margin = 0.08;
+    const margin = 0.12;
     final usable = size.height * (1 - 2 * margin);
     final top = size.height * margin;
     final step = size.width / (values.length - 1);

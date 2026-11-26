@@ -323,3 +323,74 @@ class TestWatchlist:
         assert len(rows) == 1
         assert rows[0]["freshness"] == Freshness.STALE
         assert rows[0]["as_of"] is not None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Régression : la précision d'affichage ne doit pas tronquer le transport
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+class TestPrecisionIsNotTruncatedForCharting:
+    """`Asset.price_precision` vaut 2 par défaut et n'est renseigné nulle
+    part. Arrondir les bougies à cette précision avant de les transmettre
+    ramenait 300 bougies ADAUSDT à dix cours distincts et 263 bougies
+    plates — un mouvement de +60 % rendu comme une ligne horizontale.
+
+    La précision d'affichage est une indication pour le client ; elle n'a
+    pas à borner ce que le serveur transmet.
+    """
+
+    @pytest.fixture
+    def penny(self, db):
+        return Asset.objects.create(
+            symbol="ADAUSDT", name="Cardano", asset_class="CRYPTO",
+            exchange="BINANCE", price_precision=2, is_active=True,
+        )
+
+    def test_small_prices_keep_their_distinct_values(self, client, penny, daily):
+        for index, close in enumerate(["0.1498", "0.1811", "0.2104", "0.2377"]):
+            _candle(penny, daily, close=close, age_days=4 - index)
+
+        body = client.get(
+            reverse("api-assets-candles", kwargs={"pk": penny.pk})
+        ).json()
+
+        closes = [row["close"] for row in body["candles"]]
+        assert len(set(closes)) == 4, (
+            f"Quatre cours distincts attendus, reçu {closes} — "
+            f"l'arrondi d'affichage a été appliqué au transport."
+        )
+        assert "0.1498" in closes
+
+    def test_a_candle_does_not_become_flat_through_rounding(
+        self, client, penny, daily,
+    ):
+        _candle(penny, daily, close="0.2377", age_days=1, open_price="0.2104")
+
+        body = client.get(
+            reverse("api-assets-candles", kwargs={"pk": penny.pk})
+        ).json()
+        candle = body["candles"][0]
+
+        assert candle["open"] != candle["close"], (
+            "Une bougie dont l'ouverture et la clôture diffèrent de 13 % "
+            "ne doit pas sortir plate."
+        )
+
+    def test_the_quote_keeps_its_precision_too(self, client, penny, daily):
+        _candle(penny, daily, close="0.123456", age_days=0)
+
+        body = client.get(
+            reverse("api-assets-quote", kwargs={"pk": penny.pk})
+        ).json()
+
+        assert body["price"] == "0.123456"
+
+    def test_the_display_hint_remains_available_to_the_client(self, client, penny):
+        """Le client doit pouvoir formater : l'indication reste exposée,
+        c'est seulement le serveur qui cesse d'arrondir."""
+        body = client.get(
+            reverse("api-assets-detail", kwargs={"pk": penny.pk})
+        ).json()
+
+        assert body["price_precision"] == 2
