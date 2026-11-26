@@ -482,6 +482,13 @@ CELERY_BEAT_SCHEDULE = {
         "task": "execution.tasks.recover_stale_execution_orders_task",
         "schedule": crontab(minute="*"),
     },
+    # Instantanés de portefeuille — la courbe de valorisation s'alimente
+    # ici et nulle part ailleurs. Sans cette entrée, PortfolioSnapshot
+    # reste vide et tout graphique tracé dessus relie des points épars.
+    "capture-portfolio-snapshots-hourly": {
+        "task": "portfolio.tasks.capture_daily_snapshots_task",
+        "schedule": crontab(minute=5),
+    },
     "collect-operational-snapshot-every-30-seconds": {
         "task": "core.tasks.collect_operational_snapshot_task",
         "schedule": 30.0,

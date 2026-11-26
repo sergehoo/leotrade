@@ -174,3 +174,43 @@ def broadcast_open_positions_task(self):
                     pf.id, exc,
                 )
         return {"portfolios": n_pf}
+
+
+@shared_task(name="portfolio.tasks.capture_daily_snapshots_task")
+def capture_daily_snapshots_task():
+    """Capture un instantané de chaque portefeuille actif.
+
+    `PortfolioSnapshot` existe depuis l'origine et porte tout ce qu'il
+    faut pour tracer une courbe de valorisation — mais aucune tâche ne
+    l'alimentait. En développement, cinq instantanés existaient, tous pour
+    un seul portefeuille, datant de six mois : une « courbe » tracée
+    dessus aurait relié cinq points épars en une ligne continue, donnant à
+    voir une trajectoire qui n'a jamais été mesurée.
+
+    Une série éparse est pire qu'une série absente : l'absence se voit,
+    l'interpolation non.
+    """
+    import logging
+
+    from portfolio.models import Portfolio
+    from portfolio.services import PortfolioService
+
+    logger = logging.getLogger("leotrade.portfolio.snapshots")
+
+    captured = failed = 0
+    for portfolio in Portfolio.objects.filter(is_active=True).select_related(
+        "broker_account"
+    ):
+        try:
+            PortfolioService.create_snapshot(portfolio)
+            captured += 1
+        except Exception as exc:
+            failed += 1
+            # Un portefeuille en erreur ne doit pas priver les autres de
+            # leur instantané : la série de chacun est indépendante.
+            logger.warning(
+                "portfolio.snapshot_failed portfolio_id=%s error=%s",
+                portfolio.pk, exc,
+            )
+
+    return {"captured": captured, "failed": failed}

@@ -5,6 +5,7 @@ from rest_framework.response import Response
 
 from api.permissions import IsOwner
 from api.serializers.portfolio import (
+    EquityCurveSerializer,
     PaperOnboardingSerializer,
     PortfolioSummarySerializer,
     PortfolioSerializer,
@@ -26,6 +27,7 @@ from portfolio.models import (
 )
 from portfolio.services import PortfolioService
 from portfolio.services_onboarding import OnboardingError, PaperOnboardingService
+from portfolio.services_equity_curve import EquityCurveService
 from portfolio.services_summary import PortfolioSummaryService
 from portfolio.broker_import import BrokerImportService
 
@@ -141,6 +143,24 @@ class PortfolioViewSet(viewsets.ModelViewSet):
     def summary(self, request, pk=None):
         portfolio = self.get_object()
         return Response(PortfolioSummaryService.build(portfolio))
+
+    @extend_schema(
+        responses={200: EquityCurveSerializer},
+        summary="Série de valorisation, avec le verdict de traçabilité",
+        description=(
+            "Renvoie les instantanés ET de quoi juger s'il y a lieu de les "
+            "tracer : nombre de points, écart médian, `is_plottable`. Relier "
+            "des points épars donne à voir une trajectoire qui n'a jamais "
+            "été mesurée."
+        ),
+    )
+    @action(detail=True, methods=["get"], url_path="equity-curve")
+    def equity_curve(self, request, pk=None):
+        portfolio = self.get_object()
+        curve = EquityCurveService.build(
+            portfolio, limit=request.query_params.get("limit") or 365,
+        )
+        return Response(EquityCurveSerializer(curve).data)
 
     @action(detail=True, methods=["get"])
     def exposures(self, request, pk=None):

@@ -107,3 +107,51 @@ class WatchlistEntry {
   final int assetId;
   final String symbol;
 }
+
+
+/// Historique de bougies, avec la fraîcheur de la série.
+class CandleHistory {
+  const CandleHistory({
+    required this.symbol,
+    required this.source,
+    required this.timeframe,
+    required this.freshness,
+    required this.freshnessLabel,
+    required this.candles,
+    this.asOf,
+    this.ageSeconds,
+  });
+
+  factory CandleHistory.fromJson(Map<String, dynamic> json) {
+    final raw = json['candles'];
+    return CandleHistory(
+      symbol: json['symbol'] as String? ?? '',
+      source: json['source'] as String? ?? '',
+      timeframe: json['timeframe'] as String?,
+      freshness: freshnessFrom(json['freshness'] as String?),
+      freshnessLabel: json['freshness_label'] as String? ?? 'Aucune donnée',
+      candles: raw is List
+          ? raw.whereType<Map<String, dynamic>>().toList(growable: false)
+          : const [],
+      asOf: DateTime.tryParse('${json['as_of'] ?? ''}'),
+      ageSeconds: json['age_seconds'] as int?,
+    );
+  }
+
+  final String symbol;
+  final String source;
+  final String? timeframe;
+  final Freshness freshness;
+  final String freshnessLabel;
+
+  /// Bougies brutes : la conversion en valeurs dessinables a lieu une
+  /// seule fois, à la frontière du graphique.
+  final List<Map<String, dynamic>> candles;
+
+  final DateTime? asOf;
+  final int? ageSeconds;
+
+  bool get isStale => freshness == Freshness.stale;
+
+  bool get hasData => candles.isNotEmpty;
+}

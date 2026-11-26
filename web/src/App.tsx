@@ -9,6 +9,7 @@ import DashboardPage from "@/routes/DashboardPage"
 import BrokersPage from "@/routes/brokers/BrokersPage"
 import LeoPage from "@/routes/leo/LeoPage"
 import LoginPage from "@/routes/LoginPage"
+import AssetDetailPage from "@/routes/market/AssetDetailPage"
 import MarketPage from "@/routes/market/MarketPage"
 import WalletPage from "@/routes/wallet/WalletPage"
 import PortfolioPage from "@/routes/portfolio/PortfolioPage"
@@ -54,6 +55,7 @@ export default function App() {
               <Route index element={<DashboardPage />} />
               <Route path="portefeuille" element={<PortfolioPage />} />
               <Route path="marches" element={<MarketPage />} />
+              <Route path="marches/:id" element={<AssetDetailPage />} />
               <Route path="risque" element={<RiskPage />} />
               <Route path="assistant" element={<LeoPage />} />
               <Route path="portefeuille-electronique" element={<WalletPage />} />

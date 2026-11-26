@@ -624,3 +624,76 @@ désormais alimentées par l'API.
   l'interface cesse de proposer ce qui sera refusé.
 - Plafonds à rendre dépendants du palier KYC — le commentaire
   « à ajuster en config selon le KYC tier » est toujours là.
+
+---
+
+## Lot 10 — Graphiques
+
+### Une cause avant un dessin
+
+`PortfolioSnapshot` existait depuis l'origine et portait tout ce qu'il
+faut pour une courbe de valorisation — mais **aucune des 31 tâches beat
+ne l'alimentait**. En développement : cinq instantanés, un seul
+portefeuille, datant de six mois. Tracer une « courbe » dessus aurait
+relié cinq îlots en une ligne continue.
+
+Une tâche horaire a été ajoutée. Un portefeuille en erreur n'empêche pas
+les autres d'être capturés : chaque série est indépendante.
+
+### Le verdict de traçabilité vient du serveur
+
+`GET /portfolios/{id}/equity-curve/` renvoie la série **et** de quoi
+juger s'il y a lieu de la tracer : nombre de points, intervalle médian,
+`is_plottable`, motifs du refus. Le seuil n'est pas redérivé par chaque
+client — deux clients ne doivent pas trancher différemment.
+
+Refus si moins de cinq points (deux points font un segment, pas une
+trajectoire) ou si l'écart médian dépasse 36 h (l'interpolation
+inventerait plus qu'elle ne montrerait).
+
+Quand le refus tombe, l'interface montre les **points eux-mêmes** et dit
+pourquoi elle ne les relie pas.
+
+### Ce qui empêche un graphique exact de mentir
+
+- **L'échelle de la courbe de valorisation inclut zéro** tant que la
+  série reste positive. Un axe calé sur le minimum observé transforme
+  une variation de 0,5 % en pente spectaculaire : c'est la manière la
+  plus commune de mentir avec un graphique par ailleurs juste.
+- **Marges symétriques** sur les chandeliers : coller la série aux bords
+  suggère un plafond ou un plancher qui n'existe pas.
+- **Une bougie incomplète est écartée**, pas dessinée à zéro — une
+  valeur manquante lue comme 0 écraserait toute l'échelle.
+- **Un graphique périmé le dit**, au-dessus de lui : « la dernière
+  bougie date du 29/03/2026 (il y a 8 mois). Ce qui s'est passé depuis
+  n'apparaît nulle part sur ce graphique. »
+
+### Une erreur de ma part, corrigée
+
+La migration `market_watchlistitem` du Lot 8 n'avait **jamais été
+appliquée à la base de développement**. La route renvoyait 500 depuis, et
+je ne l'avais pas vu : l'échec était absorbé côté client par un
+`?? []`, et j'avais validé la page en la chargeant sans exercer la
+fonctionnalité.
+
+Leçon retenue : charger une page ne la valide pas. La liste de suivi a
+été revérifiée en cliquant réellement.
+
+### Flutter sans dépendance
+
+Chandeliers et courbe dessinés au `CustomPainter`, mêmes règles
+d'échelle. Aucun paquet graphique ajouté.
+
+### Vérification
+
+644 tests backend (1 ignoré), 72 Flutter, build web OK. Validé au
+navigateur : chandeliers BTCUSDT sur 300 bougies avec l'avertissement de
+péremption, refus de courbe sur un portefeuille neuf, liste de suivi
+fonctionnelle.
+
+### Reste à faire
+
+- Indicateurs superposés (`MarketFeature` porte RSI, MACD, SMA, ATR,
+  bandes de Bollinger — rien ne les trace).
+- Graphiques dans les réponses de Leo.
+- Temps réel des cotations par WebSocket.

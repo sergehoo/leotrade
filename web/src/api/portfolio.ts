@@ -139,3 +139,43 @@ export function setDefaultPortfolio(id: number): Promise<{ status: string }> {
     url: `/portfolios/${id}/set-default/`,
   })
 }
+
+
+export interface EquityPoint {
+  at: string
+  equity: string
+  balance: string
+  unrealized_pnl: string
+  realized_pnl: string
+  drawdown_percent: number
+}
+
+/**
+ * Série de valorisation, avec le verdict de traçabilité.
+ *
+ * Un graphique affirme plus fort qu'un nombre : relier des points épars
+ * donne à voir une trajectoire qui n'a jamais été mesurée. Le verdict
+ * vient du serveur pour que deux clients ne tranchent pas différemment.
+ */
+export interface EquityCurve {
+  portfolio_id: number
+  base_currency: string
+  points: EquityPoint[]
+  point_count: number
+  first_at: string | null
+  last_at: string | null
+  age_seconds: number | null
+  /** Écart médian entre deux mesures. */
+  median_gap_seconds: number | null
+  is_plottable: boolean
+  not_plottable_reasons: Array<"TOO_FEW_POINTS" | "GAPS_TOO_WIDE" | string>
+  minimum_points: number
+}
+
+export function fetchEquityCurve(id: number, limit = 365): Promise<EquityCurve> {
+  return request<EquityCurve>({
+    method: "GET",
+    url: `/portfolios/${id}/equity-curve/`,
+    params: { limit },
+  })
+}

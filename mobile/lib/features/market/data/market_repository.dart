@@ -26,6 +26,15 @@ class MarketRepository {
         .toList(growable: false);
   }
 
+  Future<CandleHistory> candles(int assetId, {String timeframe = '1d', int limit = 200}) async {
+    return CandleHistory.fromJson(
+      await _client.get<Map<String, dynamic>>(
+        '/market/assets/$assetId/candles/',
+        query: {'timeframe': timeframe, 'limit': limit},
+      ),
+    );
+  }
+
   Future<List<WatchlistEntry>> watchlist() async {
     final body = await _client.get<Map<String, dynamic>>('/market/watchlist/');
     final results = body['results'];
@@ -100,3 +109,28 @@ final watchlistProvider =
   final entries = await ref.watch(marketRepositoryProvider).watchlist();
   return {for (final entry in entries) entry.assetId: entry.id};
 });
+
+
+/// Requête d'historique : instrument + unité de temps.
+class CandleRequest {
+  const CandleRequest(this.assetId, this.timeframe);
+
+  final int assetId;
+  final String timeframe;
+
+  @override
+  bool operator ==(Object other) =>
+      other is CandleRequest &&
+      other.assetId == assetId &&
+      other.timeframe == timeframe;
+
+  @override
+  int get hashCode => Object.hash(assetId, timeframe);
+}
+
+final candleHistoryProvider =
+    FutureProvider.autoDispose.family<CandleHistory, CandleRequest>(
+  (ref, request) async => ref
+      .watch(marketRepositoryProvider)
+      .candles(request.assetId, timeframe: request.timeframe),
+);

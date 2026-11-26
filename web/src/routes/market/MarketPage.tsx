@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { AlertTriangle, LineChart, Search, Star, StarOff } from "lucide-react"
 import { useMemo, useState } from "react"
+import { Link } from "react-router-dom"
 import { toast } from "sonner"
 
 import { toApiError } from "@/api/client"
@@ -205,7 +206,12 @@ function QuotesTable({
             return (
               <tr key={quote.asset_id} className="hover:bg-accent/40">
                 <td className="px-3 py-2">
-                  <span className="font-medium">{quote.symbol}</span>
+                  <Link
+                    to={`/marches/${quote.asset_id}`}
+                    className="font-medium underline-offset-2 hover:underline"
+                  >
+                    {quote.symbol}
+                  </Link>
                   {quote.name && quote.name !== quote.symbol ? (
                     <span className="block text-xs text-muted-foreground">{quote.name}</span>
                   ) : null}

@@ -294,3 +294,36 @@ class PortfolioSummarySerializer(serializers.Serializer):
     exposure_value = serializers.CharField()
     exposure_percent = serializers.CharField()
     asset_class_exposure = serializers.ListField(child=serializers.DictField())
+
+
+class EquityPointSerializer(serializers.Serializer):
+    at = serializers.DateTimeField()
+    equity = serializers.CharField()
+    balance = serializers.CharField()
+    unrealized_pnl = serializers.CharField()
+    realized_pnl = serializers.CharField()
+    drawdown_percent = serializers.FloatField()
+
+
+class EquityCurveSerializer(serializers.Serializer):
+    """Série de valorisation, avec de quoi juger s'il y a lieu de la tracer.
+
+    Un graphique affirme plus fort qu'un nombre : relier des points épars
+    donne à voir une trajectoire qui n'a jamais été mesurée. Le verdict
+    est rendu par le serveur pour que deux clients ne tranchent pas
+    différemment.
+    """
+
+    portfolio_id = serializers.IntegerField()
+    base_currency = serializers.CharField()
+    points = EquityPointSerializer(many=True)
+    point_count = serializers.IntegerField()
+    first_at = serializers.DateTimeField(allow_null=True)
+    last_at = serializers.DateTimeField(allow_null=True)
+    age_seconds = serializers.IntegerField(allow_null=True)
+    #: Écart médian entre deux mesures. Au-delà d'un jour et demi,
+    #: l'interpolation invente plus qu'elle ne montre.
+    median_gap_seconds = serializers.IntegerField(allow_null=True)
+    is_plottable = serializers.BooleanField()
+    not_plottable_reasons = serializers.ListField(child=serializers.CharField())
+    minimum_points = serializers.IntegerField()

@@ -5,16 +5,19 @@ import { toast } from "sonner"
 
 import { toApiError } from "@/api/client"
 import {
+  fetchEquityCurve,
   fetchPortfolioSummary,
   listPortfolios,
   listPositions,
   provisionPaperPortfolio,
   refreshPortfolio,
   setDefaultPortfolio,
+  type EquityCurve,
   type Portfolio,
   type PortfolioSummary,
   type Position,
 } from "@/api/portfolio"
+import { EquityChart } from "@/components/charts/EquityChart"
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -241,6 +244,8 @@ function PortfolioDetail({ portfolio }: { portfolio: Portfolio }) {
         <SummaryGrid summary={summary.data} />
       )}
 
+      <EquityCurveSection portfolioId={portfolio.id} />
+
       <section className="space-y-2">
         <h2 className="text-sm font-medium">Positions ouvertes</h2>
         {positions.isPending ? (
@@ -407,6 +412,106 @@ function PositionsTable({
           })}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+
+/**
+ * Courbe de valorisation.
+ *
+ * Elle n'est tracée que si le serveur juge la série suffisante. Relier
+ * cinq instantanés espacés de six semaines produit une ligne continue
+ * qui raconte une trajectoire jamais mesurée : l'œil lit une tendance là
+ * où il n'y a que des îlots. Quand le refus tombe, on montre les points
+ * eux-mêmes, et on dit pourquoi on ne les relie pas.
+ */
+function EquityCurveSection({ portfolioId }: { portfolioId: number }) {
+  const curve = useQuery({
+    queryKey: ["equity-curve", portfolioId],
+    queryFn: () => fetchEquityCurve(portfolioId),
+  })
+
+  if (curve.isPending) return <TableSkeleton rows={3} columns={1} />
+  if (curve.isError) {
+    return <ErrorState error={toApiError(curve.error)} onRetry={() => void curve.refetch()} />
+  }
+
+  const data = curve.data
+
+  return (
+    <section className="space-y-2">
+      <h2 className="text-sm font-medium">Valorisation dans le temps</h2>
+      <Card>
+        <CardContent className="space-y-3 p-4">
+          {data.is_plottable ? (
+            <>
+              <EquityChart points={data.points} />
+              <p className="text-xs text-muted-foreground tabular">
+                {data.point_count} mesures · dernière le{" "}
+                {data.last_at ? new Date(data.last_at).toLocaleString("fr-FR") : "—"}
+              </p>
+            </>
+          ) : (
+            <NotPlottable curve={data} />
+          )}
+        </CardContent>
+      </Card>
+    </section>
+  )
+}
+
+function NotPlottable({ curve }: { curve: EquityCurve }) {
+  const tooFew = curve.not_plottable_reasons.includes("TOO_FEW_POINTS")
+  const gaps = curve.not_plottable_reasons.includes("GAPS_TOO_WIDE")
+
+  return (
+    <div className="space-y-3">
+      <Alert variant="info" title="Pas encore de courbe">
+        {tooFew ? (
+          <>
+            {curve.point_count} mesure{curve.point_count > 1 ? "s" : ""} enregistrée
+            {curve.point_count > 1 ? "s" : ""} sur les {curve.minimum_points}{" "}
+            nécessaires. Une courbe tracée sur si peu de points relierait des
+            îlots en une ligne continue, et donnerait à voir une trajectoire
+            qui n'a pas été mesurée.
+          </>
+        ) : gaps ? (
+          <>
+            Les mesures sont trop espacées (environ{" "}
+            {curve.median_gap_seconds
+              ? Math.round(curve.median_gap_seconds / 3600)
+              : "—"}{" "}
+            h entre deux). Les relier inventerait tout l'intervalle.
+          </>
+        ) : (
+          <>La série n'est pas encore assez fournie pour être tracée.</>
+        )}
+      </Alert>
+
+      {curve.points.length > 0 ? (
+        <ul className="space-y-1 text-sm">
+          {curve.points.slice(-6).map((point) => (
+            <li
+              key={point.at}
+              className="flex items-center justify-between gap-3 border-b border-border pb-1 last:border-0"
+            >
+              <span className="text-xs text-muted-foreground tabular">
+                {new Date(point.at).toLocaleString("fr-FR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+              <span className="tabular">
+                {formatMoney(point.equity, curve.base_currency)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   )
 }
