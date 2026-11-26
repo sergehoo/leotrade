@@ -33,6 +33,7 @@ import logging
 
 from channels.auth import AuthMiddlewareStack
 from channels.db import database_sync_to_async
+from channels.security.websocket import OriginValidator
 from django.contrib.auth.models import AnonymousUser
 
 log = logging.getLogger("leotrade.ws.auth")
@@ -62,6 +63,14 @@ def _user_from_token(raw_token: str):
     except Exception:
         log.exception("ws.token_validation_failed")
         return AnonymousUser()
+
+
+def _has_origin_header(scope) -> bool:
+    """Vrai si le client a envoyé un en-tête `Origin`.
+
+    Les navigateurs en envoient toujours un ; les clients natifs, jamais.
+    """
+    return any(name == b"origin" for name, _ in scope.get("headers") or [])
 
 
 def _extract_subprotocols(scope) -> list[str]:
@@ -132,3 +141,65 @@ class JWTAuthMiddleware:
 def JWTAuthMiddlewareStack(inner):
     """JWT d'abord, session en repli — pour les écrans Django existants."""
     return JWTAuthMiddleware(inner, session_stack=AuthMiddlewareStack(inner))
+
+
+class JWTFriendlyOriginValidator(OriginValidator):
+    """Validation d'origine qui laisse passer les clients NATIFS.
+
+    `AllowedHostsOriginValidator` — une fabrique, qui construit un
+    `OriginValidator` sur `settings.ALLOWED_HOSTS` — refuse en 403 toute
+    connexion dépourvue d'en-tête `Origin` ::
+
+        # channels/security/websocket.py
+        if parsed_origin is None and "*" not in self.allowed_origins:
+            return False
+
+    Un navigateur envoie toujours `Origin`. Un client natif — Dart, Swift,
+    Kotlin — ne l'envoie jamais. La socket de Leo était donc refusée sur
+    mobile avant même d'atteindre l'authentification, et le restait
+    quelles que soient les tentatives de reconnexion. Le test de bout en
+    bout ne l'avait pas vu : il monte `JWTAuthMiddlewareStack` seul, sans
+    le validateur qui l'enveloppe dans `asgi.py`.
+
+    Ce que l'en-tête protège, et ce qu'il ne protège pas
+    -----------------------------------------------------
+    La vérification d'origine existe contre le *cross-site WebSocket
+    hijacking* : une page tierce ouvre une socket vers ce serveur, et le
+    NAVIGATEUR y joint d'office le cookie de session de la victime. C'est
+    l'attachement automatique du cookie qui fait l'attaque — et seul un
+    navigateur le fait, en envoyant toujours `Origin`.
+
+    Une connexion sans `Origin` ne peut donc venir d'une page web. Mais
+    pour ne rien relâcher du cas navigateur, l'absence d'en-tête n'est
+    acceptée QUE si le client présente un jeton dans le sous-protocole :
+    un JWT n'est jamais joint d'office, il faut le détenir. Une connexion
+    qui compte sur le cookie de session, elle, reste soumise à la
+    vérification d'origine exactement comme avant.
+    """
+
+    def __init__(self, application, allowed_origins=None):
+        if allowed_origins is None:
+            # Même règle que la fabrique `AllowedHostsOriginValidator`,
+            # repli de DEBUG compris : on ne change QUE le cas sans
+            # en-tête, pas la liste des origines acceptées.
+            from django.conf import settings
+
+            allowed_origins = settings.ALLOWED_HOSTS
+            if settings.DEBUG and not allowed_origins:
+                allowed_origins = ["localhost", "127.0.0.1", "[::1]"]
+        super().__init__(application, allowed_origins)
+
+    async def __call__(self, scope, receive, send):
+        # Aucune mémoire d'instance : le validateur est partagé par toutes
+        # les connexions, et un attribut posé ici serait écrasé par une
+        # poignée de main concurrente — une connexion sur cookie pourrait
+        # alors passer sans Origine parce qu'une autre, à jeton, vient de
+        # lever le drapeau. La décision est donc prise sur le scope seul.
+        if (
+            scope.get("type") == "websocket"
+            and not _has_origin_header(scope)
+            and JWT_SUBPROTOCOL in _extract_subprotocols(scope)
+        ):
+            return await self.application(scope, receive, send)
+
+        return await super().__call__(scope, receive, send)

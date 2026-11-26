@@ -899,3 +899,109 @@ La commande de réparation isole désormais les échecs par portefeuille et
 annonce le blocage plutôt que d'abandonner la série — un champ de solde
 périmé sans explication serait pire qu'une erreur, on croirait le chiffre
 à jour.
+
+---
+
+## Finalisation du client mobile
+
+### Audit
+
+Sept auditeurs en parallèle (parité web, couverture API, correction
+Flutter, livraison Android/iOS, UX téléphone, conformité au mandat,
+tests), chaque constat soumis à trois réfuteurs à lentilles distinctes
+— *est-ce vrai, est-ce que ça se produit, est-ce que ça compte*.
+**63 constats bruts → 43 confirmés, 20 réfutés.**
+
+Trois réfutations ont évité des corrections inutiles, et sont notées ici
+parce qu'elles valent pour la suite :
+
+- **La politique réseau d'Android et ATS ne s'appliquent pas.** Dio et
+  `WebSocketChannel` passent par `dart:io HttpClient`, qui ouvre ses
+  sockets depuis la VM Dart sans consulter `NetworkSecurityPolicy`. Une
+  configuration de trafic en clair aurait été inerte — et se serait lue
+  comme une protection active.
+- **R8 ne mordrait que sur `MainActivity`** : le code Dart est compilé
+  AOT dans `libapp.so`. Et le découpage par ABI est déjà posé par le
+  plugin Gradle de Flutter.
+- **L'absence de keystore dans le dépôt n'est pas un défaut**, c'est la
+  règle : `android/.gitignore` l'écrit déjà.
+
+### Ce que seul le téléphone a montré
+
+Le défaut le plus grave n'était dans aucun des 43 constats. Il n'a été
+vu qu'en installant l'application sur un appareil réel.
+
+**La socket de Leo était refusée en 403, et l'avait toujours été.**
+
+`AllowedHostsOriginValidator` (channels/security/websocket.py) :
+
+```python
+# None is not allowed unless all hosts are allowed
+if parsed_origin is None and "*" not in self.allowed_origins:
+    return False
+```
+
+Un navigateur envoie toujours `Origin`. Dart, Swift et Kotlin, jamais.
+Leo fonctionnait donc sur le web et **ne pouvait pas** fonctionner sur
+mobile — pas « ne fonctionnait pas » : ne pouvait pas. L'écran affichait
+« Connexion… » indéfiniment, ce que l'audit avait relevé comme symptôme
+sans en trouver la cause.
+
+Le test de bout en bout ne pouvait pas l'attraper : il monte
+`JWTAuthMiddlewareStack` seul, sans le validateur qui l'enveloppe dans
+`asgi.py`. Le défaut vivait **entre** les deux.
+
+`JWTFriendlyOriginValidator` accepte l'absence d'en-tête **uniquement**
+si le client présente un jeton dans le sous-protocole. Ce que la
+vérification protège, c'est le détournement depuis une page tierce, où
+le NAVIGATEUR joint le cookie de session d'office ; un JWT, lui, n'est
+jamais joint d'office. Une connexion qui compte sur le cookie reste
+soumise à la vérification exactement comme avant.
+
+### Trois boutons morts sur les deux clients
+
+DRF dérive deux noms d'une même méthode décorée :
+
+```python
+func.url_path = url_path if url_path else func.__name__          # soulignés
+func.url_name = url_name if url_name else func.__name__.replace('_', '-')
+```
+
+Neuf `@action` avaient oublié `url_path`. Le web et le mobile écrivent
+des tirets. « Définir par défaut », « Lever l'arrêt d'urgence » et
+« Recalculer les états » tombaient dans le vide.
+
+La suite était verte : elle passe par `reverse()`, qui part du NOM de
+route et ne peut pas produire un chemin inexistant. Elle validait une
+URL qu'aucun client n'appelait. `test_api_route_paths.py` vise désormais
+le chemin littéral et refuse tout chemin servi avec un souligné.
+
+### Le reste
+
+| | |
+|---|---|
+| Navigation | Sept `IconButton` dans une barre de titre étaient le seul chemin vers quoi que ce soit. `StatefulShellRoute`, cinq destinations, chacune gardant sa pile. |
+| Session | Une panne sur la requête REJOUÉE détruisait la session ; `restore()` effaçait le jeton sur une simple coupure réseau. |
+| Leo | Confirmer une action visait la mauvaise table — soit bouton mort, soit exécution d'une opération non regardée. La demande du Risk Engine n'était affichée nulle part. |
+| Release | INTERNET n'était déclarée que dans les manifestes debug/profile : un APK release n'avait aucun accès réseau. |
+| Identité | `com.lyneci.lyneci` → `com.leotrade.app`. Le commentaire qui justifiait le maintien était faux. |
+| Parité | Courbe de valorisation, cotation du détail d'instrument, suivi des retraits, pagination, cours et exposition des positions. |
+
+### Validé sur un appareil réel
+
+Samsung `R58M325DX6M`, API pointée sur le Mac. Parcours : lancement →
+connexion refusée par le serveur sur un e-mail non vérifié → connexion →
+création d'un portefeuille de simulation (10 000 USD, sans double
+comptage) → onglets → recherche BTCUSDT → détail avec cotation périmée
+datée → Leo **en ligne**.
+
+Compte de recette dédié `recette.mobile@leotrade.test` : aucun compte
+existant n'a été touché, et aucun mot de passe personnel n'a été saisi.
+
+**Reste à faire, non traité ici** : icônes et écran de lancement sont
+désormais aux couleurs de l'application, mais la marque est un
+**provisoire** — une ligne de prix et deux chandeliers, sans typographie
+ni symbole inventé. À remplacer par un vrai dessin.
+
+Vérifié : 120 tests Flutter, suite backend complète verte,
+`flutter analyze` et `tsc` sans remarque, build APK et build web OK.

@@ -203,3 +203,94 @@ class TestAssistantWebSocket:
 
         assert not connected
         assert code == 4401
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Validation d'origine : les clients natifs n'envoient pas d'en-tête Origin
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _handshake(scope):
+    """Déroule une poignée de main et rapporte ce que le serveur a répondu.
+
+    Le refus passe par `WebsocketDenier`, un consumer : il faut donc lui
+    fournir un flux `receive` qui se termine, sinon la boucle du consumer
+    ne rend jamais la main.
+    """
+    from core.ws_auth import JWTFriendlyOriginValidator
+
+    recorder = _Recorder()
+    validator = JWTFriendlyOriginValidator(recorder)
+
+    incoming = [
+        {"type": "websocket.connect"},
+        {"type": "websocket.disconnect", "code": 1000},
+    ]
+    sent = []
+
+    async def receive():
+        return incoming.pop(0) if incoming else {
+            "type": "websocket.disconnect", "code": 1000,
+        }
+
+    async def send(message):
+        sent.append(message)
+
+    async_to_sync(validator)(scope, receive, send)
+    return recorder, sent
+
+
+@pytest.mark.django_db(transaction=True)
+class TestOriginValidation:
+    """`AllowedHostsOriginValidator` refusait toute connexion sans `Origin`.
+
+    Un navigateur en envoie toujours un ; Dart, Swift et Kotlin, jamais.
+    La socket de Leo était donc refusée en 403 sur mobile avant même
+    d'atteindre l'authentification — et aucune reconnexion n'y changeait
+    rien.
+
+    Les tests ci-dessus montent `JWTAuthMiddlewareStack` seul, sans le
+    validateur qui l'enveloppe dans `asgi.py` : le défaut vivait entre les
+    deux, et ne s'est vu qu'en faisant tourner l'application sur un
+    téléphone.
+    """
+
+    def test_a_native_client_with_a_token_is_let_through(self):
+        """Pas d'Origine, mais un jeton : c'est une application native."""
+        recorder, _ = _handshake(_scope(protocols=[JWT_SUBPROTOCOL, "jeton"]))
+
+        assert recorder.scope is not None, "la connexion aurait dû passer"
+
+    def test_a_cookie_client_without_origin_is_still_refused(self):
+        """Sans jeton, rien ne change : l'origine reste exigée.
+
+        C'est ce cas que la vérification protège — le navigateur joint le
+        cookie de session d'office, et c'est ce qui rend le détournement
+        possible depuis une page tierce.
+        """
+        recorder, sent = _handshake(_scope())
+
+        assert recorder.scope is None
+        assert any(m.get("type") == "websocket.close" for m in sent)
+
+    def test_a_foreign_origin_is_refused_even_with_a_token(self):
+        """Un jeton ne dispense pas de la vérification quand l'origine existe."""
+        scope = _scope(protocols=[JWT_SUBPROTOCOL, "jeton"])
+        scope["headers"] = list(scope["headers"]) + [
+            (b"origin", b"https://ailleurs.example"),
+        ]
+
+        recorder, sent = _handshake(scope)
+
+        assert recorder.scope is None
+        assert any(m.get("type") == "websocket.close" for m in sent)
+
+    def test_an_allowed_origin_still_passes(self):
+        """Le chemin navigateur n'est pas touché."""
+        scope = _scope()
+        scope["headers"] = list(scope["headers"]) + [
+            (b"origin", b"http://localhost:8000"),
+        ]
+
+        recorder, _ = _handshake(scope)
+
+        assert recorder.scope is not None

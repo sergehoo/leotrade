@@ -18,7 +18,10 @@ class AppShell extends StatelessWidget {
   final StatefulNavigationShell shell;
 
   static const _destinations = <_Destination>[
-    _Destination('Tableau de bord', Icons.space_dashboard_outlined,
+    // « Tableau de bord » passait à la ligne dans une barre à cinq
+    // destinations sur 360 points, et débordait de son emplacement. Le
+    // titre de l'écran, lui, reste « Tableau de bord ».
+    _Destination('Accueil', Icons.space_dashboard_outlined,
         Icons.space_dashboard),
     _Destination('Portefeuille', Icons.work_outline, Icons.work),
     _Destination('Marchés', Icons.show_chart, Icons.show_chart),

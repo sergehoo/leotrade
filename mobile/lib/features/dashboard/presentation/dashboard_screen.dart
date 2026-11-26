@@ -56,7 +56,9 @@ class DashboardScreen extends ConsumerWidget {
             ],
           ),
           data: (data) => ListView(
-            padding: const EdgeInsets.all(16),
+            // 96 pt en bas : le bouton flottant Leo recouvrait la carte
+            // du portefeuille électronique, dernière de la liste.
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
             children: [
               if (user != null && user.kycStatus != KycStatus.approved) ...[
                 NoticeBanner(
@@ -105,8 +107,8 @@ class DashboardScreen extends ConsumerWidget {
               if (data.portfolio != null)
                 _PortfolioCard(portfolio: data.portfolio!)
               else
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
                   child: EmptyStateView(
                     icon: Icons.account_balance_wallet_outlined,
                     title: 'Aucun portefeuille configuré',
@@ -115,6 +117,13 @@ class DashboardScreen extends ConsumerWidget {
                         'Connectez d\'abord un broker — en mode simulation si '
                         'vous découvrez la plateforme — puis créez le '
                         'portefeuille correspondant.',
+                    // L'écran décrivait la marche à suivre sans donner le
+                    // moyen de la suivre : le web, lui, propose le lien.
+                    action: FilledButton.icon(
+                      onPressed: () => context.push('/brokers'),
+                      icon: const Icon(Icons.power_outlined),
+                      label: const Text('Connecter un broker'),
+                    ),
                   ),
                 ),
 

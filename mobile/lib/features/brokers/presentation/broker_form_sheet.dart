@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_theme.dart';
@@ -404,7 +405,15 @@ class _BrokerFormSheetState extends ConsumerState<_BrokerFormSheet> {
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-              'Enregistré. Saisis une valeur pour le remplacer.',
+              // La date vient du serveur et était ignorée. Elle est la
+              // seule façon de savoir si le secret enregistré est celui
+              // qu'on croit — après une rotation de clés chez le broker,
+              // « Enregistré » tout seul ne dit rien.
+              state?.updatedAt != null
+                  ? 'Enregistré le '
+                      '${DateFormat('dd/MM/yyyy', 'fr_FR').format(state!.updatedAt!.toLocal())}. '
+                      'Saisis une valeur pour le remplacer.'
+                  : 'Enregistré. Saisis une valeur pour le remplacer.',
               style: const TextStyle(color: AppColors.muted, fontSize: 12),
             ),
           ),

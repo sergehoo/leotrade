@@ -331,6 +331,16 @@ class _BrokerCardState extends ConsumerState<_BrokerCard> {
             ],
           ),
 
+          const SizedBox(height: 12),
+          // Date lue par le modèle et jamais affichée. Un compte dont la
+          // dernière synchronisation remonte à des semaines expose des
+          // positions et un solde périmés sans que rien ne le dise.
+          _Metric(
+            label: 'Dernière synchro',
+            value: _formatDate(widget.health?.lastSyncAt),
+            color: widget.health?.lastSyncAt == null ? AppColors.muted : null,
+          ),
+
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
