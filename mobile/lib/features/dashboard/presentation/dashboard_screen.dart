@@ -23,6 +23,11 @@ class DashboardScreen extends ConsumerWidget {
         title: const Text('Tableau de bord'),
         actions: [
           IconButton(
+            tooltip: 'Leo',
+            onPressed: () => context.push('/leo?depuis=tableau-de-bord'),
+            icon: const Icon(Icons.smart_toy_outlined),
+          ),
+          IconButton(
             tooltip: 'Risque',
             onPressed: () => context.push('/risque'),
             icon: const Icon(Icons.shield_outlined),

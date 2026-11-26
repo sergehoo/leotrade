@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/format.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/leo_fab.dart';
 import '../../../shared/widgets/states.dart';
 import '../data/portfolio_repository.dart';
 import '../domain/models.dart';
@@ -52,6 +53,7 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Portefeuille')),
+      floatingActionButton: const LeoFab(page: 'portefeuille'),
       body: RefreshIndicator(
         onRefresh: _refreshAll,
         child: portfolios.when(

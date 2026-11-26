@@ -7,6 +7,7 @@ import { setSessionExpiredHandler } from "@/api/client"
 import AppShell from "@/components/layout/AppShell"
 import DashboardPage, { PendingSection } from "@/routes/DashboardPage"
 import BrokersPage from "@/routes/brokers/BrokersPage"
+import LeoPage from "@/routes/leo/LeoPage"
 import LoginPage from "@/routes/LoginPage"
 import PortfolioPage from "@/routes/portfolio/PortfolioPage"
 import RiskPage from "@/routes/risk/RiskPage"
@@ -55,10 +56,7 @@ export default function App() {
                 element={<PendingSection title="Marchés" scope="Les données de marché" />}
               />
               <Route path="risque" element={<RiskPage />} />
-              <Route
-                path="assistant"
-                element={<PendingSection title="Assistant IA" scope="L'assistant conversationnel" />}
-              />
+              <Route path="assistant" element={<LeoPage />} />
               <Route
                 path="portefeuille-electronique"
                 element={<PendingSection title="Portefeuille électronique" scope="Les dépôts et retraits" />}

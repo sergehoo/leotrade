@@ -386,3 +386,82 @@ du Lot 5 persisté dans `max_equity`.
   d'exposition par classe déclarés mais non consommés, case d'override
   unique levant tous les blocages SOUPLES en LIVE, `RiskOverrideAudit`
   écrit seulement à l'approbation.
+
+---
+
+## Lot 7 — Leo, assistant transversal
+
+### Ce qui existait déjà
+
+Leo n'était pas à écrire : 4 889 lignes dans `ai_assistant/`, avec
+streaming WebSocket (`thinking` / `chunk` / `done`), conversations
+persistées, flux de confirmation d'action, quotas et outils. Rien n'était
+atteignable depuis React ou Flutter.
+
+### Le blocage : l'authentification du WebSocket
+
+`AuthMiddlewareStack` de Channels ne lit qu'un cookie de session. React
+porte son JWT en mémoire, Flutter n'a aucun cookie : toutes les
+connexions temps réel — assistant, notifications, exécution,
+portefeuille, marché — étaient fermées en 4401.
+
+`core/ws_auth.py` authentifie par jeton porté dans le **sous-protocole**.
+Pas dans la chaîne de requête : un `?token=` figure dans les journaux
+d'accès du serveur, des proxies et des CDN, où il survit bien au-delà de
+ses 15 minutes de validité. `Sec-WebSocket-Protocol` n'est pas
+journalisé, et c'est le seul en-tête qu'un navigateur laisse définir à
+l'ouverture d'un WebSocket.
+
+### Deux défauts que seul le test de bout en bout a révélés
+
+1. Composer `JWTAuthMiddleware(AuthMiddlewareStack(inner))` **annulait**
+   l'authentification : `AuthMiddleware` écrase `scope["user"]` par un
+   objet paresseux résolu depuis la session. Le chemin JWT court-circuite
+   désormais la pile session.
+2. Les sous-protocoles étaient lus dans les en-têtes bruts. La
+   spécification ASGI les expose dans `scope["subprotocols"]`, déjà
+   découpés — c'est ce que fournissent Daphne et Uvicorn. La lecture
+   renvoyait une liste vide et toutes les connexions JWT retombaient sur
+   la session.
+
+Les tests unitaires traversent la même composition qu'en production :
+tester le middleware isolément aurait masqué le premier défaut.
+
+### Transversalité
+
+Leo est monté dans l'`AppShell` React et accessible depuis chaque écran
+Flutter, pas enfermé dans une route. Il sert à commenter ce que
+l'utilisateur regarde ; l'y obliger à quitter l'écran dont il veut parler
+viderait la fonctionnalité de son sens. Le chemin courant est transmis
+comme contexte à chaque message.
+
+### Rendu et garde-fous
+
+Le Markdown est rendu en **éléments React**, sans
+`dangerouslySetInnerHTML` : le texte vient d'un modèle de langage, qui
+peut restituer n'importe quoi, y compris du contenu tiers remonté par un
+outil. L'injection devient structurellement impossible plutôt que
+filtrée. Les liens non-`http(s)` ne deviennent pas cliquables.
+
+Les actions proposées exigent un geste explicite — l'assistant propose,
+il ne dispose pas. Un statut absent est traité comme « en attente »,
+jamais comme « exécuté ».
+
+### Vérification
+
+593 tests backend (1 ignoré), 46 Flutter, build web OK. Validé au
+navigateur : le panneau affiche « Leo — En ligne » et le serveur
+enregistre `WebSocket CONNECT /ws/assistant/chat/`, hors harnais de test.
+
+**Aucun message n'a été envoyé à un modèle** : le fournisseur configuré
+est DeepSeek, avec une clé active. Un test de génération ferait un appel
+payant sur le compte du propriétaire du projet.
+
+### Reste à faire sur ce domaine
+
+- Interaction vocale, pièces jointes, graphiques interactifs dans les
+  réponses (le modèle `AssistantAttachment` existe, rien ne l'alimente
+  depuis les nouveaux clients).
+- Reprise d'une conversation précise depuis l'historique.
+- Vérification que les sources citées par Leo sont réellement
+  rattachées à des données consultables.

@@ -12,6 +12,7 @@ import { NavLink, Outlet } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import LeoDock from "@/components/leo/LeoDock"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/stores/auth"
 
@@ -77,6 +78,11 @@ export default function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      {/* Leo est monté ici plutôt que sur une route : il sert à commenter
+          ce que l'utilisateur regarde, ce qui n'a plus de sens s'il faut
+          quitter l'écran pour lui parler. */}
+      <LeoDock />
     </div>
   )
 }

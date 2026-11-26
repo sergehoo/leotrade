@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/format.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/leo_fab.dart';
 import '../../../shared/widgets/states.dart';
 import '../../portfolio/data/portfolio_repository.dart';
 import '../../portfolio/domain/models.dart' as pf;
@@ -26,6 +27,7 @@ class _RiskScreenState extends ConsumerState<RiskScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Risque')),
+      floatingActionButton: const LeoFab(page: 'risque'),
       body: portfolios.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => ErrorStateView(
