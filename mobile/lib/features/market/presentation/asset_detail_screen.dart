@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/format.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/charts/candle_chart.dart';
@@ -27,9 +28,9 @@ class _AssetDetailScreenState extends ConsumerState<AssetDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final history = ref.watch(
-      candleHistoryProvider(CandleRequest(widget.assetId, _timeframe)),
-    );
+    final request = CandleRequest(widget.assetId, _timeframe);
+    final quote = ref.watch(assetQuoteProvider(request));
+    final history = ref.watch(candleHistoryProvider(request));
 
     return Scaffold(
       appBar: AppBar(title: Text(widget.symbol ?? 'Instrument')),
@@ -37,6 +38,25 @@ class _AssetDetailScreenState extends ConsumerState<AssetDetailScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
         children: [
+          // Le cours, avant le graphique : un historique sans prix courant
+          // oblige à deviner où en est l'instrument.
+          quote.when(
+            loading: () => const SizedBox(
+              height: 72,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            // Une cotation indisponible ne doit pas emporter le graphique :
+            // l'historique, lui, est peut-être lisible.
+            error: (error, _) => NoticeBanner(
+              tone: NoticeTone.warning,
+              title: 'Cours indisponible',
+              message: error is ApiError
+                  ? error.message
+                  : 'La cotation n\'a pas pu être chargée.',
+            ),
+            data: (data) => _QuoteHeader(quote: data),
+          ),
+          const SizedBox(height: 16),
           SizedBox(
             height: 38,
             child: ListView(
@@ -63,9 +83,7 @@ class _AssetDetailScreenState extends ConsumerState<AssetDetailScreen> {
             ),
             error: (error, _) => ErrorStateView(
               message: error is ApiError ? error.message : 'Chargement impossible.',
-              onRetry: () => ref.invalidate(
-                candleHistoryProvider(CandleRequest(widget.assetId, _timeframe)),
-              ),
+              onRetry: () => ref.invalidate(candleHistoryProvider(request)),
             ),
             data: (data) => _HistoryBody(history: data),
           ),
@@ -172,7 +190,10 @@ class _HistoryBody extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CandleChart(candles: points),
+              CandleChart(
+                candles: points,
+                semanticsSuffix: 'Fraîcheur : ${history.freshnessLabel}.',
+              ),
               const SizedBox(height: 8),
               Text(
                 '${points.length} bougie${points.length > 1 ? 's' : ''} · '
@@ -183,6 +204,121 @@ class _HistoryBody extends StatelessWidget {
             ],
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// Cours courant, variation et fraîcheur.
+///
+/// La fraîcheur n'est jamais calculée ici : elle vient de
+/// `market/services_quotes.py`, pour que le web et le mobile ne puissent
+/// pas qualifier différemment la même donnée.
+class _QuoteHeader extends StatelessWidget {
+  const _QuoteHeader({required this.quote});
+
+  final Quote quote;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = switch (quote.freshness) {
+      Freshness.live => AppColors.gain,
+      Freshness.delayed => AppColors.warning,
+      Freshness.stale => AppColors.loss,
+      Freshness.noData => AppColors.muted,
+    };
+    final move = signOf(quote.changePercent);
+    final moveColor = switch (move) {
+      MoveSign.gain => AppColors.gain,
+      MoveSign.loss => AppColors.loss,
+      MoveSign.flat => AppColors.flat,
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    quote.price ?? 'Aucune donnée',
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  if (quote.changePercent != null)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Le signe accompagne la couleur : lue seule, elle
+                        // ne dit rien à qui ne distingue pas le rouge du
+                        // vert.
+                        Icon(
+                          switch (move) {
+                            MoveSign.gain => Icons.arrow_upward,
+                            MoveSign.loss => Icons.arrow_downward,
+                            MoveSign.flat => Icons.remove,
+                          },
+                          size: 13,
+                          color: moveColor,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          formatPercent(quote.changePercent),
+                          style: TextStyle(
+                            color: moveColor,
+                            fontSize: 13,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    [quote.name, quote.assetClass, quote.source]
+                        .where((part) => part.isNotEmpty)
+                        .join(' · '),
+                    style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: tone.withValues(alpha: 0.14),
+                border: Border.all(color: tone.withValues(alpha: 0.35)),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                quote.freshnessLabel,
+                style: TextStyle(
+                  color: tone,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (quote.isStale) ...[
+          const SizedBox(height: 10),
+          NoticeBanner(
+            tone: NoticeTone.danger,
+            title: 'Cotation périmée',
+            message: 'Dernière donnée du '
+                '${quote.asOf != null ? DateFormat('dd/MM/yyyy à HH:mm', 'fr_FR').format(quote.asOf!.toLocal()) : 'date inconnue'} '
+                '(${quote.ageLabel}). Ce qui s\'est passé depuis n\'est pas '
+                'dans ce chiffre.',
+          ),
+        ],
       ],
     );
   }

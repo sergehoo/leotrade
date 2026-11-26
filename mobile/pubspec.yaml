@@ -6,6 +6,13 @@ version: 1.0.0+1
 environment:
   sdk: ^3.10.4
 
+# Aucune génération de code : les modèles sont écrits à la main, et
+# `freezed` / `json_serializable` / `riverpod_generator` ont été retirés —
+# ils étaient déclarés depuis l'origine sans qu'un seul fichier .g.dart ou
+# .freezed.dart n'ait jamais été produit. `local_auth` aussi, dont le
+# commentaire « Biométrie pour la reprise de session » annonçait une
+# fonctionnalité qui n'existe nulle part dans lib/ (et qui injectait
+# USE_BIOMETRIC et USE_FINGERPRINT dans le manifeste livré).
 dependencies:
   flutter:
     sdk: flutter
@@ -14,7 +21,6 @@ dependencies:
 
   # État et injection
   flutter_riverpod: ^2.6.1
-  riverpod_annotation: ^2.6.1
 
   # Réseau
   dio: ^5.7.0
@@ -25,15 +31,8 @@ dependencies:
   # Navigation
   go_router: ^14.6.2
 
-  # Modèles immuables et sérialisation
-  freezed_annotation: ^2.4.4
-  json_annotation: ^4.9.0
-
   # Formatage (devises, dates) — locale fr
   intl: ^0.20.2
-
-  # Biométrie pour la reprise de session
-  local_auth: ^2.3.0
 
   cupertino_icons: ^1.0.8
 
@@ -41,10 +40,10 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
-  build_runner: ^2.4.13
-  freezed: ^2.5.7
-  json_serializable: ^6.9.0
-  riverpod_generator: ^2.6.3
+  # Socket simulée dans test/leo_protocol_test.dart. Déclarée explicitement
+  # plutôt que reprise de web_socket_channel : une dépendance transitive
+  # peut changer de version sans prévenir.
+  stream_channel: ^2.1.2
 
 flutter:
   uses-material-design: true

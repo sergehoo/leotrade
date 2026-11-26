@@ -34,8 +34,10 @@ export interface AppContext {
   configured_trading_mode: "PAPER" | "LIVE"
   /**
    * Motif qui rend le mode réel inatteignable, ou chaîne vide.
-   * Quand il est renseigné, `trading_mode` vaut PAPER alors que
-   * `configured_trading_mode` vaut LIVE : l'écart doit être expliqué à
+   * Renseigné dès qu'un contrôle serveur interdirait une exécution
+   * réelle — KYC non approuvé, notamment — que le mode réel ait été
+   * demandé ou non. Pour parler d'un ÉCART, il faut donc le croiser avec
+   * `configured_trading_mode === "LIVE"` : l'écart doit être expliqué à
    * l'utilisateur, jamais masqué.
    */
   live_blocked_reason: "" | "KYC_REQUIRED" | string

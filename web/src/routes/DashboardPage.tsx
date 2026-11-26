@@ -24,7 +24,14 @@ export default function DashboardPage() {
         <TradingModeBadge context={data} />
       </header>
 
-      {data.live_blocked_reason ? (
+      {/* La condition porte AUSSI sur le mode configuré.
+          `live_blocked_reason` ne décrit que ce qui empêcherait une
+          exécution réelle — côté serveur il est renseigné dès que le KYC
+          n'est pas approuvé, mode demandé ou non. Sur le seul motif, un
+          utilisateur dont tous les comptes sont en simulation s'entendait
+          dire que ses comptes « sont configurés en mode réel ». Le mobile
+          posait déjà la bonne condition (`isLiveDowngraded`). */}
+      {data.live_blocked_reason && data.configured_trading_mode === "LIVE" ? (
         <Alert variant="warning" title="Mode réel demandé, mais inactif">
           Tes comptes broker sont configurés en mode réel.{" "}
           {data.live_blocked_reason === "KYC_REQUIRED"

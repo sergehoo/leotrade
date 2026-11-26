@@ -198,6 +198,15 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
             return
 
         result = await self._confirm_action(action_id)
+
+        # Annoncer CONFIRMED sans regarder le résultat affichait « Confirmée »
+        # sur une action que le serveur venait de refuser. Sur une action qui
+        # engage de l'argent, une confirmation qu'on n'a pas obtenue est pire
+        # qu'une erreur : on croit l'opération passée.
+        if isinstance(result, dict) and result.get("error"):
+            await self.send_json({"type": "error", "message": result["error"]})
+            return
+
         await self.send_json({
             "type": "action_update",
             "action_id": action_id,
@@ -210,7 +219,13 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         if not action_id:
             return
 
-        await self._reject_action(action_id)
+        rejected = await self._reject_action(action_id)
+        if not rejected:
+            await self.send_json(
+                {"type": "error", "message": "Action introuvable."}
+            )
+            return
+
         await self.send_json({
             "type": "action_update",
             "action_id": action_id,
@@ -537,7 +552,7 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         from .models import AssistantAction
         action = AssistantAction.objects.filter(
             pk=action_id,
-            message__session__user=self.user,
+            message__conversation__user=self.user,
         ).first()
         if not action:
             return {"error": "Action introuvable"}
@@ -557,14 +572,16 @@ class AssistantConsumer(AsyncJsonWebsocketConsumer):
         return result
 
     @sync_to_async
-    def _reject_action(self, action_id: int):
+    def _reject_action(self, action_id: int) -> bool:
         from .models import AssistantAction
         action = AssistantAction.objects.filter(
             pk=action_id,
-            message__session__user=self.user,
+            message__conversation__user=self.user,
         ).first()
-        if action:
-            action.reject()
+        if not action:
+            return False
+        action.reject()
+        return True
 
 
 # ── Helpers module-level ──────────────────────────────────────────────────────

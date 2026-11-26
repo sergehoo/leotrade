@@ -82,12 +82,98 @@ void main() {
     });
 
     test('copyWith sans argument ne perd rien', () {
-      const state = LeoState(connected: true, thinking: true, error: 'x');
+      const state = LeoState(
+        connection: LeoConnection.online,
+        thinking: true,
+        error: 'x',
+      );
       final copy = state.copyWith();
 
       expect(copy.connected, isTrue);
       expect(copy.thinking, isTrue);
       expect(copy.error, 'x');
+    });
+
+    test('une connexion perdue ne se confond pas avec une connexion en cours', () {
+      // Les deux états partageaient le libellé « Connexion… » : après une
+      // coupure, l'écran annonçait indéfiniment une reconnexion que
+      // personne ne tentait.
+      const lost = LeoState(connection: LeoConnection.lost);
+      const connecting = LeoState(connection: LeoConnection.connecting);
+
+      expect(lost.connected, isFalse);
+      expect(connecting.connected, isFalse);
+      expect(lost.connection, isNot(connecting.connection));
+    });
+
+    test('une demande tranchée se retire de l\'écran', () {
+      const request = LeoActionRequest(
+        id: 4,
+        actionType: 'OPEN_POSITION',
+        status: 'WAITING',
+        mode: 'LIVE',
+        summary: 'Acheter 0,1 BTC',
+        riskSummary: '',
+        requiresDoubleConfirmation: true,
+        confirmationsReceived: 0,
+        errorMessage: '',
+      );
+      const state = LeoState(actionRequest: request);
+
+      expect(state.actionRequest, isNotNull);
+      expect(state.copyWith(clearActionRequest: true).actionRequest, isNull);
+    });
+  });
+
+  group('LeoActionRequest', () {
+    LeoActionRequest parse(Map<String, dynamic> overrides) =>
+        LeoActionRequest.fromJson({
+          'id': 9,
+          'action_type': 'OPEN_POSITION',
+          'status': 'WAITING',
+          'mode': 'PAPER',
+          'summary': 'Acheter 0,1 BTC',
+          'risk_summary': 'Exposition 4 %',
+          'requires_double_confirmation': false,
+          'confirmations_received': 0,
+          'error_message': '',
+          ...overrides,
+        });
+
+    test('le mode réel est reconnu comme tel', () {
+      expect(parse({'mode': 'LIVE'}).isLive, isTrue);
+      expect(parse({'mode': 'PAPER'}).isLive, isFalse);
+    });
+
+    test('une demande tranchée ne propose plus rien', () {
+      expect(parse({'status': 'WAITING'}).isActionable, isTrue);
+      expect(parse({'status': 'EXECUTED'}).isActionable, isFalse);
+      expect(parse({'status': 'CANCELLED'}).isActionable, isFalse);
+    });
+
+    test('la seconde confirmation du mode réel est suivie', () {
+      // Le serveur exige deux confirmations distinctes en LIVE. Les
+      // compter côté client permet d'annoncer laquelle on demande, sans
+      // jamais décider à la place du serveur.
+      expect(
+        parse({'requires_double_confirmation': true, 'confirmations_received': 1})
+            .awaitsSecondConfirmation,
+        isTrue,
+      );
+      expect(
+        parse({'requires_double_confirmation': true, 'confirmations_received': 2})
+            .awaitsSecondConfirmation,
+        isFalse,
+      );
+      expect(parse({}).awaitsSecondConfirmation, isFalse);
+    });
+
+    test('un champ absent ne fait pas échouer la lecture', () {
+      final request = LeoActionRequest.fromJson({'id': 3});
+
+      expect(request.id, 3);
+      expect(request.status, 'WAITING');
+      expect(request.summary, '');
     });
   });
 }

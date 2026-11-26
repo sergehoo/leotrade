@@ -47,18 +47,46 @@ class CandlePoint {
 /// Le vert et le rouge gardent leur sens financier — hausse et baisse de
 /// la bougie — et ne sont jamais décoratifs.
 class CandleChart extends StatelessWidget {
-  const CandleChart({super.key, required this.candles, this.height = 220});
+  const CandleChart({
+    super.key,
+    required this.candles,
+    this.height = 220,
+    this.semanticsSuffix,
+  });
 
   final List<CandlePoint> candles;
   final double height;
 
+  /// Complément parlé : fraîcheur, unité de temps, source.
+  final String? semanticsSuffix;
+
   @override
   Widget build(BuildContext context) {
     if (candles.isEmpty) return SizedBox(height: height);
-    return SizedBox(
-      height: height,
-      width: double.infinity,
-      child: CustomPaint(painter: _CandlePainter(candles)),
+
+    // Un `CustomPaint` ne restitue RIEN à un lecteur d'écran : sans
+    // alternative, le graphique n'existe pas pour qui ne le voit pas. Le
+    // résumé est porté par le widget plutôt que par chaque appelant,
+    // pour qu'aucun usage ne puisse l'oublier.
+    final first = candles.first.close;
+    final last = candles.last.close;
+    final direction = last > first
+        ? 'en hausse'
+        : last < first
+            ? 'en baisse'
+            : 'stable';
+
+    return Semantics(
+      label: 'Graphique en chandeliers, ${candles.length} bougies, '
+          '$direction. Première clôture $first, dernière $last.'
+          '${semanticsSuffix != null ? ' $semanticsSuffix' : ''}',
+      image: true,
+      excludeSemantics: true,
+      child: SizedBox(
+        height: height,
+        width: double.infinity,
+        child: CustomPaint(painter: _CandlePainter(candles)),
+      ),
     );
   }
 }
@@ -150,19 +178,32 @@ class Sparkline extends StatelessWidget {
     required this.values,
     this.height = 120,
     this.color = AppColors.primary,
+    this.semanticsLabel,
   });
 
   final List<double> values;
   final double height;
   final Color color;
 
+  /// Résumé parlé. Les montants formatés sont connus de l'appelant, pas
+  /// d'ici : la courbe ne reçoit que des nombres.
+  final String? semanticsLabel;
+
   @override
   Widget build(BuildContext context) {
     if (values.length < 2) return SizedBox(height: height);
-    return SizedBox(
-      height: height,
-      width: double.infinity,
-      child: CustomPaint(painter: _SparklinePainter(values, color)),
+
+    return Semantics(
+      label: semanticsLabel ??
+          'Courbe, ${values.length} mesures, '
+              '${values.last > values.first ? 'en hausse' : values.last < values.first ? 'en baisse' : 'stable'}.',
+      image: true,
+      excludeSemantics: true,
+      child: SizedBox(
+        height: height,
+        width: double.infinity,
+        child: CustomPaint(painter: _SparklinePainter(values, color)),
+      ),
     );
   }
 }

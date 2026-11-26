@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/markdown.dart';
 import '../../../shared/widgets/states.dart';
 import '../data/leo_controller.dart';
 import '../domain/models.dart';
@@ -36,7 +37,15 @@ class _LeoScreenState extends ConsumerState<LeoScreen> {
   void _send() {
     final text = _input.text;
     if (text.trim().isEmpty) return;
-    ref.read(leoControllerProvider.notifier).send(text, page: widget.fromPage);
+
+    // Le champ n'est vidé que si le message est VRAIMENT parti. Il était
+    // effacé d'office : une connexion tombée faisait disparaître la
+    // question sans rien dire.
+    final sent = ref
+        .read(leoControllerProvider.notifier)
+        .send(text, page: widget.fromPage);
+    if (!sent) return;
+
     _input.clear();
     _scrollToEnd();
   }
@@ -70,8 +79,17 @@ class _LeoScreenState extends ConsumerState<LeoScreen> {
               children: [
                 const Text('Leo', style: TextStyle(fontSize: 16)),
                 Text(
-                  state.connected ? 'En ligne' : 'Connexion…',
-                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                  switch (state.connection) {
+                    LeoConnection.online => 'En ligne',
+                    LeoConnection.connecting => 'Connexion…',
+                    LeoConnection.lost => 'Hors ligne — nouvelle tentative…',
+                  },
+                  style: TextStyle(
+                    color: state.connection == LeoConnection.lost
+                        ? AppColors.warning
+                        : AppColors.muted,
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
@@ -107,6 +125,8 @@ class _LeoScreenState extends ConsumerState<LeoScreen> {
                     },
                   ),
           ),
+          if (state.actionRequest != null)
+            _ActionRequestCard(request: state.actionRequest!),
           _Composer(
             controller: _input,
             enabled: state.connected,
@@ -190,10 +210,16 @@ class _TurnBubble extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SelectableText(
-              turn.content,
-              style: const TextStyle(fontSize: 14, height: 1.45),
-            ),
+            // L'utilisateur écrit du texte brut ; Leo répond en Markdown.
+            // Sans rendu, les `**` et les séparateurs de tableau
+            // s'affichaient tels quels.
+            if (turn.isUser)
+              SelectableText(
+                turn.content,
+                style: const TextStyle(fontSize: 14, height: 1.45),
+              )
+            else
+              Markdown(turn.content),
             for (final action in turn.actions) ...[
               const SizedBox(height: 10),
               _ActionCard(action: action),
@@ -221,17 +247,25 @@ class _ActionCard extends ConsumerStatefulWidget {
 class _ActionCardState extends ConsumerState<_ActionCard> {
   bool _pending = false;
 
-  Future<void> _decide(bool confirm) async {
-    setState(() => _pending = true);
-    await ref
+  void _decide(bool confirm) {
+    // Le statut n'est plus forcé ici : il vient du serveur, par
+    // `action_update`. L'écran affichait « Confirmée » sans avoir rien
+    // obtenu.
+    final sent = ref
         .read(leoControllerProvider.notifier)
         .decideAction(widget.action.id, confirm: confirm);
-    if (mounted) setState(() => _pending = false);
+    if (mounted) setState(() => _pending = sent);
   }
 
   @override
   Widget build(BuildContext context) {
     final action = widget.action;
+    // Le statut affiché suit l'état réel de l'action.
+    if (!action.isPending && _pending) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _pending = false);
+      });
+    }
 
     return Container(
       padding: const EdgeInsets.all(10),
@@ -257,25 +291,170 @@ class _ActionCardState extends ConsumerState<_ActionCard> {
               style: const TextStyle(color: AppColors.muted, fontSize: 11),
             )
           else
-            Row(
-              children: [
-                FilledButton(
-                  onPressed: _pending ? null : () => _decide(true),
-                  style: FilledButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  child: const Text('Confirmer'),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: _pending ? null : () => _decide(false),
-                  style: OutlinedButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  child: const Text('Annuler'),
-                ),
-              ],
+            _DecisionButtons(
+              pending: _pending,
+              confirmLabel: 'Confirmer',
+              onDecide: _decide,
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Deux boutons de décision, qui tiennent sur un téléphone.
+///
+/// Le thème impose `minimumSize: Size.fromHeight(48)` aux `FilledButton`,
+/// c'est-à-dire une largeur minimale INFINIE. Dans un `Row`, deux boutons
+/// réclamant chacun une largeur infinie débordent : la carte s'affichait
+/// barrée de jaune et noir, et « Annuler » sortait de l'écran. `Wrap` les
+/// laisse se replier, et la contrainte de largeur est levée ici seulement.
+class _DecisionButtons extends StatelessWidget {
+  const _DecisionButtons({
+    required this.pending,
+    required this.onDecide,
+    required this.confirmLabel,
+    this.danger = false,
+  });
+
+  final bool pending;
+  final void Function(bool confirm) onDecide;
+  final String confirmLabel;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    // 44 pt : au-dessus du seuil de cible tactile, sans la largeur infinie
+    // du thème.
+    final size = const Size(0, 44);
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        FilledButton(
+          onPressed: pending ? null : () => onDecide(true),
+          style: FilledButton.styleFrom(
+            minimumSize: size,
+            backgroundColor: danger ? AppColors.loss : null,
+            foregroundColor: danger ? AppColors.foreground : null,
+          ),
+          child: Text(confirmLabel),
+        ),
+        OutlinedButton(
+          onPressed: pending ? null : () => onDecide(false),
+          style: OutlinedButton.styleFrom(minimumSize: size),
+          child: const Text('Annuler'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Demande de confirmation transactionnelle mise en attente par le Risk
+/// Engine.
+///
+/// Elle n'était pas lue du tout : la clé `action_request` du message
+/// `done` était ignorée, et aucune carte n'apparaissait pour les
+/// opérations qui passent par le moteur de risque — c'est-à-dire
+/// précisément celles qui engagent de l'argent.
+class _ActionRequestCard extends ConsumerStatefulWidget {
+  const _ActionRequestCard({required this.request});
+
+  final LeoActionRequest request;
+
+  @override
+  ConsumerState<_ActionRequestCard> createState() => _ActionRequestCardState();
+}
+
+class _ActionRequestCardState extends ConsumerState<_ActionRequestCard> {
+  bool _pending = false;
+
+  void _decide(bool confirm) {
+    final sent = ref
+        .read(leoControllerProvider.notifier)
+        .decideActionRequest(widget.request.id, confirm: confirm);
+    if (mounted) setState(() => _pending = sent);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final request = widget.request;
+    final live = request.isLive;
+    final tone = live ? AppColors.loss : AppColors.warning;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.08),
+        border: Border.all(color: tone.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                live ? Icons.warning_amber_rounded : Icons.help_outline,
+                size: 16,
+                color: tone,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  live
+                      ? 'Confirmation — ARGENT RÉEL'
+                      : 'Confirmation — simulation',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: tone,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (request.summary.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(request.summary,
+                style: const TextStyle(fontSize: 13, height: 1.4)),
+          ],
+          if (request.riskSummary.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              request.riskSummary,
+              style: const TextStyle(
+                  color: AppColors.muted, fontSize: 11, height: 1.4),
+            ),
+          ],
+          if (request.errorMessage.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              request.errorMessage,
+              style: const TextStyle(color: AppColors.loss, fontSize: 11),
+            ),
+          ],
+          if (request.awaitsSecondConfirmation &&
+              request.confirmationsReceived > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Deuxième confirmation requise '
+              '(${request.confirmationsReceived}/2).',
+              style: TextStyle(color: tone, fontSize: 11),
+            ),
+          ],
+          const SizedBox(height: 10),
+          _DecisionButtons(
+            pending: _pending,
+            danger: live,
+            confirmLabel: request.awaitsSecondConfirmation &&
+                    request.confirmationsReceived > 0
+                ? 'Confirmer définitivement'
+                : 'Confirmer',
+            onDecide: _decide,
+          ),
         ],
       ),
     );
@@ -312,10 +491,13 @@ class _Composer extends StatelessWidget {
                 controller: controller,
                 minLines: 1,
                 maxLines: 4,
+                // La touche « envoyer » du clavier contournait le seul
+                // garde-fou : le bouton était grisé, pas le champ.
+                enabled: enabled,
                 textInputAction: TextInputAction.send,
-                onSubmitted: (_) => onSend(),
-                decoration: const InputDecoration(
-                  hintText: 'Écris à Leo…',
+                onSubmitted: enabled ? (_) => onSend() : null,
+                decoration: InputDecoration(
+                  hintText: enabled ? 'Écris à Leo…' : 'Leo est hors ligne',
                   isDense: true,
                 ),
               ),

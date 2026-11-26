@@ -39,6 +39,17 @@ class MarketRepository {
     );
   }
 
+  /// Cotation d'un instrument. Le détail d'un actif affichait son
+  /// historique sans jamais dire à combien il cote — ni depuis quand.
+  Future<Quote> quote(int assetId, {String timeframe = '1d'}) async {
+    return Quote.fromJson(
+      await _client.get<Map<String, dynamic>>(
+        '/market/assets/$assetId/quote/',
+        query: {'timeframe': timeframe},
+      ),
+    );
+  }
+
   Future<List<WatchlistEntry>> watchlist() async {
     final body = await _client.get<Map<String, dynamic>>('/market/watchlist/');
     final results = body['results'];
@@ -131,6 +142,13 @@ class CandleRequest {
   @override
   int get hashCode => Object.hash(assetId, timeframe);
 }
+
+final assetQuoteProvider =
+    FutureProvider.autoDispose.family<Quote, CandleRequest>(
+  (ref, request) async => ref
+      .watch(marketRepositoryProvider)
+      .quote(request.assetId, timeframe: request.timeframe),
+);
 
 final candleHistoryProvider =
     FutureProvider.autoDispose.family<CandleHistory, CandleRequest>(

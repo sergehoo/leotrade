@@ -3,10 +3,10 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useLocation } from "react-router-dom"
 
 import {
-  cancelAction,
-  confirmAction,
   openLeoSocket,
   type LeoAction,
+  type LeoActionRequest,
+  type LeoClientEvent,
   type LeoMessage,
   type LeoServerEvent,
 } from "@/api/leo"
@@ -16,6 +16,9 @@ import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/stores/auth"
 import { cn } from "@/lib/utils"
 import { Markdown } from "./Markdown"
+
+/** Émetteur de la socket, partagé par les cartes de décision. */
+type Emitter = (payload: LeoClientEvent) => boolean
 
 /** Message affiché : historique serveur ou réponse en cours de streaming. */
 interface Turn {
@@ -45,6 +48,7 @@ export default function LeoDock() {
   const [connected, setConnected] = useState(false)
   const [thinking, setThinking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [actionRequest, setActionRequest] = useState<LeoActionRequest | null>(null)
 
   const socketRef = useRef<WebSocket | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -92,13 +96,32 @@ export default function LeoDock() {
       case "done": {
         const id = (event as { id: number }).id
         const actions = ((event as { actions?: LeoAction[] }).actions ?? []) as LeoAction[]
+        const clean = (event as { clean_content?: string }).clean_content ?? ""
+        const request =
+          (event as { action_request?: LeoActionRequest | null }).action_request ?? null
         setThinking(false)
         streamingId.current = null
-        setTurns((previous) =>
-          previous.map((turn) =>
-            turn.id === id ? { ...turn, actions, streaming: false } : turn,
-          ),
+
+        // Une demande tranchée ne doit plus proposer de boutons.
+        setActionRequest(
+          request && (request.status === "WAITING" || request.status === "PENDING")
+            ? request
+            : null,
         )
+
+        setTurns((previous) => {
+          // `done` sans `chunk` préalable : c'est la forme que prend le
+          // résultat d'un OUTIL côté serveur (`_send_tool_result`), y
+          // compris la confirmation d'une opération. Sans ce repli, la
+          // réponse disparaissait sans un mot.
+          if (!previous.some((turn) => turn.id === id)) {
+            if (!clean) return previous
+            return [...previous, { id, role: "ASSISTANT", content: clean, actions }]
+          }
+          return previous.map((turn) =>
+            turn.id === id ? { ...turn, actions, streaming: false } : turn,
+          )
+        })
         break
       }
       case "action_update": {
@@ -162,6 +185,25 @@ export default function LeoDock() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
   }, [turns, thinking])
+
+  /**
+   * Envoie un événement sur la socket. Retourne false si rien n'est parti.
+   *
+   * Les décisions passaient auparavant par `POST
+   * /assistant/action-requests/<id>/confirm/` avec l'identifiant d'un
+   * `AssistantAction` — l'endpoint d'un autre modèle. Deux séquences de
+   * clés primaires : soit le bouton était mort, soit une demande portant
+   * par hasard le même numéro était confirmée ET exécutée.
+   */
+  const emit = useCallback((payload: LeoClientEvent): boolean => {
+    const socket = socketRef.current
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setError("Leo est hors ligne : la décision n'a pas été transmise.")
+      return false
+    }
+    socket.send(JSON.stringify(payload))
+    return true
+  }, [])
 
   function send() {
     const text = draft.trim()
@@ -243,7 +285,7 @@ export default function LeoDock() {
             ) : null}
 
             {turns.map((turn) => (
-              <TurnBubble key={turn.id} turn={turn} />
+              <TurnBubble key={turn.id} turn={turn} emit={emit} />
             ))}
 
             {thinking ? (
@@ -253,6 +295,10 @@ export default function LeoDock() {
               </div>
             ) : null}
           </div>
+
+          {actionRequest ? (
+            <ActionRequestCard request={actionRequest} emit={emit} />
+          ) : null}
 
           <form
             className="flex items-end gap-2 border-t border-border p-3"
@@ -307,7 +353,7 @@ function LeoAvatar({ speaking }: { speaking: boolean }) {
   )
 }
 
-function TurnBubble({ turn }: { turn: Turn }) {
+function TurnBubble({ turn, emit }: { turn: Turn; emit: Emitter }) {
   const isUser = turn.role === "USER"
 
   return (
@@ -329,7 +375,7 @@ function TurnBubble({ turn }: { turn: Turn }) {
         {turn.actions.length > 0 ? (
           <div className="mt-3 space-y-2">
             {turn.actions.map((action) => (
-              <ActionCard key={action.id} action={action} />
+              <ActionCard key={action.id} action={action} emit={emit} />
             ))}
           </div>
         ) : null}
@@ -345,22 +391,27 @@ function TurnBubble({ turn }: { turn: Turn }) {
  * dispose pas. Le libellé indique ce qui se produira, pas ce que Leo
  * suggère — c'est l'utilisateur qui engage l'opération.
  */
-function ActionCard({ action }: { action: LeoAction }) {
+function ActionCard({ action, emit }: { action: LeoAction; emit: Emitter }) {
   const [pending, setPending] = useState(false)
-  const [status, setStatus] = useState(action.status)
 
+  // Le statut n'est plus tenu localement : il vient du serveur, par
+  // `action_update`. Afficher « Confirmée » sans l'avoir obtenu est, sur
+  // une action qui engage de l'argent, pire qu'une erreur.
+  const status = action.status
   const settled = status !== "PENDING" && status !== "PROPOSED"
 
-  async function decide(confirm: boolean) {
-    setPending(true)
-    try {
-      await (confirm ? confirmAction(action.id) : cancelAction(action.id))
-      setStatus(confirm ? "CONFIRMED" : "REJECTED")
-    } catch {
-      setStatus(action.status)
-    } finally {
-      setPending(false)
-    }
+  useEffect(() => {
+    if (settled) setPending(false)
+  }, [settled])
+
+  function decide(confirm: boolean) {
+    setPending(
+      emit(
+        confirm
+          ? { type: "action_confirm", action_id: action.id }
+          : { type: "action_reject", action_id: action.id },
+      ),
+    )
   }
 
   return (
@@ -390,6 +441,82 @@ function ActionCard({ action }: { action: LeoAction }) {
           </Button>
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Demande de confirmation transactionnelle mise en attente par le Risk
+ * Engine.
+ *
+ * La clé `action_request` du message `done` n'était pas lue : aucune
+ * carte n'apparaissait pour les opérations qui passent par le moteur de
+ * risque — c'est-à-dire précisément celles qui engagent de l'argent.
+ */
+function ActionRequestCard({
+  request,
+  emit,
+}: {
+  request: LeoActionRequest
+  emit: Emitter
+}) {
+  const [pending, setPending] = useState(false)
+  const live = request.mode === "LIVE"
+  const awaitsSecond =
+    request.requires_double_confirmation && request.confirmations_received < 2
+
+  function decide(confirm: boolean) {
+    setPending(
+      emit(
+        confirm
+          ? { type: "action_request_confirm", request_id: request.id }
+          : { type: "action_request_cancel", request_id: request.id },
+      ),
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        "mx-3 mb-2 rounded-md border p-3 text-xs",
+        live ? "border-loss/45 bg-loss/10" : "border-warning/40 bg-warning/5",
+      )}
+    >
+      <p className={cn("font-semibold", live ? "text-loss" : "text-warning")}>
+        {live ? "Confirmation — ARGENT RÉEL" : "Confirmation — simulation"}
+      </p>
+      {request.summary ? <p className="mt-1.5 text-sm">{request.summary}</p> : null}
+      {request.risk_summary ? (
+        <p className="mt-1 text-muted-foreground">{request.risk_summary}</p>
+      ) : null}
+      {request.error_message ? (
+        <p className="mt-1 text-loss">{request.error_message}</p>
+      ) : null}
+      {awaitsSecond && request.confirmations_received > 0 ? (
+        <p className={cn("mt-1", live ? "text-loss" : "text-warning")}>
+          Deuxième confirmation requise ({request.confirmations_received}/2).
+        </p>
+      ) : null}
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant={live ? "destructive" : "default"}
+          disabled={pending}
+          onClick={() => decide(true)}
+        >
+          {awaitsSecond && request.confirmations_received > 0
+            ? "Confirmer définitivement"
+            : "Confirmer"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={() => decide(false)}
+        >
+          Annuler
+        </Button>
+      </div>
     </div>
   )
 }

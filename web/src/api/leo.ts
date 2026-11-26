@@ -15,6 +15,28 @@ export interface LeoAction {
   rationale: string
 }
 
+/**
+ * Demande de confirmation TRANSACTIONNELLE, mise en attente par le Risk
+ * Engine (`AssistantActionRequest` côté serveur).
+ *
+ * À ne pas confondre avec `LeoAction`, qui est une simple proposition
+ * attachée à un message (`AssistantAction`). Deux modèles, deux séquences
+ * de clés primaires : les confondre fait confirmer une opération que
+ * l'utilisateur n'a pas regardée.
+ */
+export interface LeoActionRequest {
+  id: number
+  intent?: string
+  action_type: string
+  status: string
+  mode: string
+  requires_double_confirmation: boolean
+  confirmations_received: number
+  summary: string
+  risk_summary: string
+  error_message: string | null
+}
+
 export interface LeoMessage {
   id: number
   role: LeoRole
@@ -55,13 +77,9 @@ export function fetchConversationMessages(id: number): Promise<LeoMessage[]> {
   }).then((body) => (Array.isArray(body) ? body : (body.results ?? [])))
 }
 
-export function confirmAction(id: number): Promise<unknown> {
-  return request({ method: "POST", url: `/assistant/action-requests/${id}/confirm/` })
-}
-
-export function cancelAction(id: number): Promise<unknown> {
-  return request({ method: "POST", url: `/assistant/action-requests/${id}/cancel/` })
-}
+// Les décisions passent par la socket — voir `LeoClientEvent`. Deux
+// fonctions postaient auparavant sur `/assistant/action-requests/<id>/`
+// l'identifiant d'un `AssistantAction` : l'endpoint d'un AUTRE modèle.
 
 // ── Temps réel ───────────────────────────────────────────────────────────
 
@@ -69,10 +87,25 @@ export type LeoServerEvent =
   | { type: "session"; session_id: number; history: LeoMessage[]; quota?: unknown }
   | { type: "thinking" }
   | { type: "chunk"; text: string; id: number }
-  | { type: "done"; id: number; actions?: LeoAction[]; meta?: Record<string, unknown> }
+  | {
+      type: "done"
+      id: number
+      actions?: LeoAction[]
+      clean_content?: string
+      action_request?: LeoActionRequest | null
+      meta?: Record<string, unknown>
+    }
   | { type: "action_update"; action_id: number; status: string }
   | { type: "error"; message: string }
   | { type: string; [key: string]: unknown }
+
+/** Ce que le client envoie. Les deux modèles ont chacun leur type. */
+export type LeoClientEvent =
+  | { type: "chat"; message: string; context?: Record<string, unknown> }
+  | { type: "action_confirm"; action_id: number }
+  | { type: "action_reject"; action_id: number }
+  | { type: "action_request_confirm"; request_id: number }
+  | { type: "action_request_cancel"; request_id: number }
 
 /**
  * Ouvre la connexion temps réel de Leo.
