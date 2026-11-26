@@ -28,6 +28,11 @@ class DashboardScreen extends ConsumerWidget {
             icon: const Icon(Icons.smart_toy_outlined),
           ),
           IconButton(
+            tooltip: 'Portefeuille électronique',
+            onPressed: () => context.push('/portefeuille-electronique'),
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+          ),
+          IconButton(
             tooltip: 'Marchés',
             onPressed: () => context.push('/marches'),
             icon: const Icon(Icons.show_chart),

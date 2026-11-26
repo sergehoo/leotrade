@@ -28,6 +28,12 @@ from ai_assistant.api import (
 
 from api.views.brokers import BrokerAccountViewSet, BrokerConstraintViewSet
 from api.views.market import AssetViewSet, WatchlistViewSet
+from api.views.wallet import (
+    WalletLedgerViewSet,
+    WalletSummaryView,
+    WalletTransactionViewSet,
+    WithdrawalRequestViewSet,
+)
 from api.views.portfolio import PortfolioViewSet, PositionViewSet, PortfolioSnapshotViewSet, CashLedgerEntryViewSet, \
     PortfolioAllocationViewSet, PositionCorrelationViewSet
 
@@ -81,6 +87,14 @@ router.register(
     basename="api-assistant-conversations",
 )
 
+router.register(r"wallet/ledger", WalletLedgerViewSet, basename="api-wallet-ledger")
+router.register(
+    r"wallet/transactions", WalletTransactionViewSet, basename="api-wallet-transactions",
+)
+router.register(
+    r"wallet/withdrawals", WithdrawalRequestViewSet, basename="api-wallet-withdrawals",
+)
+
 router.register(r"market/assets", AssetViewSet, basename="api-assets")
 router.register(r"market/watchlist", WatchlistViewSet, basename="api-watchlist")
 
@@ -104,6 +118,8 @@ urlpatterns = [
     path("auth/me/", MeView.as_view(), name="api-auth-me"),
     # ── Contexte applicatif ────────────────────────────────────────────
     path("context/", AppContextView.as_view(), name="api-context"),
+    # ── Portefeuille électronique ──────────────────────────────────────
+    path("wallet/summary/", WalletSummaryView.as_view(), name="api-wallet-summary"),
     # ── Leo ────────────────────────────────────────────────────────────
     path("assistant/history/", assistant_history, name="api-assistant-history"),
     path("assistant/analytics/", assistant_analytics, name="api-assistant-analytics"),

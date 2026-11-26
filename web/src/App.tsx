@@ -5,11 +5,12 @@ import { Toaster } from "sonner"
 
 import { setSessionExpiredHandler } from "@/api/client"
 import AppShell from "@/components/layout/AppShell"
-import DashboardPage, { PendingSection } from "@/routes/DashboardPage"
+import DashboardPage from "@/routes/DashboardPage"
 import BrokersPage from "@/routes/brokers/BrokersPage"
 import LeoPage from "@/routes/leo/LeoPage"
 import LoginPage from "@/routes/LoginPage"
 import MarketPage from "@/routes/market/MarketPage"
+import WalletPage from "@/routes/wallet/WalletPage"
 import PortfolioPage from "@/routes/portfolio/PortfolioPage"
 import RiskPage from "@/routes/risk/RiskPage"
 import ProtectedRoute from "@/routes/ProtectedRoute"
@@ -55,10 +56,7 @@ export default function App() {
               <Route path="marches" element={<MarketPage />} />
               <Route path="risque" element={<RiskPage />} />
               <Route path="assistant" element={<LeoPage />} />
-              <Route
-                path="portefeuille-electronique"
-                element={<PendingSection title="Portefeuille électronique" scope="Les dépôts et retraits" />}
-              />
+              <Route path="portefeuille-electronique" element={<WalletPage />} />
               <Route path="brokers" element={<BrokersPage />} />
             </Route>
           </Route>

@@ -541,3 +541,86 @@ donnée » et un tiret en variation.
   fournisseur pour cette place.
 - Rafraîchissement temps réel des cotations par WebSocket
   (`market/routing.py` existe, le consumer n'est pas consommé).
+
+---
+
+## Lot 9 — Portefeuille électronique
+
+C'est le domaine qui touche à l'argent réel. Deux principes l'ont
+gouverné.
+
+### Aucune route ne déclenche de flux financier
+
+Les dépôts ne sont **pas** initiables depuis l'API. Un dépôt débite
+réellement l'instrument de paiement de l'utilisateur ; l'ouvrir sans
+intégration validée reviendrait à activer un flux d'argent réel. Un test
+vérifie qu'aucune route de dépôt n'existe.
+
+Une demande de retrait crée un enregistrement PENDING et **verrouille**
+des fonds — le total du portefeuille est inchangé, seule la répartition
+disponible/verrouillé bouge. Une revue humaine décide ensuite. Le
+verrouillage passe par `WalletService`, qui écrit au grand livre : un
+verrouillage sans écriture laisserait un solde inexpliqué, exactement ce
+que le rapprochement du Lot 3 sert à détecter.
+
+L'annulation en libre-service n'existe pas côté service : l'API renvoie
+501 plutôt que de changer un statut sans libérer les fonds, ce qui
+laisserait de l'argent bloqué.
+
+### Réel et simulé, nommés séparément
+
+| Champ | Nature |
+|---|---|
+| `available_balance`, `locked_balance` | argent réel |
+| `simulated_trading_capital` | portefeuilles dont les ordres n'atteignent aucun marché |
+| `live_trading_capital` | portefeuilles branchés sur un broker réel |
+
+Les additionner mentalement est l'erreur que ce découpage rend
+difficile. Dans l'interface, le capital simulé est grisé et porte la
+mention « n'atteint aucun marché — cet argent n'existe pas ».
+
+### Le rapprochement remonte dans le produit
+
+`is_reconciled` et `unexplained_amount` sont exposés : un solde que
+l'historique n'explique pas est une information qui appartient à son
+propriétaire, pas à une commande d'administration. L'écran l'annonce et
+conseille de signaler avant d'engager ces fonds.
+
+### Bornes alignées sur le formulaire Django
+
+5 à 100 000 par opération, garde KYC, solde suffisant. Une API plus
+permissive que le formulaire serait le chemin qu'on emprunte pour
+contourner la limite — un test le vérifie.
+
+`destination_masked` refuse plus de six chiffres : le champ sert à
+reconnaître une destination, pas à la définir.
+
+### Correction d'une affirmation antérieure
+
+J'avais signalé, plusieurs lots plus tôt, que les dépôts multi-devises
+créditaient un montant au taux indéfini. **C'était faux.**
+`wallet/form.py` refuse toute devise différente de celle du portefeuille,
+et le webhook Stripe vérifie devise, montant, utilisateur et identifiant
+de session avant de créditer. La liste `CURRENCY_CHOICES` est trompeuse
+— elle propose des devises qui seront rejetées — mais aucun crédit à
+taux indéfini ne peut se produire.
+
+### Vérification
+
+632 tests backend (1 ignoré), 63 Flutter, build web OK. Validé au
+navigateur.
+
+### Plus aucun écran « en cours de portage »
+
+`PendingSection` est supprimé : les sept sections de l'application sont
+désormais alimentées par l'API.
+
+### Reste à faire sur ce domaine
+
+- Parcours de dépôt (volontairement non exposé).
+- Annulation d'une demande de retrait (le service legacy ne l'implémente
+  pas).
+- `CURRENCY_CHOICES` à restreindre à la devise du portefeuille, pour que
+  l'interface cesse de proposer ce qui sera refusé.
+- Plafonds à rendre dépendants du palier KYC — le commentaire
+  « à ajuster en config selon le KYC tier » est toujours là.

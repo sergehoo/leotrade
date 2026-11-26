@@ -1,4 +1,4 @@
-import { Briefcase, PauseOctagon, Plug } from "lucide-react"
+import { Briefcase, Plug } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { toApiError } from "@/api/client"
@@ -154,23 +154,5 @@ function TradingModeBadge({ context }: { context: AppContext }) {
       Mode {isLive ? "réel" : "simulation"}
       {downgraded ? " — réel bloqué" : ""}
     </Badge>
-  )
-}
-
-export function PendingSection({ title, scope }: { title: string; scope: string }) {
-  return (
-    <div className="space-y-5">
-      <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-      <EmptyState
-        icon={PauseOctagon}
-        title="Section en cours de portage"
-        description={
-          <>
-            {scope} n'est pas encore exposé par l'API v1. Cette section reste
-            disponible dans l'interface Django existante le temps du portage.
-          </>
-        }
-      />
-    </div>
   )
 }

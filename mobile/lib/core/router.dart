@@ -8,6 +8,7 @@ import '../features/brokers/presentation/brokers_screen.dart';
 import '../features/portfolio/presentation/portfolio_screen.dart';
 import '../features/leo/presentation/leo_screen.dart';
 import '../features/market/presentation/market_screen.dart';
+import '../features/wallet/presentation/wallet_screen.dart';
 import '../features/risk/presentation/risk_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 
@@ -54,6 +55,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/portefeuille', builder: (_, __) => const PortfolioScreen()),
       GoRoute(path: '/risque', builder: (_, __) => const RiskScreen()),
       GoRoute(path: '/marches', builder: (_, __) => const MarketScreen()),
+      GoRoute(
+        path: '/portefeuille-electronique',
+        builder: (_, __) => const WalletScreen(),
+      ),
       GoRoute(
         path: '/leo',
         builder: (_, state) => LeoScreen(fromPage: state.uri.queryParameters['depuis']),
