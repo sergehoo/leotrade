@@ -20,6 +20,12 @@ export function formatMoney(
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
+    // Le CODE, pas le symbole localisé. En fr-FR, `Intl` rend USD par
+    // « $US » là où Flutter rend « USD » : le même montant s'affichait
+    // différemment d'un client à l'autre. Et sur une plateforme de
+    // trading, « $US », « $CA » et « $ » se confondent à la lecture —
+    // le code ISO ne se confond avec rien.
+    currencyDisplay: "code",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n)
