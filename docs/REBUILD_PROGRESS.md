@@ -248,3 +248,72 @@ Un broker injoignable renvoie 502, pas 500.
 
 28 fonctions, 5 prêtes. Dépend du Lot 4 : une position appartient à un
 portefeuille, lui-même rattaché à un compte broker.
+
+---
+
+## Lot 5 — Portefeuille, positions, et parcours d'accueil
+
+### Le blocage levé
+
+Un portefeuille exige un compte broker, et un compte broker exigeait un
+courtier réel. Un nouvel utilisateur arrivait donc sur un tableau de bord
+vide dont la seule issue était d'ouvrir un compte chez un tiers — avant
+même d'avoir pu regarder la plateforme.
+
+`POST /api/v1/portfolios/provision-paper/` provisionne en un appel une
+place d'exécution locale (`SIMULATION`, mode PAPER), un portefeuille et
+son capital de départ. Le routage d'exécution se faisant sur le **mode**
+et non sur le broker (cf. `execution.adapters.factory`), ces comptes
+empruntent le `PaperBrokerAdapter` comme n'importe quel autre.
+
+Trois gardes empêchent cette porte de devenir une porte dérobée :
+`BrokerAccount.clean()` refuse un compte SIMULATION en LIVE,
+`assert_mode_allowed` le refuse côté service, et `trading_mode_toggle`
+saute ces comptes lors d'une bascule globale.
+
+### Un bug de double comptage, trouvé au navigateur
+
+La première version créditait le capital À LA FOIS sur
+`starting_balance` et comme écriture de grand livre. Or
+`recompute_cash_state` calcule `starting_balance + Σ(écritures)` : un
+portefeuille de 10 000 affichait 20 000.
+
+Le test initial vérifiait qu'une écriture existait — il passait. C'est la
+vérification au navigateur qui a montré le chiffre faux. Le test figé
+désormais assert le **solde résultant**, pas la présence d'une écriture.
+
+Le capital d'ouverture n'est pas une transaction : c'est la ligne de
+départ des mouvements, et le dénominateur de la performance.
+
+### Exposé
+
+| Route | Contenu |
+|---|---|
+| `/portfolios/provision-paper/` | parcours d'accueil en un appel |
+| `/portfolios/{id}/summary/` | P&L latent/réalisé, exposition, répartition |
+| `/positions/?trading_mode=` | séparation stricte simulation / réel |
+
+`PortfolioSummaryService` centralise les agrégats : les trois surfaces en
+calculaient chacune leur version, et faire diverger un chiffre de P&L est
+la manière la plus sûre de perdre la confiance de l'utilisateur.
+
+Tous les montants sortent en chaîne. Le backend calcule en `Decimal` ; ni
+TypeScript ni Dart n'ont d'équivalent natif.
+
+### Écrans
+
+React et Flutter : sélecteur de portefeuille, synthèse, tableau des
+positions ouvertes, état vide explicite, parcours de création. Le mode
+est affiché partout où un portefeuille est nommé — c'est lui qui décide
+si un ordre engage de l'argent réel.
+
+### Vérification
+
+561 tests backend (1 ignoré), 25 Flutter, build web OK, parcours validé
+au navigateur : création, capital correct, état vide des positions.
+
+### Reste à faire sur ce domaine
+
+- Clôture de position depuis l'interface (le service existe, pas l'écran).
+- Historique des positions fermées et des mouvements de trésorerie.
+- Graphique d'évolution de la valorisation (les snapshots existent).

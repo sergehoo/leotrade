@@ -781,6 +781,13 @@ def trading_mode_toggle(request):
             skipped.append(acc)
             continue
 
+        # Une place de simulation n'a pas de mode réel : la basculer
+        # ferait échouer `full_clean()` et casserait toute la boucle pour
+        # les autres comptes. On la laisse où elle est.
+        if mode == "LIVE" and acc.broker == "SIMULATION":
+            skipped.append(acc)
+            continue
+
         if mode == "LIVE" and acc.broker == "DERIV" and not getattr(acc, "deriv_token", None):
             deriv_no_token.append(acc)
 

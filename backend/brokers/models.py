@@ -19,6 +19,16 @@ class BrokerAccount(TimeStampedModel):
         ("BINANCE", "Binance"),
         ("MT5", "MetaTrader 5"),
         ("DERIV", "Deriv"),
+        # Place d'exécution locale : aucun compte distant, aucun
+        # identifiant, aucun appel réseau. Elle existe pour que le mode
+        # simulation soit utilisable sans ouvrir de compte chez un courtier
+        # — c'est le point d'entrée de la plateforme.
+        #
+        # Le routage d'exécution se fait sur `mode` (cf.
+        # execution.adapters.factory), donc un compte SIMULATION en mode
+        # PAPER emprunte le PaperBrokerAdapter comme n'importe quel autre.
+        # Il ne peut pas passer en LIVE : voir `clean()`.
+        ("SIMULATION", "Simulation"),
     ]
 
     MODE_CHOICES = [
@@ -89,6 +99,16 @@ class BrokerAccount(TimeStampedModel):
                 errors["deriv_app_id"] = "App ID obligatoire pour Deriv."
             if not self.deriv_currency:
                 errors["deriv_currency"] = "Devise Deriv obligatoire."
+
+        if self.broker == "SIMULATION" and self.mode == "LIVE":
+            # Il n'y a rien derrière : un ordre « réel » sur une place
+            # locale n'atteindrait aucun marché tout en portant le libellé
+            # qui fait baisser la garde de l'utilisateur.
+            errors["mode"] = (
+                "Un compte de simulation ne peut pas être passé en mode réel : "
+                "aucun marché n'est derrière. Connecte un vrai broker pour "
+                "trader en réel."
+            )
 
         if errors:
             raise ValidationError(errors)

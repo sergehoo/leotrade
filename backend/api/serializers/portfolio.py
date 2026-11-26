@@ -13,6 +13,20 @@ from portfolio.models import (
 class PortfolioSerializer(serializers.ModelSerializer):
     broker_name = serializers.CharField(source="broker_account.name", read_only=True)
     broker_type = serializers.CharField(source="broker_account.broker", read_only=True)
+    # Le mode est porté par le compte broker. L'exposer ici évite au client
+    # de devoir recouper deux ressources pour savoir si un portefeuille
+    # engage de l'argent réel — recoupement qu'il ferait tôt ou tard de
+    # travers.
+    trading_mode = serializers.CharField(source="broker_account.mode", read_only=True)
+    is_simulated = serializers.SerializerMethodField()
+
+    @staticmethod
+    def get_is_simulated(obj) -> bool:
+        """Vrai quand aucun ordre de ce portefeuille n'atteint un marché."""
+        broker = getattr(obj, "broker_account", None)
+        if broker is None:
+            return True
+        return broker.mode == "PAPER" or broker.broker == "SIMULATION"
 
     class Meta:
         model = Portfolio
@@ -39,6 +53,8 @@ class PortfolioSerializer(serializers.ModelSerializer):
             "broker_account",
             "broker_name",
             "broker_type",
+            "trading_mode",
+            "is_simulated",
             "created_at",
             "updated_at",
         ]
@@ -221,3 +237,55 @@ class PositionCorrelationSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+
+class PaperOnboardingSerializer(serializers.Serializer):
+    """Entrée du parcours d'accueil en simulation."""
+
+    name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    starting_balance = serializers.DecimalField(
+        max_digits=18, decimal_places=2, required=False,
+    )
+    currency = serializers.CharField(max_length=10, required=False, default="USD")
+
+    def validate_currency(self, value: str) -> str:
+        return (value or "USD").strip().upper()
+
+
+class PortfolioSummarySerializer(serializers.Serializer):
+    """Synthèse consolidée d'un portefeuille.
+
+    Les montants transitent en chaîne : le backend calcule en `Decimal`,
+    et ni TypeScript ni Dart n'ont d'équivalent natif. Les reconvertir en
+    nombre flottant pour les transporter rouvrirait une classe d'erreurs
+    d'arrondi que le backend a précisément éliminée.
+    """
+
+    portfolio_id = serializers.IntegerField()
+    base_currency = serializers.CharField()
+    trading_mode = serializers.CharField()
+    is_simulated = serializers.BooleanField()
+
+    equity = serializers.CharField()
+    current_balance = serializers.CharField()
+    available_cash = serializers.CharField()
+    locked_cash = serializers.CharField()
+    margin_used = serializers.CharField()
+
+    unrealized_pnl = serializers.CharField()
+    realized_pnl = serializers.CharField()
+    total_pnl = serializers.CharField()
+    total_pnl_percent = serializers.CharField()
+
+    current_drawdown_percent = serializers.FloatField()
+    max_drawdown_percent = serializers.FloatField()
+
+    open_positions = serializers.IntegerField()
+    long_positions = serializers.IntegerField()
+    short_positions = serializers.IntegerField()
+    winning_positions = serializers.IntegerField()
+    losing_positions = serializers.IntegerField()
+
+    exposure_value = serializers.CharField()
+    exposure_percent = serializers.CharField()
+    asset_class_exposure = serializers.ListField(child=serializers.DictField())

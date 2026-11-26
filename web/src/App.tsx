@@ -8,6 +8,7 @@ import AppShell from "@/components/layout/AppShell"
 import DashboardPage, { PendingSection } from "@/routes/DashboardPage"
 import BrokersPage from "@/routes/brokers/BrokersPage"
 import LoginPage from "@/routes/LoginPage"
+import PortfolioPage from "@/routes/portfolio/PortfolioPage"
 import ProtectedRoute from "@/routes/ProtectedRoute"
 import { useAuth } from "@/stores/auth"
 
@@ -47,10 +48,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppShell />}>
               <Route index element={<DashboardPage />} />
-              <Route
-                path="portefeuille"
-                element={<PendingSection title="Portefeuille" scope="Le détail des positions" />}
-              />
+              <Route path="portefeuille" element={<PortfolioPage />} />
               <Route
                 path="marches"
                 element={<PendingSection title="Marchés" scope="Les données de marché" />}

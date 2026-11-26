@@ -1,9 +1,12 @@
+from drf_spectacular.utils import extend_schema
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from api.permissions import IsOwner
 from api.serializers.portfolio import (
+    PaperOnboardingSerializer,
+    PortfolioSummarySerializer,
     PortfolioSerializer,
     PositionSerializer,
     PortfolioSnapshotSerializer,
@@ -22,14 +25,22 @@ from portfolio.models import (
     PositionCorrelation,
 )
 from portfolio.services import PortfolioService
+from portfolio.services_onboarding import OnboardingError, PaperOnboardingService
+from portfolio.services_summary import PortfolioSummaryService
 from portfolio.broker_import import BrokerImportService
 
 
 class PortfolioViewSet(viewsets.ModelViewSet):
     serializer_class = PortfolioSerializer
     permission_classes = [IsOwner]
+    filterset_fields = ["is_active", "is_default", "base_currency"]
+    search_fields = ["name", "description"]
+    ordering_fields = ["name", "equity", "created_at"]
+    ordering = ["-is_default", "name"]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Portfolio.objects.none()
         return (
             Portfolio.objects
             .filter(user=self.request.user)
@@ -88,6 +99,49 @@ class PortfolioViewSet(viewsets.ModelViewSet):
             "portfolio_id": portfolio.id,
         })
 
+    @extend_schema(
+        request=PaperOnboardingSerializer,
+        responses={201: PortfolioSerializer},
+        summary="Créer un portefeuille de simulation prêt à l'emploi",
+        description=(
+            "Provisionne en un appel une place d'exécution locale, un "
+            "portefeuille et son capital de départ. Aucun compte broker "
+            "réel n'est requis : c'est le point d'entrée de la plateforme."
+        ),
+    )
+    @action(detail=False, methods=["post"], url_path="provision-paper")
+    def provision_paper(self, request):
+        payload = PaperOnboardingSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+
+        try:
+            portfolio = PaperOnboardingService.provision(
+                request.user,
+                name=(data.get("name") or "").strip() or None,
+                starting_balance=data.get("starting_balance"),
+                currency=data.get("currency") or "USD",
+            )
+        except OnboardingError as exc:
+            return Response(
+                {"code": exc.code, "detail": exc.message},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            PortfolioSerializer(portfolio, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @extend_schema(
+        responses={200: PortfolioSummarySerializer},
+        summary="Synthèse consolidée : P&L, exposition, positions",
+    )
+    @action(detail=True, methods=["get"])
+    def summary(self, request, pk=None):
+        portfolio = self.get_object()
+        return Response(PortfolioSummaryService.build(portfolio))
+
     @action(detail=True, methods=["get"])
     def exposures(self, request, pk=None):
         portfolio = self.get_object()
@@ -112,20 +166,37 @@ class PortfolioViewSet(viewsets.ModelViewSet):
 class PositionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PositionSerializer
     permission_classes = [IsOwner]
+    filterset_fields = ["status", "side", "symbol", "portfolio", "source"]
+    search_fields = ["symbol", "asset_name"]
+    ordering_fields = ["opened_at", "symbol", "unrealized_pnl", "exposure_value"]
+    ordering = ["-opened_at"]
 
     def get_queryset(self):
-        return (
+        if getattr(self, "swagger_fake_view", False):
+            return Position.objects.none()
+
+        queryset = (
             Position.objects
             .filter(portfolio__user=self.request.user)
             .select_related("portfolio", "broker_account", "asset")
             .order_by("-opened_at")
         )
 
+        # Séparation stricte simulation / réel : sans ce filtre, un écran
+        # unique mélangerait des positions simulées et des positions qui
+        # engagent de l'argent réel, dans le même tableau.
+        mode = (self.request.query_params.get("trading_mode") or "").upper()
+        if mode in {"PAPER", "LIVE"}:
+            queryset = queryset.filter(broker_account__mode=mode)
+        return queryset
+
 class PortfolioSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PortfolioSnapshotSerializer
     permission_classes = [IsOwner]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return PortfolioSnapshot.objects.none()
         return (
             PortfolioSnapshot.objects
             .filter(portfolio__user=self.request.user)
@@ -139,6 +210,8 @@ class CashLedgerEntryViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsOwner]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return CashLedgerEntry.objects.none()
         return (
             CashLedgerEntry.objects
             .filter(portfolio__user=self.request.user)
@@ -152,6 +225,8 @@ class PortfolioAllocationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsOwner]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return PortfolioAllocation.objects.none()
         return (
             PortfolioAllocation.objects
             .filter(portfolio__user=self.request.user)
@@ -164,6 +239,8 @@ class PositionCorrelationViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsOwner]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return PositionCorrelation.objects.none()
         return (
             PositionCorrelation.objects
             .filter(portfolio__user=self.request.user)

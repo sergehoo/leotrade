@@ -178,7 +178,13 @@ class BrokerAccountService:
         )
 
     @classmethod
-    def assert_mode_allowed(cls, user, mode: str) -> None:
+    def assert_mode_allowed(cls, user, mode: str, broker: str | None = None) -> None:
+        if (broker or "").upper() == "SIMULATION" and (mode or "").upper() == "LIVE":
+            raise BrokerAccountError(
+                "SIMULATION_CANNOT_GO_LIVE",
+                "Un compte de simulation ne peut pas être passé en mode réel : "
+                "aucun marché n'est derrière.",
+            )
         if (mode or "").upper() == "LIVE":
             cls.assert_live_allowed(user)
 
@@ -190,7 +196,7 @@ class BrokerAccountService:
     def create_account(cls, user, *, data: Mapping, secrets: Mapping | None = None):
         from brokers.models import BrokerAccount
 
-        cls.assert_mode_allowed(user, data.get("mode"))
+        cls.assert_mode_allowed(user, data.get("mode"), data.get("broker"))
 
         account = BrokerAccount(user=user, **dict(data))
         if not account.status:
@@ -219,7 +225,9 @@ class BrokerAccountService:
     def update_account(cls, account, *, data: Mapping, secrets: Mapping | None = None, actor=None):
         new_mode = data.get("mode", account.mode)
         if (new_mode or "").upper() == "LIVE" and account.mode != "LIVE":
-            cls.assert_live_allowed(account.user)
+            cls.assert_mode_allowed(
+                account.user, new_mode, data.get("broker", account.broker),
+            )
 
         for field, value in dict(data).items():
             setattr(account, field, value)
@@ -319,6 +327,22 @@ class BrokerAccountService:
         n'émettrait aucune notification alors qu'un health check en
         émettrait une.
         """
+        if account.broker == "SIMULATION":
+            # Place locale : il n'y a rien à joindre. On le DIT, au lieu de
+            # renvoyer un succès qui laisserait croire qu'un aller-retour
+            # réseau a eu lieu — c'est précisément le mensonge que la vue
+            # Django produisait avant d'être corrigée.
+            return {
+                "success": True,
+                "payload": {
+                    "venue": "local",
+                    "detail": (
+                        "Place d'exécution locale : aucune connexion distante "
+                        "n'est requise. Les ordres sont simulés en mémoire."
+                    ),
+                },
+            }
+
         if cls.missing_secrets(account):
             raise BrokerAccountError(
                 "MISSING_SECRETS",

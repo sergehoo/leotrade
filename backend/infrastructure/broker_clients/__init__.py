@@ -12,4 +12,9 @@ class BrokerClientFactory:
             return MT5BrokerClient(broker_account)
         if broker_account.broker == "DERIV":
             return DerivBrokerClient(broker_account)
+        if broker_account.broker == "SIMULATION":
+            raise ValueError(
+                "Compte de simulation : aucune place distante à joindre. "
+                "L'exécution passe par PaperBrokerAdapter, en local."
+            )
         raise ValueError(f"Broker non supporté: {broker_account.broker}")
