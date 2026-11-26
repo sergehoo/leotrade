@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/network/page.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../domain/models.dart';
 
@@ -13,14 +14,27 @@ class WalletRepository {
         await _client.get<Map<String, dynamic>>('/wallet/summary/'),
       );
 
-  Future<List<LedgerEntry>> ledger() async {
-    final body = await _client.get<Map<String, dynamic>>('/wallet/ledger/');
-    final results = body['results'];
-    if (results is! List) return const [];
-    return results
-        .whereType<Map<String, dynamic>>()
-        .map(LedgerEntry.fromJson)
-        .toList(growable: false);
+  /// Grand livre. La page par défaut vaut 25 : l'historique s'arrêtait
+  /// là, sans que rien n'indique qu'il continuait.
+  Future<Page<LedgerEntry>> ledger({int pageSize = 50}) async {
+    return Page.fromJson(
+      await _client.get<Map<String, dynamic>>(
+        '/wallet/ledger/',
+        query: {'page_size': pageSize},
+      ),
+      LedgerEntry.fromJson,
+    );
+  }
+
+  /// Demandes de retrait et leur suivi.
+  Future<Page<WithdrawalRequest>> withdrawals() async {
+    return Page.fromJson(
+      await _client.get<Map<String, dynamic>>(
+        '/wallet/withdrawals/',
+        query: const {'page_size': kMaxPageSize},
+      ),
+      WithdrawalRequest.fromJson,
+    );
   }
 
   /// Demande de retrait : verrouille des fonds, n'en déplace aucun.
@@ -53,11 +67,29 @@ final walletSummaryProvider =
   return ref.watch(walletRepositoryProvider).summary();
 });
 
+/// Nombre de mouvements demandés. Un bouton « Charger plus » l'augmente.
+final ledgerPageSizeProvider = StateProvider.autoDispose<int>((_) => 50);
+
 final walletLedgerProvider =
-    FutureProvider.autoDispose<List<LedgerEntry>>((ref) async {
+    FutureProvider.autoDispose<Page<LedgerEntry>>((ref) async {
   final authenticated = ref.watch(
     authControllerProvider.select((state) => state.isAuthenticated),
   );
-  if (!authenticated) return const [];
-  return ref.watch(walletRepositoryProvider).ledger();
+  if (!authenticated) {
+    return const Page(items: [], count: 0, hasMore: false);
+  }
+  return ref
+      .watch(walletRepositoryProvider)
+      .ledger(pageSize: ref.watch(ledgerPageSizeProvider));
+});
+
+final walletWithdrawalsProvider =
+    FutureProvider.autoDispose<Page<WithdrawalRequest>>((ref) async {
+  final authenticated = ref.watch(
+    authControllerProvider.select((state) => state.isAuthenticated),
+  );
+  if (!authenticated) {
+    return const Page(items: [], count: 0, hasMore: false);
+  }
+  return ref.watch(walletRepositoryProvider).withdrawals();
 });

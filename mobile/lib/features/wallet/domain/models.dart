@@ -118,3 +118,97 @@ class LedgerEntry {
   final String description;
   final DateTime? createdAt;
 }
+
+/// Demande de retrait, telle que le serveur la suit.
+///
+/// Le mobile jetait la réponse 201 et n'affichait jamais la suite : une
+/// demande partie disparaissait de l'écran, et son refus comme son
+/// paiement restaient invisibles. Les libellés sont ceux du web
+/// (`WITHDRAWAL_LABELS`), pour que le même statut ne se dise pas de deux
+/// façons.
+enum WithdrawalStatus {
+  pending,
+  underReview,
+  approved,
+  rejected,
+  paid,
+  failed,
+  cancelled,
+  unknown,
+}
+
+WithdrawalStatus withdrawalStatusFrom(String? raw) => switch (raw) {
+      'PENDING' => WithdrawalStatus.pending,
+      'UNDER_REVIEW' => WithdrawalStatus.underReview,
+      'APPROVED' => WithdrawalStatus.approved,
+      'REJECTED' => WithdrawalStatus.rejected,
+      'PAID' => WithdrawalStatus.paid,
+      'FAILED' => WithdrawalStatus.failed,
+      'CANCELLED' => WithdrawalStatus.cancelled,
+      _ => WithdrawalStatus.unknown,
+    };
+
+String withdrawalStatusLabel(WithdrawalStatus status, String raw) =>
+    switch (status) {
+      WithdrawalStatus.pending => 'En attente de revue',
+      WithdrawalStatus.underReview => 'En cours d\'examen',
+      WithdrawalStatus.approved => 'Approuvée',
+      WithdrawalStatus.rejected => 'Refusée',
+      WithdrawalStatus.paid => 'Payée',
+      WithdrawalStatus.failed => 'Échouée',
+      WithdrawalStatus.cancelled => 'Annulée',
+      // Un statut inconnu est montré tel quel plutôt que traduit à tort.
+      WithdrawalStatus.unknown => raw,
+    };
+
+class WithdrawalRequest {
+  const WithdrawalRequest({
+    required this.id,
+    required this.amount,
+    required this.feeAmount,
+    required this.currency,
+    required this.status,
+    required this.statusLabel,
+    required this.destinationMasked,
+    required this.failureReason,
+    required this.createdAt,
+    required this.reviewedAt,
+  });
+
+  factory WithdrawalRequest.fromJson(Map<String, dynamic> json) {
+    final raw = json['status'] as String? ?? '';
+    final status = withdrawalStatusFrom(raw);
+    return WithdrawalRequest(
+      id: json['id'] as int,
+      amount: '${json['amount'] ?? ''}',
+      feeAmount: '${json['fee_amount'] ?? ''}',
+      currency: json['currency'] as String? ?? '',
+      status: status,
+      statusLabel: withdrawalStatusLabel(status, raw),
+      destinationMasked: json['destination_masked'] as String?,
+      failureReason: json['failure_reason'] as String? ?? '',
+      createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
+      reviewedAt: DateTime.tryParse('${json['reviewed_at'] ?? ''}'),
+    );
+  }
+
+  final int id;
+  final String amount;
+  final String feeAmount;
+  final String currency;
+  final WithdrawalStatus status;
+  final String statusLabel;
+  final String? destinationMasked;
+  final String failureReason;
+  final DateTime? createdAt;
+  final DateTime? reviewedAt;
+
+  /// Les fonds sont encore verrouillés : rien n'est tranché.
+  bool get isOpen =>
+      status == WithdrawalStatus.pending ||
+      status == WithdrawalStatus.underReview ||
+      status == WithdrawalStatus.approved;
+
+  bool get isRefused =>
+      status == WithdrawalStatus.rejected || status == WithdrawalStatus.failed;
+}

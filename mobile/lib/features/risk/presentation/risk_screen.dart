@@ -60,7 +60,7 @@ class _RiskScreenState extends ConsumerState<RiskScreen> {
               await ref.read(riskSummaryProvider(active.id).future);
             },
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
               children: [
                 if (list.length > 1) ...[
                   _PortfolioPicker(

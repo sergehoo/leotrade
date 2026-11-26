@@ -11,6 +11,14 @@ import '../../../shared/widgets/states.dart';
 import '../data/market_repository.dart';
 import '../domain/models.dart';
 
+/// Unités de temps proposées, alignées sur le sélecteur du web.
+const _timeframes = <String, String>{
+  '1h': '1 h',
+  '4h': '4 h',
+  '1d': '1 j',
+  '1w': '1 sem',
+};
+
 const _classes = <String, String>{
   'ALL': 'Toutes',
   'CRYPTO': 'Crypto',
@@ -62,10 +70,10 @@ class _MarketScreenState extends ConsumerState<MarketScreen> {
             ),
           ),
           SizedBox(
-            height: 44,
+            height: 56,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
               children: [
                 for (final entry in _classes.entries) ...[
                   _Chip(
@@ -80,6 +88,38 @@ class _MarketScreenState extends ConsumerState<MarketScreen> {
               ],
             ),
           ),
+          // L'unité de temps était figée à 1 j : la variation affichée
+          // était toujours journalière, et le sélecteur du web n'avait
+          // pas d'équivalent ici. Elle détermine la variation ET la
+          // fraîcheur annoncée par le serveur.
+          SizedBox(
+            height: 50,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: Center(
+                    child: Text(
+                      'Variation sur',
+                      style: TextStyle(color: AppColors.muted, fontSize: 11),
+                    ),
+                  ),
+                ),
+                for (final code in _timeframes.entries) ...[
+                  _Chip(
+                    label: code.value,
+                    selected: filter.timeframe == code.key,
+                    onTap: () => ref
+                        .read(marketFilterProvider.notifier)
+                        .update((state) => state.copyWith(timeframe: code.key)),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          ),
           Expanded(
             child: quotes.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -87,7 +127,8 @@ class _MarketScreenState extends ConsumerState<MarketScreen> {
                 message: error is ApiError ? error.message : 'Chargement impossible.',
                 onRetry: () => ref.invalidate(marketQuotesProvider),
               ),
-              data: (rows) {
+              data: (page) {
+                final rows = page.items;
                 if (rows.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.only(top: 48),
@@ -102,6 +143,9 @@ class _MarketScreenState extends ConsumerState<MarketScreen> {
                 }
 
                 final stale = rows.where((row) => row.isStale).length;
+                // Une liste coupée sans un mot se lit comme une liste
+                // complète : l'instrument absent passe pour inexistant.
+                final banners = (stale > 0 ? 1 : 0) + (page.hasMore ? 1 : 0);
 
                 return RefreshIndicator(
                   onRefresh: () async {
@@ -110,8 +154,21 @@ class _MarketScreenState extends ConsumerState<MarketScreen> {
                   },
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
-                    itemCount: rows.length + (stale > 0 ? 1 : 0),
+                    itemCount: rows.length + banners,
                     itemBuilder: (_, index) {
+                      if (page.hasMore && index == banners - 1) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: NoticeBanner(
+                            tone: NoticeTone.info,
+                            title: 'Catalogue partiel',
+                            message:
+                                '${rows.length} instruments affichés sur '
+                                '${page.count}. Affine la recherche ou le '
+                                'filtre de classe pour atteindre les autres.',
+                          ),
+                        );
+                      }
                       if (stale > 0 && index == 0) {
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
@@ -126,7 +183,7 @@ class _MarketScreenState extends ConsumerState<MarketScreen> {
                           ),
                         );
                       }
-                      final quote = rows[stale > 0 ? index - 1 : index];
+                      final quote = rows[index - banners];
                       return _QuoteTile(
                         quote: quote,
                         watchlistItemId: watchlist[quote.assetId],
@@ -156,6 +213,11 @@ class _Chip extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
+        // 44 pt de hauteur utile : en dessous, la cible est trop petite
+        // pour un pouce. Le libellé n'est plus rogné quand le texte
+        // système est agrandi.
+        constraints: const BoxConstraints(minHeight: 44),
+        alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: selected ? AppColors.primary.withValues(alpha: 0.12) : Colors.transparent,

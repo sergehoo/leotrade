@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/network/page.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../domain/models.dart';
 
@@ -9,21 +10,26 @@ class MarketRepository {
 
   final ApiClient _client;
 
-  Future<List<Quote>> quotes({String? search, String? assetClass, String timeframe = '1d'}) async {
-    final body = await _client.get<Map<String, dynamic>>(
-      '/market/assets/quotes/',
-      query: {
-        'timeframe': timeframe,
-        if (search != null && search.isNotEmpty) 'search': search,
-        if (assetClass != null && assetClass != 'ALL') 'asset_class': assetClass,
-      },
+  Future<Page<Quote>> quotes({
+    String? search,
+    String? assetClass,
+    String timeframe = '1d',
+  }) async {
+    return Page.fromJson(
+      await _client.get<Map<String, dynamic>>(
+        '/market/assets/quotes/',
+        query: {
+          'timeframe': timeframe,
+          // La page par défaut vaut 25 : le catalogue était coupé là,
+          // sans un mot. Le plafond serveur est 200 ; au-delà, l'écran le
+          // dit au lieu de laisser croire que la liste est complète.
+          'page_size': kMaxPageSize,
+          if (search != null && search.isNotEmpty) 'search': search,
+          if (assetClass != null && assetClass != 'ALL') 'asset_class': assetClass,
+        },
+      ),
+      Quote.fromJson,
     );
-    final results = body['results'];
-    if (results is! List) return const [];
-    return results
-        .whereType<Map<String, dynamic>>()
-        .map(Quote.fromJson)
-        .toList(growable: false);
   }
 
     /// [limit] vaut 300 comme côté web : deux fenêtres différentes
@@ -50,14 +56,14 @@ class MarketRepository {
     );
   }
 
-  Future<List<WatchlistEntry>> watchlist() async {
-    final body = await _client.get<Map<String, dynamic>>('/market/watchlist/');
-    final results = body['results'];
-    if (results is! List) return const [];
-    return results
-        .whereType<Map<String, dynamic>>()
-        .map(WatchlistEntry.fromJson)
-        .toList(growable: false);
+  Future<Page<WatchlistEntry>> watchlist() async {
+    return Page.fromJson(
+      await _client.get<Map<String, dynamic>>(
+        '/market/watchlist/',
+        query: const {'page_size': kMaxPageSize},
+      ),
+      WatchlistEntry.fromJson,
+    );
   }
 
   Future<void> follow(int assetId) => _client.post<Map<String, dynamic>>(
@@ -101,7 +107,7 @@ class MarketFilter {
 final marketFilterProvider = StateProvider<MarketFilter>((_) => const MarketFilter());
 
 final marketQuotesProvider =
-    FutureProvider.autoDispose<List<Quote>>((ref) async {
+    FutureProvider.autoDispose<Page<Quote>>((ref) async {
   final authenticated = ref.watch(
     authControllerProvider.select((state) => state.isAuthenticated),
   );
@@ -115,14 +121,15 @@ final marketQuotesProvider =
       );
 });
 
+/// Instruments suivis, indexés par identifiant d'actif.
 final watchlistProvider =
     FutureProvider.autoDispose<Map<int, int>>((ref) async {
   final authenticated = ref.watch(
     authControllerProvider.select((state) => state.isAuthenticated),
   );
   if (!authenticated) return const {};
-  final entries = await ref.watch(marketRepositoryProvider).watchlist();
-  return {for (final entry in entries) entry.assetId: entry.id};
+  final page = await ref.watch(marketRepositoryProvider).watchlist();
+  return {for (final entry in page.items) entry.assetId: entry.id};
 });
 
 

@@ -48,8 +48,30 @@ class PortfolioRepository {
     );
   }
 
+  /// Courbe de valorisation, verdict de traçabilité compris.
+  ///
+  /// Le mobile ne l'appelait pas : le widget `Sparkline` existait,
+  /// documenté et testé, sans qu'aucun écran ne l'utilise. La courbe du
+  /// lot « graphiques » n'avait été livrée que côté web.
+  Future<EquityCurve> equityCurve(int id, {int limit = 365}) async {
+    return EquityCurve.fromJson(
+      await _client.get<Map<String, dynamic>>(
+        '/portfolios/$id/equity-curve/',
+        query: {'limit': limit},
+      ),
+    );
+  }
+
   Future<void> refresh(int id) =>
       _client.post<Map<String, dynamic>>('/portfolios/$id/refresh/');
+
+  /// Désigne le portefeuille par défaut.
+  ///
+  /// Ce choix détermine le mode de trading annoncé par l'application :
+  /// `resolve_configured_trading_mode` lit le broker du portefeuille par
+  /// défaut avant toute autre source.
+  Future<void> setDefault(int id) =>
+      _client.post<Map<String, dynamic>>('/portfolios/$id/set-default/');
 }
 
 final portfolioRepositoryProvider = Provider<PortfolioRepository>(
@@ -68,6 +90,11 @@ final portfoliosProvider =
 final portfolioSummaryProvider =
     FutureProvider.autoDispose.family<PortfolioSummary, int>((ref, id) async {
   return ref.watch(portfolioRepositoryProvider).summary(id);
+});
+
+final equityCurveProvider =
+    FutureProvider.autoDispose.family<EquityCurve, int>((ref, id) async {
+  return ref.watch(portfolioRepositoryProvider).equityCurve(id);
 });
 
 final openPositionsProvider =

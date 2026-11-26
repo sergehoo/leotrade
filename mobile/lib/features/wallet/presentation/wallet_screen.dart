@@ -45,6 +45,7 @@ class WalletScreen extends ConsumerWidget {
             onRefresh: () async {
               ref.invalidate(walletSummaryProvider);
               ref.invalidate(walletLedgerProvider);
+              ref.invalidate(walletWithdrawalsProvider);
               await ref.read(walletSummaryProvider.future);
             },
             child: ListView(
@@ -67,6 +68,12 @@ class WalletScreen extends ConsumerWidget {
                 const _SectionTitle('Argent réel'),
                 const SizedBox(height: 8),
                 _Metric(
+                  label: 'Solde total',
+                  value: formatMoney(data.totalBalance, data.currency),
+                  hint: 'Disponible et verrouillé réunis',
+                ),
+                const SizedBox(height: 10),
+                _Metric(
                   label: 'Disponible',
                   value: formatMoney(data.availableBalance, data.currency),
                   hint: 'Mobilisable immédiatement',
@@ -86,7 +93,10 @@ class WalletScreen extends ConsumerWidget {
                 const SizedBox(height: 8),
                 _Metric(
                   label: 'En simulation',
-                  value: formatMoney(data.simulatedTradingCapital, data.currency),
+                  value: formatMoney(
+                    data.simulatedTradingCapital,
+                    data.currency,
+                  ),
                   hint: 'N\'atteint aucun marché — cet argent n\'existe pas',
                   muted: true,
                 ),
@@ -99,6 +109,11 @@ class WalletScreen extends ConsumerWidget {
 
                 const SizedBox(height: 20),
                 _WithdrawButton(summary: data),
+
+                const SizedBox(height: 24),
+                const _SectionTitle('Demandes de retrait'),
+                const SizedBox(height: 8),
+                const _WithdrawalsList(),
 
                 const SizedBox(height: 24),
                 const _SectionTitle('Historique des mouvements'),
@@ -156,8 +171,10 @@ class _Metric extends StatelessWidget {
                 Icon(icon, size: 13, color: AppColors.muted),
                 const SizedBox(width: 5),
               ],
-              Text(label,
-                  style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+              Text(
+                label,
+                style: const TextStyle(color: AppColors.muted, fontSize: 12),
+              ),
             ],
           ),
           const SizedBox(height: 5),
@@ -173,8 +190,10 @@ class _Metric extends StatelessWidget {
           ),
           if (hint != null) ...[
             const SizedBox(height: 3),
-            Text(hint!,
-                style: const TextStyle(color: AppColors.muted, fontSize: 11)),
+            Text(
+              hint!,
+              style: const TextStyle(color: AppColors.muted, fontSize: 11),
+            ),
           ],
         ],
       ),
@@ -249,6 +268,7 @@ Future<void> _openWithdrawSheet(
   if (sent == true) {
     ref.invalidate(walletSummaryProvider);
     ref.invalidate(walletLedgerProvider);
+    ref.invalidate(walletWithdrawalsProvider);
     messenger.showSnackBar(
       const SnackBar(
         content: Text(
@@ -284,7 +304,9 @@ class _WithdrawSheetState extends ConsumerState<_WithdrawSheet> {
       _error = null;
     });
     try {
-      await ref.read(walletRepositoryProvider).requestWithdrawal(
+      await ref
+          .read(walletRepositoryProvider)
+          .requestWithdrawal(
             amount: widget.amount.text.trim(),
             destinationMasked: widget.destination.text.trim(),
           );
@@ -300,66 +322,90 @@ class _WithdrawSheetState extends ConsumerState<_WithdrawSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Demander un retrait',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 6),
-              const Text(
-                'Les fonds sont verrouillés immédiatement, puis versés après '
-                'revue. Rien n\'est envoyé à ce stade.',
-                style: TextStyle(color: AppColors.muted, height: 1.4, fontSize: 12),
+    // La feuille ne se referme plus pendant l'envoi : la demande partait,
+    // l'écran n'en gardait aucune trace, et le solde affiché restait
+    // l'ancien. Sur un retrait, croire que rien n'est parti conduit à
+    // recommencer.
+    return PopScope(
+      canPop: !_sending,
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: SafeArea(
+          // Défilement : clavier ouvert sur un écran court, le bouton
+          // « Demander le retrait » sortait de l'écran sans recours.
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Demander un retrait',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Les fonds sont verrouillés immédiatement, puis versés après '
+                    'revue. Rien n\'est envoyé à ce stade.',
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      height: 1.4,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  if (_error != null) ...[
+                    NoticeBanner(tone: NoticeTone.danger, message: _error!),
+                    const SizedBox(height: 14),
+                  ],
+                  TextField(
+                    controller: widget.amount,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Montant (${widget.summary.currency})',
+                      helperText:
+                          'Disponible : ${formatMoney(widget.summary.availableBalance, widget.summary.currency)} — '
+                          'entre 5 et 100 000 par opération.',
+                      helperMaxLines: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: widget.destination,
+                    decoration: const InputDecoration(
+                      labelText: 'Destination (facultatif)',
+                      hintText: '•••• 4242',
+                      helperText:
+                          'Indique seulement les derniers chiffres — un numéro '
+                          'complet sera refusé.',
+                      helperMaxLines: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  FilledButton(
+                    onPressed: _sending ? null : _submit,
+                    child: _sending
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Demander le retrait'),
+                  ),
+                  TextButton(
+                    onPressed: _sending
+                        ? null
+                        : () => Navigator.of(context).pop(false),
+                    child: const Text('Annuler'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 18),
-              if (_error != null) ...[
-                NoticeBanner(tone: NoticeTone.danger, message: _error!),
-                const SizedBox(height: 14),
-              ],
-              TextField(
-                controller: widget.amount,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: 'Montant (${widget.summary.currency})',
-                  helperText:
-                      'Disponible : ${formatMoney(widget.summary.availableBalance, widget.summary.currency)} — '
-                      'entre 5 et 100 000 par opération.',
-                  helperMaxLines: 2,
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: widget.destination,
-                decoration: const InputDecoration(
-                  labelText: 'Destination (facultatif)',
-                  hintText: '•••• 4242',
-                  helperText:
-                      'Indique seulement les derniers chiffres — un numéro '
-                      'complet sera refusé.',
-                  helperMaxLines: 2,
-                ),
-              ),
-              const SizedBox(height: 22),
-              FilledButton(
-                onPressed: _sending ? null : _submit,
-                child: _sending
-                    ? const SizedBox(
-                        height: 18, width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Demander le retrait'),
-              ),
-              TextButton(
-                onPressed: _sending ? null : () => Navigator.of(context).pop(false),
-                child: const Text('Annuler'),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -376,13 +422,17 @@ class _LedgerList extends ConsumerWidget {
 
     return ledger.when(
       loading: () => const Center(
-        child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()),
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: CircularProgressIndicator(),
+        ),
       ),
       error: (error, _) => ErrorStateView(
         message: error is ApiError ? error.message : 'Historique indisponible.',
         onRetry: () => ref.invalidate(walletLedgerProvider),
       ),
-      data: (entries) {
+      data: (page) {
+        final entries = page.items;
         if (entries.isEmpty) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 16),
@@ -401,9 +451,149 @@ class _LedgerList extends ConsumerWidget {
               _LedgerTile(entry: entry),
               const SizedBox(height: 8),
             ],
+            if (page.hasMore) ...[
+              const SizedBox(height: 4),
+              // Un historique coupé sans un mot se lit comme un historique
+              // complet : le mouvement manquant passe pour inexistant.
+              Text(
+                '${entries.length} mouvements sur ${page.count}.',
+                style: const TextStyle(color: AppColors.muted, fontSize: 11),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () => ref
+                    .read(ledgerPageSizeProvider.notifier)
+                    .update((size) => size + 50),
+                child: const Text('Charger plus'),
+              ),
+            ],
           ],
         );
       },
+    );
+  }
+}
+
+/// Suivi des demandes de retrait.
+///
+/// Le mobile jetait la réponse 201 et n'affichait jamais la suite : une
+/// demande partie disparaissait de l'écran. Son refus comme son paiement
+/// restaient invisibles, alors que le web les montre.
+class _WithdrawalsList extends ConsumerWidget {
+  const _WithdrawalsList();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final withdrawals = ref.watch(walletWithdrawalsProvider);
+
+    return withdrawals.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, _) => ErrorStateView(
+        message: error is ApiError ? error.message : 'Suivi indisponible.',
+        onRetry: () => ref.invalidate(walletWithdrawalsProvider),
+      ),
+      data: (page) {
+        if (page.isEmpty) {
+          return const Text(
+            'Aucune demande de retrait.',
+            style: TextStyle(color: AppColors.muted, fontSize: 12),
+          );
+        }
+        return Column(
+          children: [
+            for (final request in page.items) ...[
+              _WithdrawalTile(request: request),
+              const SizedBox(height: 8),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _WithdrawalTile extends StatelessWidget {
+  const _WithdrawalTile({required this.request});
+
+  final WithdrawalRequest request;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = request.isRefused
+        ? AppColors.loss
+        : request.status == WithdrawalStatus.paid
+        ? AppColors.gain
+        : AppColors.warning;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  formatMoney(request.amount, request.currency),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: tone.withValues(alpha: 0.14),
+                  border: Border.all(color: tone.withValues(alpha: 0.35)),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  request.statusLabel,
+                  style: TextStyle(
+                    color: tone,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            [
+              if (request.createdAt != null)
+                'Demandé le ${DateFormat('dd/MM/yyyy à HH:mm', 'fr_FR').format(request.createdAt!.toLocal())}',
+              if ((request.destinationMasked ?? '').isNotEmpty)
+                'vers ${request.destinationMasked}',
+            ].join(' · '),
+            style: const TextStyle(color: AppColors.muted, fontSize: 11),
+          ),
+          if (request.isOpen) ...[
+            const SizedBox(height: 4),
+            const Text(
+              'Les fonds restent verrouillés tant que la revue n\'a pas tranché.',
+              style: TextStyle(color: AppColors.muted, fontSize: 11),
+            ),
+          ],
+          if (request.failureReason.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              request.failureReason,
+              style: const TextStyle(color: AppColors.loss, fontSize: 11),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -428,16 +618,31 @@ class _LedgerTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(ledgerTypeLabel(entry.type),
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(
+                  ledgerTypeLabel(entry.type),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 if (entry.description.isNotEmpty)
-                  Text(entry.description,
-                      style: const TextStyle(color: AppColors.muted, fontSize: 11)),
+                  Text(
+                    entry.description,
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 11,
+                    ),
+                  ),
                 if (entry.createdAt != null)
                   Text(
-                    DateFormat('dd/MM/yy HH:mm', 'fr_FR')
-                        .format(entry.createdAt!.toLocal()),
-                    style: const TextStyle(color: AppColors.muted, fontSize: 10),
+                    DateFormat(
+                      'dd/MM/yy HH:mm',
+                      'fr_FR',
+                    ).format(entry.createdAt!.toLocal()),
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 10,
+                    ),
                   ),
               ],
             ),
@@ -445,8 +650,13 @@ class _LedgerTile extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(formatMoney(entry.amount, entry.currency),
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              Text(
+                formatMoney(entry.amount, entry.currency),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               Text(
                 'solde ${formatMoney(entry.balanceAfter, entry.currency)}',
                 style: const TextStyle(color: AppColors.muted, fontSize: 10),
