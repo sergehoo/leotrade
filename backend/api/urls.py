@@ -27,6 +27,7 @@ from ai_assistant.api import (
 )
 
 from api.views.brokers import BrokerAccountViewSet, BrokerConstraintViewSet
+from api.views.market import AssetViewSet, WatchlistViewSet
 from api.views.portfolio import PortfolioViewSet, PositionViewSet, PortfolioSnapshotViewSet, CashLedgerEntryViewSet, \
     PortfolioAllocationViewSet, PositionCorrelationViewSet
 
@@ -79,6 +80,9 @@ router.register(
     AssistantConversationViewSet,
     basename="api-assistant-conversations",
 )
+
+router.register(r"market/assets", AssetViewSet, basename="api-assets")
+router.register(r"market/watchlist", WatchlistViewSet, basename="api-watchlist")
 
 router.register(r"brokers", BrokerAccountViewSet, basename="api-brokers")
 router.register(r"broker-constraints", BrokerConstraintViewSet, basename="api-broker-constraints")

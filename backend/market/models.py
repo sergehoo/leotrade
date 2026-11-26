@@ -91,3 +91,8 @@ class MarketFeature(TimeStampedModel):
     def __str__(self):
         return f"{self.asset.symbol} {self.timeframe.code} {self.candle_time}"
 
+
+
+# Import explicite : sans lui, Django ne découvre pas le modèle au
+# chargement de l'app et `makemigrations` proposerait de le supprimer.
+from market.models_watchlist import WatchlistItem  # noqa: E402,F401

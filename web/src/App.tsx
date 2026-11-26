@@ -9,6 +9,7 @@ import DashboardPage, { PendingSection } from "@/routes/DashboardPage"
 import BrokersPage from "@/routes/brokers/BrokersPage"
 import LeoPage from "@/routes/leo/LeoPage"
 import LoginPage from "@/routes/LoginPage"
+import MarketPage from "@/routes/market/MarketPage"
 import PortfolioPage from "@/routes/portfolio/PortfolioPage"
 import RiskPage from "@/routes/risk/RiskPage"
 import ProtectedRoute from "@/routes/ProtectedRoute"
@@ -51,10 +52,7 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route index element={<DashboardPage />} />
               <Route path="portefeuille" element={<PortfolioPage />} />
-              <Route
-                path="marches"
-                element={<PendingSection title="Marchés" scope="Les données de marché" />}
-              />
+              <Route path="marches" element={<MarketPage />} />
               <Route path="risque" element={<RiskPage />} />
               <Route path="assistant" element={<LeoPage />} />
               <Route

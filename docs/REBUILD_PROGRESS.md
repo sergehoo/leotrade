@@ -465,3 +465,79 @@ payant sur le compte du propriétaire du projet.
 - Reprise d'une conversation précise depuis l'historique.
 - Vérification que les sources citées par Leo sont réellement
   rattachées à des données consultables.
+
+---
+
+## Lot 8 — Marchés
+
+### Ce que la base a révélé
+
+46 instruments, 248 438 bougies — et la plus récente datée du
+**13 juin 2026**, soit plus de cinq mois. Tous les instruments déclarent
+pourtant `market_status = "OPEN"`, valeur par défaut que rien ne met à
+jour.
+
+Deux signaux faux, donc, sur la donnée la plus sensible de la
+plateforme. Afficher ces cours sans leur âge, c'est laisser décider sur
+un prix de juin en croyant lire celui du jour.
+
+### La fraîcheur comme contrat, pas comme décoration
+
+`Asset` ne porte aucun prix : le cours se déduit de la dernière bougie.
+`MarketQuoteService` le rend donc toujours accompagné de :
+
+| Champ | Rôle |
+|---|---|
+| `as_of` | horodatage de la bougie dont le prix est tiré |
+| `age_seconds` | ancienneté |
+| `freshness` | LIVE / DELAYED / STALE / NO_DATA |
+| `source` | place d'où vient le chiffre |
+| `declared_market_status` | statut porté par l'instrument, nommé « déclaré » |
+| `is_tradable_quote` | faux dès que la cotation n'est plus à jour |
+
+Les seuils sont **relatifs à l'unité de temps** : une bougie journalière
+vieille de deux jours est normale, une bougie d'une minute vieille de
+deux jours ne l'est pas.
+
+Un instrument sans donnée rend `price: null`, jamais `0` — un zéro est
+un prix.
+
+### Un défaut d'affichage attrapé par les tests
+
+`Decimal.normalize()` rendait `1E+2` pour `100.00`. Les clients auraient
+affiché cette chaîne telle quelle. Les montants sont désormais formatés
+en virgule fixe, zéros de fin retirés à la main.
+
+### Exposé
+
+| Route | |
+|---|---|
+| `/market/assets/` | catalogue, recherche, filtres par classe |
+| `/market/assets/quotes/` | cotations paginées — la pagination précède le calcul, chaque cotation coûtant deux requêtes |
+| `/market/assets/{id}/candles/` | historique borné à 1000 bougies |
+| `/market/watchlist/` | liste de suivi, idempotente au second « suivre » |
+
+### Écrans
+
+React et Flutter : recherche, filtres, liste de cotations où chaque ligne
+porte sa pastille de fraîcheur **et sa date**. Une pastille seule
+laisserait deviner ce que « périmé » veut dire — un jour ? cinq mois ?
+Un cours périmé est grisé et un bandeau compte combien de lignes sont
+concernées.
+
+### Vérification
+
+616 tests backend (1 ignoré), 55 Flutter, build web OK. Validé au
+navigateur : BTCUSDT affiche 66 385,83 avec le badge rouge « Périmé » et
+la date 29/03/26 ; les instruments sans bougie affichent « Aucune
+donnée » et un tiret en variation.
+
+### Reste à faire sur ce domaine
+
+- Graphiques interactifs (l'historique est exposé, `lightweight-charts`
+  est déjà en dépendance, rien ne l'utilise).
+- Fiche instrument détaillée.
+- BRVM : aucune source n'est branchée, et le dépôt ne documente aucun
+  fournisseur pour cette place.
+- Rafraîchissement temps réel des cotations par WebSocket
+  (`market/routing.py` existe, le consumer n'est pas consommé).
