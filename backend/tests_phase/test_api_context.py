@@ -51,6 +51,18 @@ def auth(client, user):
     return {"HTTP_AUTHORIZATION": f"Bearer {tokens['access']}"}
 
 
+def _approve_kyc(user):
+    """Le mode LIVE effectif exige un KYC approuvé. Les tests qui vérifient
+    la résolution du mode depuis les comptes broker doivent donc poser ce
+    prérequis — le blocage lui-même est couvert par ses propres tests."""
+    from dashboard.models import KYCProfile
+
+    profile, _ = KYCProfile.objects.update_or_create(
+        user=user, defaults={"status": "APPROVED"},
+    )
+    return profile
+
+
 def _broker(user, mode="PAPER", active=True, name="Compte"):
     return BrokerAccount.objects.create(
         user=user,
@@ -95,6 +107,7 @@ def test_context_without_portfolio_returns_null_not_zero(client, user, auth):
 
 @pytest.mark.django_db
 def test_context_mode_follows_the_default_portfolio_broker(client, user, auth):
+    _approve_kyc(user)
     broker = _broker(user, mode="LIVE")
     _portfolio(user, broker)
 
@@ -107,6 +120,7 @@ def test_context_mode_follows_the_default_portfolio_broker(client, user, auth):
 @pytest.mark.django_db
 def test_context_reports_live_when_any_active_broker_is_live(client, user, auth):
     """Sans portefeuille par défaut, un seul compte LIVE actif suffit."""
+    _approve_kyc(user)
     _broker(user, mode="PAPER", name="Démo")
     _broker(user, mode="LIVE", name="Réel")
 
@@ -170,3 +184,65 @@ def test_context_never_leaks_broker_credentials(client, user, auth):
     raw = client.get(reverse("api-context"), **auth).content.decode()
     for forbidden in ("api_key", "api_secret", "deriv_token", "password"):
         assert forbidden not in raw, f"{forbidden} exposé dans /context/"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Mode effectif vs mode configuré
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+def test_live_is_reported_as_paper_while_kyc_is_pending(client, user, auth):
+    """Annoncer « Mode réel » alors que l'exécution sera refusée induit
+    l'utilisateur en erreur sur ce qu'il s'apprête à faire."""
+    from dashboard.models import KYCProfile
+
+    KYCProfile.objects.create(user=user, status="PENDING")
+    broker = _broker(user, mode="LIVE")
+    _portfolio(user, broker)
+
+    body = client.get(reverse("api-context"), **auth).json()
+
+    assert body["trading_mode"] == "PAPER"
+    assert body["configured_trading_mode"] == "LIVE"
+    assert body["live_blocked_reason"] == "KYC_REQUIRED"
+
+
+@pytest.mark.django_db
+def test_the_configured_mode_is_never_hidden(client, user, auth):
+    """Ramener le mode à PAPER ne doit pas effacer ce que l'utilisateur a
+    demandé : l'interface doit pouvoir expliquer l'écart."""
+    broker = _broker(user, mode="LIVE")
+    _portfolio(user, broker)
+
+    body = client.get(reverse("api-context"), **auth).json()
+
+    assert body["configured_trading_mode"] == "LIVE"
+    assert body["live_blocked_reason"]
+
+
+@pytest.mark.django_db
+def test_an_approved_kyc_leaves_the_two_modes_identical(client, user, auth):
+    _approve_kyc(user)
+    broker = _broker(user, mode="LIVE")
+    _portfolio(user, broker)
+
+    body = client.get(reverse("api-context"), **auth).json()
+
+    assert body["trading_mode"] == "LIVE"
+    assert body["configured_trading_mode"] == "LIVE"
+    assert body["live_blocked_reason"] == ""
+
+
+@pytest.mark.django_db
+def test_paper_stays_paper_without_a_spurious_block_reason(client, user, auth):
+    """Un utilisateur en PAPER qui n'a rien demandé d'autre ne doit pas voir
+    apparaître un motif de blocage : il n'y a rien à débloquer."""
+    _approve_kyc(user)
+    broker = _broker(user, mode="PAPER")
+    _portfolio(user, broker)
+
+    body = client.get(reverse("api-context"), **auth).json()
+
+    assert body["trading_mode"] == "PAPER"
+    assert body["configured_trading_mode"] == "PAPER"
+    assert body["live_blocked_reason"] == ""

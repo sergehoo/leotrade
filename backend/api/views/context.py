@@ -49,7 +49,13 @@ class ContextWalletSerializer(serializers.Serializer):
 
 
 class AppContextSerializer(serializers.Serializer):
+    # Ce qui se produira réellement si un ordre est soumis.
     trading_mode = serializers.ChoiceField(choices=["PAPER", "LIVE"])
+    # Ce que l'utilisateur a configuré sur ses comptes broker. Les deux
+    # diffèrent quand un blocage serveur rend le mode réel inatteignable ;
+    # l'interface doit alors expliquer l'écart, pas le masquer.
+    configured_trading_mode = serializers.ChoiceField(choices=["PAPER", "LIVE"])
+    live_blocked_reason = serializers.CharField(allow_blank=True)
     trading_enabled = serializers.BooleanField()
     portfolio = ContextPortfolioSerializer(allow_null=True)
     wallet = ContextWalletSerializer(allow_null=True)
@@ -64,7 +70,11 @@ class AppContextView(APIView):
         responses={200: AppContextSerializer},
         description=(
             "État global nécessaire au démarrage d'un client. `trading_mode` "
-            "est dérivé des comptes broker, jamais d'une préférence client. "
+            "est le mode EFFECTIF : dérivé des comptes broker, jamais d'une "
+            "préférence client, et ramené à PAPER quand un blocage serveur "
+            "rend l'exécution réelle impossible. `configured_trading_mode` "
+            "porte alors le mode demandé et `live_blocked_reason` son motif "
+            "(KYC_REQUIRED), pour que l'interface explique l'écart. "
             "`trading_enabled` reflète le kill switch de plateforme : quand il "
             "est à false, aucune ouverture de position n'est acceptée, quel "
             "que soit l'utilisateur."
@@ -78,6 +88,8 @@ class AppContextView(APIView):
         return Response(
             {
                 "trading_mode": context["trading_mode"],
+                "configured_trading_mode": context["configured_trading_mode"],
+                "live_blocked_reason": context["live_blocked_reason"],
                 # Kill switch global (core.feature_flags). L'exposer permet au
                 # client d'afficher une bannière explicite et de désactiver les
                 # boutons d'ordre — plutôt que de laisser l'utilisateur

@@ -78,8 +78,23 @@ class DashboardScreen extends ConsumerWidget {
                 const SizedBox(height: 14),
               ],
 
-              _ModeChip(isLive: data.isLive),
+              _ModeChip(isLive: data.isLive, downgraded: data.isLiveDowngraded),
               const SizedBox(height: 14),
+
+              if (data.isLiveDowngraded) ...[
+                NoticeBanner(
+                  tone: NoticeTone.warning,
+                  title: 'Mode réel demandé, mais inactif',
+                  message: data.liveBlockedReason == 'KYC_REQUIRED'
+                      ? 'Tes comptes broker sont configurés en mode réel. Tant '
+                        'que ton identité n\'est pas validée, le serveur '
+                        'refusera toute exécution réelle : la plateforme '
+                        'fonctionne en simulation.'
+                      : 'Un contrôle serveur empêche l\'exécution réelle : la '
+                        'plateforme fonctionne en simulation.',
+                ),
+                const SizedBox(height: 14),
+              ],
 
               if (data.portfolio != null)
                 _PortfolioCard(portfolio: data.portfolio!)
@@ -110,14 +125,23 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 class _ModeChip extends StatelessWidget {
-  const _ModeChip({required this.isLive});
+  const _ModeChip({required this.isLive, this.downgraded = false});
 
   final bool isLive;
+
+  /// Le mode réel a été demandé mais refusé par le serveur.
+  final bool downgraded;
 
   @override
   Widget build(BuildContext context) {
     // Le mode réel est signalé en rouge : c'est de l'argent qui part.
-    final color = isLive ? AppColors.loss : AppColors.info;
+    // Un mode réel refusé est signalé en orange : ni une simulation
+    // choisie, ni une exécution réelle.
+    final color = isLive
+        ? AppColors.loss
+        : downgraded
+            ? AppColors.warning
+            : AppColors.info;
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -128,7 +152,11 @@ class _ModeChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
-          isLive ? 'Mode réel' : 'Mode simulation',
+          isLive
+              ? 'Mode réel'
+              : downgraded
+                  ? 'Mode simulation — réel bloqué'
+                  : 'Mode simulation',
           style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
         ),
       ),

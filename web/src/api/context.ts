@@ -28,7 +28,17 @@ export interface ContextWallet {
 }
 
 export interface AppContext {
+  /** Ce qui se produira réellement si un ordre est soumis. */
   trading_mode: "PAPER" | "LIVE"
+  /** Ce que l'utilisateur a configuré sur ses comptes broker. */
+  configured_trading_mode: "PAPER" | "LIVE"
+  /**
+   * Motif qui rend le mode réel inatteignable, ou chaîne vide.
+   * Quand il est renseigné, `trading_mode` vaut PAPER alors que
+   * `configured_trading_mode` vaut LIVE : l'écart doit être expliqué à
+   * l'utilisateur, jamais masqué.
+   */
+  live_blocked_reason: "" | "KYC_REQUIRED" | string
   /** Kill switch de plateforme : à false, aucune ouverture n'est acceptée. */
   trading_enabled: boolean
   portfolio: ContextPortfolio | null

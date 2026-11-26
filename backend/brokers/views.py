@@ -149,68 +149,47 @@ class BrokerAccountSetDefaultView(LoginRequiredMixin, View):
 
 
 class BrokerAccountTestConnectionView(LoginRequiredMixin, View):
+    """Test de connexion — délègue au service, comme l'API.
+
+    Cette vue simulait auparavant le résultat : elle posait ok=True dès
+    que le broker était reconnu, sans jamais contacter personne, puis
+    écrivait last_connection_status=True. Un compte sans identifiants
+    affichait donc « Connexion établie », et le Centre Broker comme le
+    nouvel écran React héritaient de cette affirmation fausse.
+
+    Le service refuse avant l'appel réseau quand les identifiants sont
+    incomplets, effectue sinon une vraie connexion, persiste le résultat
+    et notifie. Les deux surfaces disent désormais la même chose.
+    """
+
     def post(self, request, pk):
         broker = BrokerAccount.objects.filter(user=request.user, pk=pk).first()
         if not broker:
             messages.error(request, "Compte broker introuvable.")
             return redirect("broker-list")
 
-        ok = False
-        error_message = ""
+        from brokers.services_accounts import BrokerAccountError, BrokerAccountService
 
         try:
-            if broker.broker == "BINANCE":
-                ok = True
-            elif broker.broker == "MT5":
-                ok = True
-            elif broker.broker == "DERIV":
-                ok = True
-            else:
-                error_message = "Broker non supporté."
-                ok = False
-
-        except Exception as exc:
-            error_message = str(exc)
-            ok = False
-
-        broker.last_connection_status = ok
-        broker.last_connection_error = "" if ok else error_message
-        broker.last_connected_at = timezone.now()
-        broker.status = "ACTIVE" if ok else "ERROR"
-        broker.save(update_fields=[
-            "last_connection_status",
-            "last_connection_error",
-            "last_connected_at",
-            "status",
-            "updated_at",
-        ])
-
-        from notifications.shortcuts import notify
-        if ok:
-            messages.success(request, f"Connexion réussie pour {broker.name}.")
-            notify(
-                request.user, "BROKER_CONNECTION_OK",
-                title=f"Connexion broker réussie : {broker.name}",
-                message=f"Le test de connexion à {broker.broker} « {broker.name} » a réussi.",
-                payload={"broker_account_id": broker.pk, "broker": broker.broker},
+            result = BrokerAccountService.test_connection(broker)
+        except BrokerAccountError as exc:
+            messages.error(
+                request,
+                f"{broker.name} : {exc.message} "
+                f"Renseigne-les dans la configuration du compte.",
             )
+            return redirect("broker-list")
+
+        if result["success"]:
+            messages.success(request, f"Connexion réussie pour {broker.name}.")
         else:
             messages.error(
                 request,
-                f"Échec de connexion pour {broker.name}: {error_message or 'Erreur inconnue'}"
+                f"Échec de connexion pour {broker.name} : "
+                f"{result.get('error') or 'erreur inconnue'}",
             )
-            notify(
-                request.user, "BROKER_CONNECTION_FAILED",
-                title=f"Connexion broker échouée : {broker.name}",
-                message=(
-                    f"Le test de connexion à {broker.broker} « {broker.name} » a échoué : "
-                    f"{error_message or 'erreur inconnue'}. Vérifie tes identifiants dans la configuration."
-                ),
-                payload={"broker_account_id": broker.pk, "broker": broker.broker,
-                         "error": (error_message or "")[:500]},
-            )
-
         return redirect("broker-list")
+
 
 @login_required
 def broker_health_api(request):

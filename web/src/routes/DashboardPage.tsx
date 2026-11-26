@@ -2,6 +2,7 @@ import { Briefcase, PauseOctagon, Plug } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { toApiError } from "@/api/client"
+import type { AppContext } from "@/api/context"
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -20,10 +21,17 @@ export default function DashboardPage() {
     <div className="space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-semibold tracking-tight">Tableau de bord</h1>
-        <Badge variant={data.trading_mode === "LIVE" ? "loss" : "info"}>
-          Mode {data.trading_mode === "LIVE" ? "réel" : "simulation"}
-        </Badge>
+        <TradingModeBadge context={data} />
       </header>
+
+      {data.live_blocked_reason ? (
+        <Alert variant="warning" title="Mode réel demandé, mais inactif">
+          Tes comptes broker sont configurés en mode réel.{" "}
+          {data.live_blocked_reason === "KYC_REQUIRED"
+            ? "Tant que ton identité n'est pas validée, le serveur refusera toute exécution réelle : la plateforme fonctionne en simulation."
+            : "Un contrôle serveur empêche l'exécution réelle : la plateforme fonctionne en simulation."}
+        </Alert>
+      ) : null}
 
       {!data.trading_enabled ? (
         <Alert variant="danger" title="Trading suspendu sur la plateforme">
@@ -130,6 +138,25 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
 }
 
 /** Écran provisoire pour les sections dont l'API n'est pas encore exposée. */
+/**
+ * Pastille de mode.
+ *
+ * Affiche le mode EFFECTIF, celui qui décrit ce qui se produira. Quand il
+ * diffère du mode configuré, la pastille le dit au lieu de laisser croire
+ * que la configuration a été ignorée sans raison.
+ */
+function TradingModeBadge({ context }: { context: AppContext }) {
+  const isLive = context.trading_mode === "LIVE"
+  const downgraded = !isLive && context.configured_trading_mode === "LIVE"
+
+  return (
+    <Badge variant={isLive ? "loss" : downgraded ? "warning" : "info"}>
+      Mode {isLive ? "réel" : "simulation"}
+      {downgraded ? " — réel bloqué" : ""}
+    </Badge>
+  )
+}
+
 export function PendingSection({ title, scope }: { title: string; scope: string }) {
   return (
     <div className="space-y-5">

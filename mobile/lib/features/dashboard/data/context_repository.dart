@@ -11,6 +11,8 @@ import '../../auth/presentation/auth_controller.dart';
 class AppContext {
   const AppContext({
     required this.tradingMode,
+    required this.configuredTradingMode,
+    required this.liveBlockedReason,
     required this.tradingEnabled,
     required this.portfolio,
     required this.wallet,
@@ -18,6 +20,13 @@ class AppContext {
 
   factory AppContext.fromJson(Map<String, dynamic> json) => AppContext(
         tradingMode: json['trading_mode'] as String? ?? 'PAPER',
+        // Repli sur le mode effectif : un serveur plus ancien n'envoie pas
+        // ce champ, et supposer LIVE serait le mauvais côté de l'erreur.
+        configuredTradingMode:
+            json['configured_trading_mode'] as String? ??
+                json['trading_mode'] as String? ??
+                'PAPER',
+        liveBlockedReason: json['live_blocked_reason'] as String? ?? '',
         tradingEnabled: json['trading_enabled'] as bool? ?? false,
         portfolio: json['portfolio'] is Map<String, dynamic>
             ? ContextPortfolio.fromJson(json['portfolio'] as Map<String, dynamic>)
@@ -28,11 +37,25 @@ class AppContext {
       );
 
   final String tradingMode;
+
+  /// Mode demandé sur les comptes broker. Diffère de [tradingMode] quand un
+  /// blocage serveur rend l'exécution réelle impossible.
+  final String configuredTradingMode;
+
+  /// Motif du blocage (`KYC_REQUIRED`), ou chaîne vide.
+  final String liveBlockedReason;
+
   final bool tradingEnabled;
   final ContextPortfolio? portfolio;
   final ContextWallet? wallet;
 
   bool get isLive => tradingMode == 'LIVE';
+
+  /// Le mode réel a été demandé mais le serveur le refuse. L'interface doit
+  /// l'annoncer : laisser croire que la configuration a été ignorée sans
+  /// raison est aussi trompeur qu'afficher « Mode réel » à tort.
+  bool get isLiveDowngraded =>
+      !isLive && configuredTradingMode == 'LIVE';
 }
 
 class ContextPortfolio {
