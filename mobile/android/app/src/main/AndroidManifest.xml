@@ -1,6 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- L'application ne fait rien hors ligne : toute donnée affichée
+         vient de l'API. Le gabarit Flutter ne déclare INTERNET que dans
+         les manifestes debug/ et profile/ ; sans cette ligne, le build
+         release se lance et échoue sur chaque appel. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
-        android:label="leotrade"
+        android:label="LeoTrade"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -110,7 +110,7 @@ class TradeRecommendationViewSet(viewsets.ReadOnlyModelViewSet):
             "order_status": result["order"].status,
         })
 
-    @action(detail=False, methods=["post"])
+    @action(detail=False, methods=["post"], url_path="generate-for-portfolio")
     def generate_for_portfolio(self, request):
         portfolio_id = request.data.get("portfolio_id")
         if not portfolio_id:

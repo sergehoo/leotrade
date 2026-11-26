@@ -8,6 +8,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/states.dart';
 import '../../auth/domain/models.dart';
 import '../../auth/presentation/auth_controller.dart';
+import '../../../shared/widgets/leo_fab.dart';
 import '../data/context_repository.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -21,32 +22,11 @@ class DashboardScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tableau de bord'),
+        // Deux actions, et non sept : le portefeuille, les marchés, le
+        // risque et le compte sont des onglets ; Leo est le bouton
+        // flottant. Ce qui reste ici est ce qui n'a sa place nulle part
+        // ailleurs — la configuration des brokers, et la sortie.
         actions: [
-          IconButton(
-            tooltip: 'Leo',
-            onPressed: () => context.push('/leo?depuis=tableau-de-bord'),
-            icon: const Icon(Icons.smart_toy_outlined),
-          ),
-          IconButton(
-            tooltip: 'Portefeuille électronique',
-            onPressed: () => context.push('/portefeuille-electronique'),
-            icon: const Icon(Icons.account_balance_wallet_outlined),
-          ),
-          IconButton(
-            tooltip: 'Marchés',
-            onPressed: () => context.push('/marches'),
-            icon: const Icon(Icons.show_chart),
-          ),
-          IconButton(
-            tooltip: 'Risque',
-            onPressed: () => context.push('/risque'),
-            icon: const Icon(Icons.shield_outlined),
-          ),
-          IconButton(
-            tooltip: 'Portefeuille',
-            onPressed: () => context.push('/portefeuille'),
-            icon: const Icon(Icons.work_outline),
-          ),
           IconButton(
             tooltip: 'Brokers',
             onPressed: () => context.push('/brokers'),
@@ -59,6 +39,7 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
+      floatingActionButton: const LeoFab(page: 'tableau-de-bord'),
       body: RefreshIndicator(
         onRefresh: () async => ref.refresh(appContextProvider.future),
         child: contextAsync.when(

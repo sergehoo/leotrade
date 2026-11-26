@@ -37,7 +37,7 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             .order_by("-created_at")
         )
 
-    @action(detail=False, methods=["post"])
+    @action(detail=False, methods=["post"], url_path="create-manual")
     def create_manual(self, request):
         idem_key = request.headers.get("X-Idempotency-Key")
         if not idem_key:
@@ -195,7 +195,7 @@ class BrokerSyncLogViewSet(viewsets.ReadOnlyModelViewSet):
             .order_by("-started_at")
         )
 
-    @action(detail=False, methods=["post"])
+    @action(detail=False, methods=["post"], url_path="reconcile-portfolio")
     def reconcile_portfolio(self, request):
         portfolio_id = request.data.get("portfolio_id")
         portfolio = Portfolio.objects.filter(id=portfolio_id, user=request.user).first()

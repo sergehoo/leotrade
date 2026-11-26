@@ -28,26 +28,42 @@ final authRepositoryProvider = Provider<AuthRepository>(
 /// session n'a pas tranché, rediriger vers l'écran de connexion
 /// déconnecterait l'utilisateur à chaque lancement.
 class AuthState {
-  const AuthState({this.user, this.mfaToken, this.restoring = true});
+  const AuthState({
+    this.user,
+    this.mfaToken,
+    this.restoring = true,
+    this.restoreFailure,
+  });
 
   final CurrentUser? user;
   final String? mfaToken;
   final bool restoring;
 
+  /// Le serveur n'a pas pu être joint au lancement, et le jeton a été
+  /// conservé. Distinct de « déconnecté » : proposer un mot de passe
+  /// serait inutile — c'est le réseau qui manque, pas l'identité.
+  final String? restoreFailure;
+
   bool get isAuthenticated => user != null;
   bool get awaitingMfa => mfaToken != null;
+  bool get restoreUnavailable => restoreFailure != null;
 
   AuthState copyWith({
     CurrentUser? user,
     String? mfaToken,
     bool? restoring,
+    String? restoreFailure,
     bool clearUser = false,
     bool clearMfa = false,
+    bool clearRestoreFailure = false,
   }) =>
       AuthState(
         user: clearUser ? null : (user ?? this.user),
         mfaToken: clearMfa ? null : (mfaToken ?? this.mfaToken),
         restoring: restoring ?? this.restoring,
+        restoreFailure: clearRestoreFailure
+            ? null
+            : (restoreFailure ?? this.restoreFailure),
       );
 }
 
@@ -64,8 +80,17 @@ class AuthController extends Notifier<AuthState> {
   AuthRepository get _repository => ref.read(authRepositoryProvider);
 
   Future<void> restore() async {
-    final user = await _repository.restore();
-    state = AuthState(user: user, restoring: false);
+    state = state.copyWith(restoring: true, clearRestoreFailure: true);
+    switch (await _repository.restore()) {
+      case SessionRestored(:final user):
+        state = AuthState(user: user, restoring: false);
+      case NoSession():
+        state = const AuthState(restoring: false);
+      case RestoreUnavailable(:final message):
+        // Le jeton est intact : on ne déconnecte pas, on annonce la panne
+        // et on laisse réessayer.
+        state = AuthState(restoring: false, restoreFailure: message);
+    }
   }
 
   /// Retourne true si un second facteur est requis.

@@ -108,3 +108,30 @@ class MfaRequired extends LoginResult {
   const MfaRequired(this.mfaToken);
   final String mfaToken;
 }
+
+/// Issue d'une tentative de reprise de session au lancement.
+///
+/// Trois issues, et non deux : « pas de session » et « serveur injoignable »
+/// se ressemblent sur un écran de connexion, mais pas du tout dans la main
+/// de l'utilisateur. La première demande un mot de passe ; la seconde
+/// demande d'attendre le réseau — et effacer le jeton dans ce cas obligerait
+/// à se reconnecter pour une coupure de métro, avec une position ouverte.
+sealed class RestoreResult {
+  const RestoreResult();
+}
+
+/// Aucun jeton, ou jeton définitivement refusé par le serveur.
+class NoSession extends RestoreResult {
+  const NoSession();
+}
+
+class SessionRestored extends RestoreResult {
+  const SessionRestored(this.user);
+  final CurrentUser user;
+}
+
+/// Le serveur n'a pas pu être joint. Le jeton est CONSERVÉ.
+class RestoreUnavailable extends RestoreResult {
+  const RestoreUnavailable(this.message);
+  final String message;
+}

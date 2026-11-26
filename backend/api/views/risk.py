@@ -31,7 +31,7 @@ class RiskProfileViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], url_path="set-default")
     def set_default(self, request, pk=None):
         profile = self.get_object()
         RiskProfile.objects.filter(
@@ -83,7 +83,7 @@ class KillSwitchEventViewSet(viewsets.ReadOnlyModelViewSet):
             return KillSwitchEvent.objects.none()
         return KillSwitchEvent.objects.filter(portfolio__user=self.request.user).select_related("portfolio", "risk_profile")
 
-    @action(detail=False, methods=["post"])
+    @action(detail=False, methods=["post"], url_path="resolve-for-portfolio")
     def resolve_for_portfolio(self, request):
         portfolio_id = request.data.get("portfolio_id")
         from portfolio.models import Portfolio
@@ -123,7 +123,7 @@ class RiskUtilityViewSet(viewsets.ViewSet):
             )
         return Response(RiskSummaryService.build(portfolio))
 
-    @action(detail=False, methods=["post"])
+    @action(detail=False, methods=["post"], url_path="refresh-states")
     def refresh_states(self, request):
         from portfolio.models import Portfolio
 

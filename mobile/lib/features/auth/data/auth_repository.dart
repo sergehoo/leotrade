@@ -51,15 +51,29 @@ class AuthRepository {
   }
 
   /// Tente de reprendre la session au lancement.
-  Future<CurrentUser?> restore() async {
-    if (await _tokens.readRefreshToken() == null) return null;
+  ///
+  /// Le jeton n'est effacé que si le SERVEUR l'a refusé. Une panne réseau,
+  /// un délai dépassé ou un 5xx ne disent rien sur sa validité : les
+  /// traiter comme une session perdue obligeait à ressaisir son mot de
+  /// passe pour une coupure de réseau — y compris avec une position
+  /// ouverte à surveiller.
+  Future<RestoreResult> restore() async {
+    if (await _tokens.readRefreshToken() == null) return const NoSession();
     try {
       // L'access n'est pas persisté : le premier appel part sans en-tête,
       // reçoit un 401, et l'intercepteur rafraîchit.
-      return await me();
-    } on ApiError {
+      return SessionRestored(await me());
+    } on ApiError catch (error) {
+      final status = error.statusCode;
+
+      // Pas de code HTTP : la requête n'a pas abouti (réseau, délai).
+      // Un 5xx n'est pas davantage un verdict sur le jeton.
+      if (status == null || status >= 500) {
+        return RestoreUnavailable(error.message);
+      }
+
       await _tokens.clear();
-      return null;
+      return const NoSession();
     }
   }
 

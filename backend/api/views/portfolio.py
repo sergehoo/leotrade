@@ -73,13 +73,13 @@ class PortfolioViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], url_path="set-default")
     def set_default(self, request, pk=None):
         portfolio = self.get_object()
         PortfolioService.set_default_portfolio(portfolio)
         return Response({"status": "ok", "message": "Portfolio par défaut mis à jour."})
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], url_path="import-live")
     def import_live(self, request, pk=None):
         portfolio = self.get_object()
         broker = portfolio.broker_account
@@ -168,7 +168,7 @@ class PortfolioViewSet(viewsets.ModelViewSet):
         data = PortfolioService.asset_class_exposure(portfolio)
         return Response(data)
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], url_path="compute-correlations")
     def compute_correlations(self, request, pk=None):
         portfolio = self.get_object()
         serializer = CorrelationComputeSerializer(data=request.data)

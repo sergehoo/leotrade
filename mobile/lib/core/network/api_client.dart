@@ -20,9 +20,14 @@ class ApiError implements Exception {
 }
 
 class ApiClient {
-  ApiClient({required TokenStore tokenStore, Dio? dio})
+  ApiClient({required TokenStore tokenStore, Dio? dio, Dio? refreshDio})
       : _tokens = tokenStore,
-        _dio = dio ?? Dio() {
+        _dio = dio ?? Dio(),
+        // Client distinct pour le rafraîchissement : il ne doit PAS passer
+        // par l'intercepteur, sinon un refresh refusé en 401 relancerait un
+        // refresh, en boucle. Injectable pour que le test puisse distinguer
+        // « le refresh a échoué » de « le rejeu a échoué ».
+        _refreshClient = refreshDio ?? Dio() {
     _dio.options
       ..baseUrl = Env.apiV1
       ..connectTimeout = const Duration(seconds: 15)
@@ -44,6 +49,7 @@ class ApiClient {
   }
 
   final Dio _dio;
+  final Dio _refreshClient;
   final TokenStore _tokens;
 
   /// Appelé quand la session est définitivement perdue.
@@ -65,30 +71,48 @@ class ApiClient {
     final isCredentialRoute = _noRefresh.any(request.path.startsWith);
     final alreadyRetried = request.extra['retried'] == true;
 
-    if (error.response?.statusCode == 401 && !isCredentialRoute && !alreadyRetried) {
-      try {
-        _refreshInFlight ??= _refreshAccessToken();
-        final token = await _refreshInFlight!;
-        request.extra['retried'] = true;
-        request.headers['Authorization'] = 'Bearer $token';
-        return handler.resolve(await _dio.fetch(request));
-      } catch (_) {
-        await _tokens.clear();
-        onSessionExpired?.call();
-      } finally {
-        _refreshInFlight = null;
-      }
+    if (error.response?.statusCode != 401 || isCredentialRoute || alreadyRetried) {
+      return handler.next(error);
     }
-    handler.next(error);
+
+    // ── 1. Rafraîchir ──────────────────────────────────────────────────
+    // Échouer ICI signifie que le refresh token ne vaut plus rien : la
+    // session est perdue, il faut la fermer.
+    final String token;
+    final inFlight = _refreshInFlight ??= _refreshAccessToken();
+    try {
+      token = await inFlight;
+    } catch (_) {
+      await _tokens.clear();
+      onSessionExpired?.call();
+      return handler.next(error);
+    } finally {
+      // Ne remettre à null que SI c'est toujours le même rafraîchissement :
+      // sinon on effacerait celui qu'un autre appel vient de démarrer.
+      if (identical(_refreshInFlight, inFlight)) _refreshInFlight = null;
+    }
+
+    // ── 2. Rejouer ─────────────────────────────────────────────────────
+    // Échouer ici ne dit RIEN sur la session : un 500, une coupure réseau
+    // ou un délai dépassé sur le rejeu sont des accidents de la requête,
+    // pas du jeton. Les traiter comme une session perdue déconnecterait
+    // l'utilisateur — et sur une plateforme de trading, se retrouver
+    // devant un écran de connexion avec une position ouverte n'est pas un
+    // désagrément, c'est une impossibilité d'agir.
+    request.extra['retried'] = true;
+    request.headers['Authorization'] = 'Bearer $token';
+    try {
+      return handler.resolve(await _dio.fetch(request));
+    } on DioException catch (replayFailure) {
+      return handler.next(replayFailure);
+    }
   }
 
   Future<String> _refreshAccessToken() async {
     final refresh = await _tokens.readRefreshToken();
     if (refresh == null) throw const ApiError('Session expirée.');
 
-    // Dio nu : ne pas repasser par l'intercepteur, sinon un refresh refusé
-    // en 401 relancerait un refresh, en boucle.
-    final response = await Dio().post<Map<String, dynamic>>(
+    final response = await _refreshClient.post<Map<String, dynamic>>(
       '${Env.apiV1}/auth/refresh/',
       data: {'refresh': refresh},
       options: Options(headers: {'Content-Type': 'application/json'}),
