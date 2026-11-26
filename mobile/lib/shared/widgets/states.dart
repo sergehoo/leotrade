@@ -94,12 +94,19 @@ class ErrorStateView extends StatelessWidget {
 class NoticeBanner extends StatelessWidget {
   const NoticeBanner({
     super.key,
-    required this.message,
+    this.message,
+    this.child,
     this.tone = NoticeTone.info,
     this.title,
-  });
+  }) : assert(message != null || child != null,
+            'Un bandeau sans message ni contenu n\'a rien à dire.');
 
-  final String message;
+  final String? message;
+
+  /// Contenu riche, quand une simple chaîne ne suffit pas — les encadrés
+  /// de Leo portent du Markdown complet.
+  final Widget? child;
+
   final String? title;
   final NoticeTone tone;
 
@@ -138,8 +145,11 @@ class NoticeBanner extends StatelessWidget {
                 if (title != null)
                   Text(title!, style: const TextStyle(fontWeight: FontWeight.w600)),
                 if (title != null) const SizedBox(height: 3),
-                Text(message,
-                    style: const TextStyle(color: AppColors.muted, height: 1.4)),
+                if (child != null)
+                  child!
+                else
+                  Text(message!,
+                      style: const TextStyle(color: AppColors.muted, height: 1.4)),
               ],
             ),
           ),

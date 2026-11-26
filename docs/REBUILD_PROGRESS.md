@@ -1005,3 +1005,86 @@ ni symbole inventé. À remplacer par un vrai dessin.
 
 Vérifié : 120 tests Flutter, suite backend complète verte,
 `flutter analyze` et `tsc` sans remarque, build APK et build web OK.
+
+---
+
+## Les outils de formatage de Leo
+
+### Le prompt promettait ce que personne ne rendait
+
+Quatre outils annoncés à Leo dans `ASSISTANT_SYSTEM_PROMPT` n'avaient de
+rendu nulle part : `==surlignage==`, `> citation`, `---`, et les liens
+internes. Leo les écrivait consciencieusement ; ils s'affichaient en
+caractères parasites.
+
+Pire, sa liste blanche de routes était celle de l'ancien panneau Django
+— `/trading/ideas/`, `/risk/profile/`, `/wallet/`. Aucune de ces pages
+n'existe dans React ni dans Flutter : chaque lien envoyait l'utilisateur
+dans le vide. La règle anti-hallucination était écrite juste au-dessus.
+
+### La grammaire, écrite une fois
+
+`docs/LEO_MARKDOWN.md` est désormais la source unique, et trois fichiers
+s'y conforment : le prompt, `Markdown.tsx`, `markdown.dart`.
+
+Ajouté : titres sur six niveaux, citations, **encadrés**
+(`> [!NOTE|TIP|IMPORTANT|WARNING|CAUTION]`) rendus avec les composants
+d'alerte déjà présents dans chaque client, séparateurs, listes
+imbriquées, cases à cocher, barré, surlignage, **icônes** (liste fermée),
+**liens internes**, **boutons de navigation**, images, et retrait des
+commentaires HTML.
+
+### Trois refus délibérés
+
+- **Un bouton navigue, rien d'autre.** Les opérations financières
+  passent par les cartes d'action et les demandes du Risk Engine, qui
+  ont leur protocole, leur audit et leur double confirmation en mode
+  réel. Un bouton de texte n'y touche pas.
+- **Un chemin hors liste blanche est rendu en TEXTE**, jamais en lien ni
+  en bouton. La règle anti-hallucination s'applique ainsi à l'affichage,
+  pas seulement à la consigne : si le modèle invente une page,
+  l'interface ne fabrique pas un bouton mort pour autant.
+- **Une adresse externe est montrée, jamais masquée** derrière un
+  libellé. Un modèle peut rapporter un lien venu d'un tiers, et un
+  libellé rassurant sur une adresse qui ne l'est pas est la forme même
+  de l'hameçonnage. Et une image distante n'est pas chargée : c'est un
+  pixel traceur, qui révèle l'IP du lecteur et l'instant de la lecture.
+
+### Le contrat est sous test
+
+`test_leo_grammar_contract.py` lit les trois fichiers et échoue si leurs
+listes de routes ou d'icônes divergent, si le prompt cite un chemin
+qu'aucun client ne sert, ou s'il enseigne une syntaxe sans rendu. C'est
+exactement la dérive qui avait produit le défaut.
+
+### Un plantage que seul le téléphone a montré
+
+Le premier bouton tapé sur l'appareil a fait rougir l'écran :
+
+```
+navigator.dart: Failed assertion: '!keyReservation.contains(key)'
+```
+
+Les destinations de Leo sont des onglets d'une `StatefulShellRoute`.
+Leo, lui, est posé par-dessus, sur le navigateur racine. **Pousser** une
+route de branche reconstruit le `Navigator` de cette branche alors que
+sa `GlobalKey` est déjà prise par celui qui tourne en dessous. Il faut
+`go`, qui bascule sur l'onglet — ce qui est de toute façon le geste
+attendu.
+
+Le premier test de non-régression écrit pour ce défaut **passait quand
+même** : son routeur démarrait sur Leo, donc la coquille n'était jamais
+montée et la seconde n'entrait en collision avec rien. Corrigé pour
+démarrer dans la coquille, il échoue avec `push` et passe avec `go`.
+
+### Validé sur l'appareil et au navigateur
+
+Un message portant toute la grammaire, inséré en base pour ne pas
+consommer de quota LLM, puis retiré. Sur le Samsung : encadré orange
+« Attention », cases à cocher, surlignage, barré, citation, séparateur,
+icônes, deux boutons qui basculent réellement sur l'onglet Risque, lien
+interne, lien externe avec son adresse visible, et
+`[l'ancien panneau](/trading/ideas/)` rendu **en texte brut** — comme
+prévu. Au navigateur, même grammaire sur une conversation réelle.
+
+138 tests Flutter (+18), suite backend verte (+11).

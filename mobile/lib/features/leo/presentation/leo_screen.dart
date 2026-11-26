@@ -101,7 +101,10 @@ class _LeoScreenState extends ConsumerState<LeoScreen> {
           if (state.error != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: NoticeBanner(tone: NoticeTone.warning, message: state.error!),
+              child: NoticeBanner(
+                tone: NoticeTone.warning,
+                message: state.error!,
+              ),
             ),
           Expanded(
             child: state.turns.isEmpty && state.error == null
@@ -113,16 +116,22 @@ class _LeoScreenState extends ConsumerState<LeoScreen> {
                         'positions ou tes limites de risque. Il voit l\'écran '
                         'que tu consultes.',
                   )
-                : ListView.builder(
-                    controller: _scroll,
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    itemCount: state.turns.length + (state.thinking ? 1 : 0),
-                    itemBuilder: (_, index) {
-                      if (index >= state.turns.length) {
-                        return const _ThinkingRow();
-                      }
-                      return _TurnBubble(turn: state.turns[index]);
-                    },
+                // UNE zone de sélection pour toute la conversation :
+                // on peut copier une phrase qui enjambe deux messages,
+                // et il n'y a plus qu'une `SelectableRegion` montée au
+                // lieu d'une par bulle.
+                : SelectionArea(
+                    child: ListView.builder(
+                      controller: _scroll,
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      itemCount: state.turns.length + (state.thinking ? 1 : 0),
+                      itemBuilder: (_, index) {
+                        if (index >= state.turns.length) {
+                          return const _ThinkingRow();
+                        }
+                        return _TurnBubble(turn: state.turns[index]);
+                      },
+                    ),
                   ),
           ),
           if (state.actionRequest != null)
@@ -156,7 +165,11 @@ class _LeoAvatar extends StatelessWidget {
           border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
           shape: BoxShape.circle,
         ),
-        child: const Icon(Icons.smart_toy_outlined, size: 17, color: AppColors.primary),
+        child: const Icon(
+          Icons.smart_toy_outlined,
+          size: 17,
+          color: AppColors.primary,
+        ),
       ),
     );
   }
@@ -171,10 +184,16 @@ class _ThinkingRow extends StatelessWidget {
       padding: EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+          SizedBox(
+            height: 14,
+            width: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
           SizedBox(width: 10),
-          Text('Leo réfléchit…',
-              style: TextStyle(color: AppColors.muted, fontSize: 12)),
+          Text(
+            'Leo réfléchit…',
+            style: TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
         ],
       ),
     );
@@ -214,7 +233,10 @@ class _TurnBubble extends ConsumerWidget {
             // Sans rendu, les `**` et les séparateurs de tableau
             // s'affichaient tels quels.
             if (turn.isUser)
-              SelectableText(
+              // `Text` et non `SelectableText` : la sélection est déjà
+              // assurée par la `SelectionArea` de l'écran, et imbriquer
+              // les deux crée deux régions concurrentes.
+              Text(
                 turn.content,
                 style: const TextStyle(fontSize: 14, height: 1.45),
               )
@@ -277,12 +299,20 @@ class _ActionCardState extends ConsumerState<_ActionCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(action.type,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(
+            action.type,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
           if (action.rationale.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(action.rationale,
-                style: const TextStyle(color: AppColors.muted, fontSize: 11, height: 1.4)),
+            Text(
+              action.rationale,
+              style: const TextStyle(
+                color: AppColors.muted,
+                fontSize: 11,
+                height: 1.4,
+              ),
+            ),
           ],
           const SizedBox(height: 8),
           if (!action.isPending)
@@ -418,15 +448,20 @@ class _ActionRequestCardState extends ConsumerState<_ActionRequestCard> {
           ),
           if (request.summary.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(request.summary,
-                style: const TextStyle(fontSize: 13, height: 1.4)),
+            Text(
+              request.summary,
+              style: const TextStyle(fontSize: 13, height: 1.4),
+            ),
           ],
           if (request.riskSummary.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
               request.riskSummary,
               style: const TextStyle(
-                  color: AppColors.muted, fontSize: 11, height: 1.4),
+                color: AppColors.muted,
+                fontSize: 11,
+                height: 1.4,
+              ),
             ),
           ],
           if (request.errorMessage.isNotEmpty) ...[
@@ -449,7 +484,8 @@ class _ActionRequestCardState extends ConsumerState<_ActionRequestCard> {
           _DecisionButtons(
             pending: _pending,
             danger: live,
-            confirmLabel: request.awaitsSecondConfirmation &&
+            confirmLabel:
+                request.awaitsSecondConfirmation &&
                     request.confirmationsReceived > 0
                 ? 'Confirmer définitivement'
                 : 'Confirmer',
@@ -476,7 +512,10 @@ class _Composer extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.fromLTRB(
-        12, 8, 12, 8 + MediaQuery.viewInsetsOf(context).bottom * 0,
+        12,
+        8,
+        12,
+        8 + MediaQuery.viewInsetsOf(context).bottom * 0,
       ),
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: AppColors.border)),
