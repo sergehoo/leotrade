@@ -9,6 +9,7 @@ import DashboardPage, { PendingSection } from "@/routes/DashboardPage"
 import BrokersPage from "@/routes/brokers/BrokersPage"
 import LoginPage from "@/routes/LoginPage"
 import PortfolioPage from "@/routes/portfolio/PortfolioPage"
+import RiskPage from "@/routes/risk/RiskPage"
 import ProtectedRoute from "@/routes/ProtectedRoute"
 import { useAuth } from "@/stores/auth"
 
@@ -53,10 +54,7 @@ export default function App() {
                 path="marches"
                 element={<PendingSection title="Marchés" scope="Les données de marché" />}
               />
-              <Route
-                path="risque"
-                element={<PendingSection title="Risque" scope="Le Risk Control" />}
-              />
+              <Route path="risque" element={<RiskPage />} />
               <Route
                 path="assistant"
                 element={<PendingSection title="Assistant IA" scope="L'assistant conversationnel" />}

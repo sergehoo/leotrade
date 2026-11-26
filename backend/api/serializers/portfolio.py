@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from api.fields import OwnedRelatedField
+
 from portfolio.models import (
     Portfolio,
     Position,
@@ -202,6 +204,9 @@ class CashLedgerEntrySerializer(serializers.ModelSerializer):
 
 class PortfolioAllocationSerializer(serializers.ModelSerializer):
     asset_symbol = serializers.CharField(source="asset.symbol", read_only=True)
+    # Même faille que sur RiskProfile : sans restriction, une allocation
+    # s'écrit sur le portefeuille d'un autre utilisateur.
+    portfolio = OwnedRelatedField(queryset=Portfolio.objects.all(), owner_lookup="user")
 
     class Meta:
         model = PortfolioAllocation

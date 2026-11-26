@@ -145,6 +145,17 @@ class PaperOnboardingService:
         portfolio.save(update_fields=["starting_balance", "max_equity", "updated_at"])
 
         PortfolioService.refresh_portfolio_metrics(portfolio)
+
+        # Profil de risque créé explicitement, pas paresseusement.
+        # `RiskGuardService.get_default_profile` sait le fabriquer au premier
+        # besoin, mais tant qu'aucune action ne l'a déclenché, l'utilisateur
+        # ne voit aucune limite dans son interface — alors que la politique
+        # de préservation s'applique déjà par défaut. Mieux vaut qu'il puisse
+        # la lire et la régler dès l'arrivée.
+        from risk.services import RiskGuardService
+
+        RiskGuardService.get_default_profile(portfolio)
+
         portfolio.refresh_from_db()
 
         log.info(

@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -12,13 +13,19 @@ from api.serializers.risk import (
 )
 from risk.models import RiskProfile, DailyRiskState, WeeklyRiskState, RiskDecision, KillSwitchEvent
 from risk.services import RiskStateService, RiskGuardService
+from risk.services_summary import RiskSummaryService
 
 
 class RiskProfileViewSet(viewsets.ModelViewSet):
     serializer_class = RiskProfileSerializer
     permission_classes = [IsOwner]
+    filterset_fields = ["portfolio", "is_active", "is_default", "preservation_mode"]
+    search_fields = ["name"]
+    ordering = ["portfolio_id", "-is_default", "name"]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return RiskProfile.objects.none()
         return RiskProfile.objects.filter(user=self.request.user).select_related("portfolio")
 
     def perform_create(self, serializer):
@@ -42,6 +49,8 @@ class DailyRiskStateViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsOwner]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return DailyRiskState.objects.none()
         return DailyRiskState.objects.filter(portfolio__user=self.request.user).select_related("portfolio")
 
 
@@ -50,6 +59,8 @@ class WeeklyRiskStateViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsOwner]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return WeeklyRiskState.objects.none()
         return WeeklyRiskState.objects.filter(portfolio__user=self.request.user).select_related("portfolio")
 
 
@@ -58,6 +69,8 @@ class RiskDecisionViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsOwner]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return RiskDecision.objects.none()
         return RiskDecision.objects.filter(portfolio__user=self.request.user).select_related("portfolio", "risk_profile")
 
 
@@ -66,6 +79,8 @@ class KillSwitchEventViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsOwner]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return KillSwitchEvent.objects.none()
         return KillSwitchEvent.objects.filter(portfolio__user=self.request.user).select_related("portfolio", "risk_profile")
 
     @action(detail=False, methods=["post"])
@@ -83,6 +98,30 @@ class KillSwitchEventViewSet(viewsets.ReadOnlyModelViewSet):
 
 class RiskUtilityViewSet(viewsets.ViewSet):
     permission_classes = [IsOwner]
+
+    def _owned_portfolio(self, request, portfolio_id):
+        """Un portefeuille d'autrui doit être indiscernable d'un inexistant."""
+        from portfolio.models import Portfolio
+
+        return Portfolio.objects.filter(id=portfolio_id, user=request.user).first()
+
+    @extend_schema(
+        summary="État consolidé du Risk Control pour un portefeuille",
+        description=(
+            "Limites, consommation, drawdown, kill switch et politique de "
+            "préservation. Le taux d'utilisation est le chiffre décisif : "
+            "connaître la limite n'apprend rien, savoir qu'on en a consommé "
+            "80 % change la décision."
+        ),
+    )
+    @action(detail=False, methods=["get"], url_path=r"summary/(?P<portfolio_id>\d+)")
+    def summary(self, request, portfolio_id=None):
+        portfolio = self._owned_portfolio(request, portfolio_id)
+        if not portfolio:
+            return Response(
+                {"detail": "Portfolio introuvable."}, status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(RiskSummaryService.build(portfolio))
 
     @action(detail=False, methods=["post"])
     def refresh_states(self, request):

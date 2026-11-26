@@ -301,3 +301,17 @@ class TestPaperLiveSeparation:
         response = client.get(reverse("api-positions-list"), {"trading_mode": "n'importe"})
 
         assert response.status_code == 200
+
+    def test_a_new_portfolio_arrives_with_visible_risk_limits(self, client):
+        """Le profil était créé paresseusement : l'utilisateur ne voyait
+        aucune limite tant qu'aucune action ne l'avait déclenché, alors que
+        la politique de préservation s'appliquait déjà."""
+        from risk.models import RiskProfile
+
+        response = _provision(client)
+        portfolio = Portfolio.objects.get(pk=response.json()["id"])
+
+        profile = RiskProfile.objects.filter(portfolio=portfolio, is_default=True).first()
+        assert profile is not None
+        assert profile.preservation_mode is True
+        assert profile.allow_speculative_instruments is False

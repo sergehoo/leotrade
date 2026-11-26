@@ -6,6 +6,7 @@ import '../features/auth/presentation/auth_controller.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/brokers/presentation/brokers_screen.dart';
 import '../features/portfolio/presentation/portfolio_screen.dart';
+import '../features/risk/presentation/risk_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 
 /// Écran d'attente pendant la reprise de session.
@@ -49,6 +50,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/', builder: (_, __) => const DashboardScreen()),
       GoRoute(path: '/brokers', builder: (_, __) => const BrokersScreen()),
       GoRoute(path: '/portefeuille', builder: (_, __) => const PortfolioScreen()),
+      GoRoute(path: '/risque', builder: (_, __) => const RiskScreen()),
     ],
   );
 });

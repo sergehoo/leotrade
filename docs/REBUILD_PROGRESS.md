@@ -317,3 +317,72 @@ au navigateur : création, capital correct, état vide des positions.
 - Clôture de position depuis l'interface (le service existe, pas l'écran).
 - Historique des positions fermées et des mouvements de trésorerie.
 - Graphique d'évolution de la valorisation (les snapshots existent).
+
+---
+
+## Lot 6 — Risk Control
+
+### Une faille de cloisonnement, reproduite avant correction
+
+`RiskProfileSerializer` exposait `portfolio` en écriture sans vérifier
+l'appartenance. `perform_create` fixait bien `user=request.user`, mais la
+clé étrangère venait du corps de la requête.
+
+Reproduction : un compte tiers crée un `RiskProfile` sur le portefeuille
+d'une victime, `max_risk_per_trade=99%`, et le serveur répond **201**. Le
+profil injecté arrivant avec `is_default=True`, il devient celui que le
+moteur applique — un inconnu réécrit les limites de sécurité d'un autre
+utilisateur.
+
+`PortfolioAllocationSerializer` portait la même faille.
+
+Le correctif est une classe partagée, `api.fields.OwnedRelatedField`, qui
+**filtre le queryset** au lieu de valider après coup : DRF rend alors la
+même erreur qu'un identifiant inexistant, sans révéler que l'objet existe
+et appartient à quelqu'un d'autre.
+
+### Capital Preservation : rendue visible
+
+Quatre champs du modèle n'étaient dans aucun contrat d'API :
+`preservation_mode`, `allow_volatile_instruments`,
+`allow_speculative_instruments`, `max_monthly_loss`. La principale
+protection du capital était donc invisible et non modifiable depuis les
+clients, alors qu'elle s'applique par défaut.
+
+Le profil de risque est désormais créé au provisionnement, pas
+paresseusement : l'utilisateur voit ses limites dès l'arrivée.
+
+### Synthèse
+
+`GET /risk-utils/summary/{portfolio_id}/` — limites, consommation,
+drawdown, kill switch, politique de préservation.
+
+Le chiffre exposé est le **taux d'utilisation**, pas la limite brute :
+savoir que la limite journalière est à 3 % n'apprend rien ; savoir qu'on
+en a consommé 80 % change la décision. Une limite non posée rend
+`usage_percent = null` plutôt que 0 — afficher « 0 % utilisé » laisserait
+croire à une protection qui n'existe pas.
+
+### Écrans
+
+Jauges colorées par consommation (verte, orange à 75 %, rouge au
+franchissement), bannière d'arrêt d'urgence avec son motif, et pilotage
+des trois drapeaux de préservation. Lever un arrêt d'urgence demande une
+confirmation explicite rappelant que la cause ne disparaît pas.
+
+### Vérification
+
+583 tests backend (1 ignoré), 36 Flutter, build web OK. Validé au
+navigateur — y compris un drawdown à 50 % correctement signalé
+« Dépassée », qui s'est révélé être l'artefact du bug de double comptage
+du Lot 5 persisté dans `max_equity`.
+
+### Reste à faire sur ce domaine
+
+- Édition des seuils chiffrés (seuls les drapeaux de préservation sont
+  pilotables depuis l'interface).
+- Historique des décisions de risque et des déclenchements.
+- Les points de l'audit Capital Preservation non traités : plafonds
+  d'exposition par classe déclarés mais non consommés, case d'override
+  unique levant tous les blocages SOUPLES en LIVE, `RiskOverrideAudit`
+  écrit seulement à l'approbation.
