@@ -1,9 +1,11 @@
 import { request } from "./client"
-import { getAccessToken } from "./tokens"
+import { openRealtimeSocket } from "./realtime"
 import type { Paginated } from "@/types/api"
 
-/** Marqueur du sous-protocole JWT — doit correspondre à core/ws_auth.py. */
-export const JWT_SUBPROTOCOL = "leotrade.jwt"
+// Le marqueur vit avec le transport — `api/realtime.ts` — et non ici :
+// le laisser dans ce module créait un cycle d'imports dès que le
+// transport a été mutualisé. Réexporté pour les appelants existants.
+export { JWT_SUBPROTOCOL } from "./realtime"
 
 export type LeoRole = "USER" | "ASSISTANT" | "SYSTEM"
 
@@ -119,9 +121,5 @@ export type LeoClientEvent =
  * vouée au refus produirait une boucle de reconnexion silencieuse.
  */
 export function openLeoSocket(): WebSocket | null {
-  const token = getAccessToken()
-  if (!token) return null
-
-  const origin = window.location.origin.replace(/^http/, "ws")
-  return new WebSocket(`${origin}/ws/assistant/chat/`, [JWT_SUBPROTOCOL, token])
+  return openRealtimeSocket("/ws/assistant/chat/")
 }

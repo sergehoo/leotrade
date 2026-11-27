@@ -8,6 +8,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/charts/candle_chart.dart';
 import '../../../shared/widgets/leo_fab.dart';
 import '../../../shared/widgets/states.dart';
+import '../../../core/network/realtime.dart';
+import '../data/portfolio_realtime.dart';
 import '../data/portfolio_repository.dart';
 import '../domain/models.dart';
 
@@ -204,6 +206,8 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
+                _LiveBadge(portfolioId: active.id),
+                const SizedBox(height: 10),
                 _SummarySection(portfolio: active),
                 const SizedBox(height: 12),
                 Wrap(
@@ -346,6 +350,10 @@ class _SummarySection extends ConsumerWidget {
       ),
       data: (data) {
         final currency = data.baseCurrency;
+        // Les correctifs ne remplacent QUE les champs réellement reçus.
+        // Un champ absent garde la valeur chargée en REST, plutôt que
+        // d'être écrasé par un zéro qui passerait pour une mesure.
+        final live = ref.watch(portfolioRealtimeProvider(portfolio.id)).metrics;
         return Column(
           children: [
             Row(
@@ -353,7 +361,7 @@ class _SummarySection extends ConsumerWidget {
                 Expanded(
                   child: _MetricCard(
                     label: 'Valorisation',
-                    value: formatMoney(data.equity, currency),
+                    value: formatMoney(live?.equity ?? data.equity, currency),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -373,16 +381,22 @@ class _SummarySection extends ConsumerWidget {
                 Expanded(
                   child: _MetricCard(
                     label: 'Latent',
-                    value: formatMoney(data.unrealizedPnl, currency),
-                    sign: signOf(data.unrealizedPnl),
+                    value: formatMoney(
+                      live?.unrealizedPnl ?? data.unrealizedPnl,
+                      currency,
+                    ),
+                    sign: signOf(live?.unrealizedPnl ?? data.unrealizedPnl),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _MetricCard(
                     label: 'Réalisé',
-                    value: formatMoney(data.realizedPnl, currency),
-                    sign: signOf(data.realizedPnl),
+                    value: formatMoney(
+                      live?.realizedPnl ?? data.realizedPnl,
+                      currency,
+                    ),
+                    sign: signOf(live?.realizedPnl ?? data.realizedPnl),
                   ),
                 ),
               ],
@@ -393,7 +407,7 @@ class _SummarySection extends ConsumerWidget {
                 Expanded(
                   child: _MetricCard(
                     label: 'Liquidités',
-                    value: formatMoney(data.availableCash, currency),
+                    value: formatMoney(live?.availableCash ?? data.availableCash, currency),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -415,7 +429,7 @@ class _SummarySection extends ConsumerWidget {
                   // était réservée par des ordres en attente.
                   child: _MetricCard(
                     label: 'Immobilisé',
-                    value: formatMoney(data.lockedCash, currency),
+                    value: formatMoney(live?.lockedCash ?? data.lockedCash, currency),
                     hint: 'Réservé par des ordres en attente',
                   ),
                 ),
@@ -527,7 +541,13 @@ class _PositionsSection extends ConsumerWidget {
             return Column(
               children: [
                 for (final position in list) ...[
-                  _PositionTile(position: position, currency: portfolio.baseCurrency),
+                  _PositionTile(
+                    position: position,
+                    currency: portfolio.baseCurrency,
+                    live: ref
+                        .watch(portfolioRealtimeProvider(portfolio.id))
+                        .positions[position.id],
+                  ),
                   const SizedBox(height: 8),
                 ],
               ],
@@ -540,14 +560,24 @@ class _PositionsSection extends ConsumerWidget {
 }
 
 class _PositionTile extends StatelessWidget {
-  const _PositionTile({required this.position, required this.currency});
+  const _PositionTile({
+    required this.position,
+    required this.currency,
+    this.live,
+  });
 
   final Position position;
   final String currency;
 
+  /// Correctif reçu en direct, s'il en est arrivé un.
+  final LivePosition? live;
+
   @override
   Widget build(BuildContext context) {
-    final sign = signOf(position.unrealizedPnl);
+    final unrealized = live?.unrealizedPnl ?? position.unrealizedPnl;
+    final mark = live?.markPrice ?? position.currentPrice;
+    final quantity = live?.quantity ?? position.quantity;
+    final sign = signOf(unrealized);
     final pnlColor = switch (sign) {
       MoveSign.gain => AppColors.gain,
       MoveSign.loss => AppColors.loss,
@@ -608,7 +638,7 @@ class _PositionTile extends StatelessWidget {
                 // `0.00045000` ici et `0,00045` là.
                 child: _Cell(
                   label: 'Quantité',
-                  value: formatQuantity(position.quantity),
+                  value: formatQuantity(quantity),
                 ),
               ),
               Expanded(
@@ -623,7 +653,7 @@ class _PositionTile extends StatelessWidget {
                 // l'écart vient du marché ou d'un mark périmé.
                 child: _Cell(
                   label: 'Cours',
-                  value: formatMoney(position.currentPrice, currency),
+                  value: formatMoney(mark, currency),
                 ),
               ),
             ],
@@ -640,7 +670,7 @@ class _PositionTile extends StatelessWidget {
               Expanded(
                 child: _Cell(
                   label: 'Latent',
-                  value: formatMoney(position.unrealizedPnl, currency),
+                  value: formatMoney(unrealized, currency),
                   color: pnlColor,
                 ),
               ),
@@ -852,5 +882,71 @@ class _NotPlottable extends StatelessWidget {
         ],
       ],
     );
+  }
+}
+
+
+/// État de la liaison temps réel, dit sans le farder.
+///
+/// Une liaison ouverte qui ne reçoit rien ressemble, à l'écran, à une
+/// liaison qui tient les prix à jour. Sur une plateforme de trading,
+/// croire qu'un chiffre est courant alors qu'il date de l'ouverture de
+/// l'écran est précisément l'erreur qu'on ne peut pas se permettre —
+/// c'est pourquoi « connecté » et « à jour » sont deux mentions
+/// distinctes.
+class _LiveBadge extends ConsumerWidget {
+  const _LiveBadge({required this.portfolioId});
+
+  final int portfolioId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final live = ref.watch(portfolioRealtimeProvider(portfolioId));
+
+    final (IconData icon, Color tone, String label) = switch (live.status) {
+      RealtimeStatus.connecting => (
+          Icons.sync,
+          AppColors.muted,
+          'Connexion au flux…',
+        ),
+      RealtimeStatus.lost => (
+          Icons.cloud_off_outlined,
+          AppColors.warning,
+          'Flux interrompu — nouvelle tentative',
+        ),
+      RealtimeStatus.online => live.isSilent
+          ? (
+              Icons.link,
+              AppColors.muted,
+              'Flux ouvert — aucune mise à jour reçue',
+            )
+          : (
+              Icons.bolt,
+              AppColors.gain,
+              'À jour ${_since(live.lastEventAt!)}',
+            ),
+    };
+
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: tone),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(color: tone, fontSize: 11),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String _since(DateTime moment) {
+    final seconds = DateTime.now().difference(moment).inSeconds;
+    if (seconds < 5) return "à l'instant";
+    if (seconds < 60) return 'il y a $seconds s';
+    final minutes = seconds ~/ 60;
+    if (minutes < 60) return 'il y a $minutes min';
+    return 'il y a ${minutes ~/ 60} h';
   }
 }

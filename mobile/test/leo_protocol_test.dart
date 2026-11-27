@@ -1,64 +1,13 @@
-import 'dart:async';
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:leotrade/core/network/token_store.dart';
 import 'package:leotrade/features/auth/domain/models.dart';
 import 'package:leotrade/features/auth/presentation/auth_controller.dart';
+import 'package:leotrade/core/network/realtime.dart';
 import 'package:leotrade/features/leo/data/leo_controller.dart';
 import 'package:leotrade/features/leo/domain/models.dart';
-import 'package:stream_channel/stream_channel.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 
-/// Socket pilotée par le test : on pousse les messages du serveur, et on
-/// lit ce que le client envoie.
-class _FakeChannel extends StreamChannelMixin<dynamic>
-    implements WebSocketChannel {
-  _FakeChannel() : _incoming = StreamController<dynamic>();
-
-  final StreamController<dynamic> _incoming;
-  final List<Map<String, dynamic>> sent = [];
-  bool closed = false;
-
-  void push(Map<String, dynamic> event) => _incoming.add(jsonEncode(event));
-
-  void drop() {
-    if (!_incoming.isClosed) _incoming.close();
-  }
-
-  @override
-  Stream<dynamic> get stream => _incoming.stream;
-
-  @override
-  WebSocketSink get sink => _FakeSink(this);
-
-  @override
-  Future<void> get ready => Future<void>.value();
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _FakeSink implements WebSocketSink {
-  _FakeSink(this._channel);
-  final _FakeChannel _channel;
-
-  @override
-  void add(dynamic data) {
-    if (_channel.closed) throw StateError('socket fermée');
-    _channel.sent.add(jsonDecode(data as String) as Map<String, dynamic>);
-  }
-
-  @override
-  Future<void> close([int? closeCode, String? closeReason]) async {
-    _channel.closed = true;
-    _channel.drop();
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
+import 'support/fake_channel.dart';
 
 /// Session ouverte, sans toucher au réseau ni au Keychain.
 class _SignedIn extends AuthController {
@@ -73,19 +22,19 @@ class _SignedIn extends AuthController {
       );
 }
 
-ProviderContainer _containerWith(_FakeChannel channel) {
+ProviderContainer _containerWith(FakeChannel channel) {
   final container = ProviderContainer(
     overrides: [
       authControllerProvider.overrideWith(_SignedIn.new),
       tokenStoreProvider.overrideWithValue(TokenStore()..accessToken = 'jeton'),
-      leoChannelFactoryProvider.overrideWithValue((_, __) => channel),
+      realtimeChannelFactoryProvider.overrideWithValue((_, __) => channel),
     ],
   );
   addTearDown(container.dispose);
   return container;
 }
 
-Future<LeoController> _connected(_FakeChannel channel) async {
+Future<LeoController> _connected(FakeChannel channel) async {
   final container = _containerWith(channel);
   // Un abonnement d'abord : le provider est `autoDispose`, une simple
   // lecture le démonterait aussitôt.
@@ -107,7 +56,7 @@ void main() {
         // (`_send_tool_result`) : un `start`, puis directement un `done`
         // portant `clean_content`. Le client ne traitant que les `chunk`,
         // la confirmation d'une opération disparaissait sans un mot.
-        final channel = _FakeChannel();
+        final channel = FakeChannel();
         final controller = await _connected(channel);
 
         channel.push({
@@ -125,7 +74,7 @@ void main() {
     );
 
     test('la demande transactionnelle du `done` est lue', () async {
-      final channel = _FakeChannel();
+      final channel = FakeChannel();
       final controller = await _connected(channel);
 
       channel.push({
@@ -161,7 +110,7 @@ void main() {
         // AUTRE modèle. Deux séquences de clés primaires : soit le bouton
         // était mort, soit une demande portant le même numéro était
         // confirmée — et exécutée.
-        final channel = _FakeChannel();
+        final channel = FakeChannel();
         final controller = await _connected(channel);
 
         expect(controller.decideAction(12, confirm: true), isTrue);
@@ -171,7 +120,7 @@ void main() {
     );
 
     test('une DEMANDE transactionnelle emprunte son propre type', () async {
-      final channel = _FakeChannel();
+      final channel = FakeChannel();
       final controller = await _connected(channel);
 
       controller.decideActionRequest(31, confirm: false);
@@ -185,7 +134,7 @@ void main() {
     test(
       "le statut d'une action n'est jamais fabriqué par le client",
       () async {
-        final channel = _FakeChannel();
+        final channel = FakeChannel();
         final controller = await _connected(channel);
 
         channel.push({
@@ -216,7 +165,7 @@ void main() {
     );
 
     test('un envoi sur une socket morte est refusé et annoncé', () async {
-      final channel = _FakeChannel();
+      final channel = FakeChannel();
       final controller = await _connected(channel);
 
       channel.drop();
@@ -234,7 +183,7 @@ void main() {
 
     test('une coupure est annoncée comme telle, pas comme une connexion',
         () async {
-      final channel = _FakeChannel();
+      final channel = FakeChannel();
       final controller = await _connected(channel);
 
       expect(controller.state.connection, LeoConnection.online);

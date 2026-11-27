@@ -1,6 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Briefcase, Plus, RefreshCw, Star, TrendingDown, TrendingUp } from "lucide-react"
-import { useState } from "react"
+import {
+  Briefcase,
+  CloudOff,
+  Link2,
+  Plus,
+  RefreshCw,
+  Star,
+  TrendingDown,
+  TrendingUp,
+  Zap,
+} from "lucide-react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { toApiError } from "@/api/client"
@@ -18,6 +28,12 @@ import {
   type Position,
 } from "@/api/portfolio"
 import { EquityChart } from "@/components/charts/EquityChart"
+import {
+  usePortfolioRealtime,
+  type LiveMetrics,
+  type LivePosition,
+  type PortfolioLive,
+} from "@/hooks/usePortfolioRealtime"
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -224,6 +240,12 @@ function PortfolioDetail({ portfolio }: { portfolio: Portfolio }) {
     queryFn: () => listPositions({ portfolio: portfolio.id, status: "OPEN" }),
   })
 
+  // Le canal `ws/portfolio/<id>/` existait côté serveur depuis
+  // l'origine, avec ses émetteurs — passage d'un ordre, recalcul des
+  // métriques, mark-to-market périodique. Aucun client ne s'y
+  // connectait.
+  const live = usePortfolioRealtime(portfolio.id)
+
   return (
     <div className="space-y-4">
       {!portfolio.is_simulated ? (
@@ -233,6 +255,8 @@ function PortfolioDetail({ portfolio }: { portfolio: Portfolio }) {
         </Alert>
       ) : null}
 
+      <LiveBadge live={live} />
+
       {summary.isPending ? (
         <TableSkeleton rows={2} columns={4} />
       ) : summary.isError ? (
@@ -241,7 +265,7 @@ function PortfolioDetail({ portfolio }: { portfolio: Portfolio }) {
           onRetry={() => void summary.refetch()}
         />
       ) : (
-        <SummaryGrid summary={summary.data} />
+        <SummaryGrid summary={summary.data} live={live.metrics} />
       )}
 
       <EquityCurveSection portfolioId={portfolio.id} />
@@ -270,6 +294,7 @@ function PortfolioDetail({ portfolio }: { portfolio: Portfolio }) {
           <PositionsTable
             positions={positions.data.results}
             currency={portfolio.base_currency}
+            live={live.positions}
           />
         )}
       </section>
@@ -277,13 +302,19 @@ function PortfolioDetail({ portfolio }: { portfolio: Portfolio }) {
   )
 }
 
-function SummaryGrid({ summary }: { summary: PortfolioSummary }) {
+function SummaryGrid({
+  summary,
+  live,
+}: {
+  summary: PortfolioSummary
+  live: LiveMetrics | null
+}) {
   const currency = summary.base_currency
   const pnlSign = signOf(summary.total_pnl)
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <Metric label="Valorisation" value={formatMoney(summary.equity, currency)} />
+      <Metric label="Valorisation" value={formatMoney(live?.equity ?? summary.equity, currency)} />
       <Metric
         label="Résultat total"
         value={formatMoney(summary.total_pnl, currency)}
@@ -293,8 +324,8 @@ function SummaryGrid({ summary }: { summary: PortfolioSummary }) {
       />
       <Metric
         label="Latent"
-        value={formatMoney(summary.unrealized_pnl, currency)}
-        className={signClass(signOf(summary.unrealized_pnl))}
+        value={formatMoney(live?.unrealized_pnl ?? summary.unrealized_pnl, currency)}
+        className={signClass(signOf(live?.unrealized_pnl ?? summary.unrealized_pnl))}
       />
       <Metric
         label="Réalisé"
@@ -302,10 +333,10 @@ function SummaryGrid({ summary }: { summary: PortfolioSummary }) {
         className={signClass(signOf(summary.realized_pnl))}
       />
 
-      <Metric label="Liquidités" value={formatMoney(summary.available_cash, currency)} />
+      <Metric label="Liquidités" value={formatMoney(live?.available_cash ?? summary.available_cash, currency)} />
       <Metric
         label="Immobilisé"
-        value={formatMoney(summary.locked_cash, currency)}
+        value={formatMoney(live?.locked_cash ?? summary.locked_cash, currency)}
         hint="Engagé sur des ordres en cours"
       />
       <Metric
@@ -356,9 +387,11 @@ function Metric({
 function PositionsTable({
   positions,
   currency,
+  live,
 }: {
   positions: Position[]
   currency: string
+  live: Record<number, LivePosition>
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
@@ -376,7 +409,15 @@ function PositionsTable({
         </thead>
         <tbody className="divide-y divide-border">
           {positions.map((position) => {
-            const sign = signOf(position.unrealized_pnl)
+            // Un correctif ne remplace QUE les champs réellement reçus :
+            // un champ absent garde la valeur chargée en REST, plutôt
+            // que d'être écrasé par un zéro qui passerait pour une
+            // mesure.
+            const patch = live[position.id]
+            const quantity = patch?.quantity ?? position.quantity
+            const mark = patch?.mark_price ?? position.current_price
+            const unrealized = patch?.unrealized_pnl ?? position.unrealized_pnl
+            const sign = signOf(unrealized)
             return (
               <tr key={position.id} className="hover:bg-accent/40">
                 <td className="px-3 py-2">
@@ -393,19 +434,19 @@ function PositionsTable({
                   </Badge>
                 </td>
                 <td className="px-3 py-2 text-right tabular">
-                  {formatQuantity(position.quantity)}
+                  {formatQuantity(quantity)}
                 </td>
                 <td className="px-3 py-2 text-right tabular">
                   {formatMoney(position.average_entry_price, currency)}
                 </td>
                 <td className="px-3 py-2 text-right tabular">
-                  {formatMoney(position.current_price, currency)}
+                  {formatMoney(mark, currency)}
                 </td>
                 <td className="px-3 py-2 text-right tabular">
                   {formatMoney(position.exposure_value, currency)}
                 </td>
                 <td className={cn("px-3 py-2 text-right tabular font-medium", signClass(sign))}>
-                  {formatMoney(position.unrealized_pnl, currency)}
+                  {formatMoney(unrealized, currency)}
                 </td>
               </tr>
             )
@@ -552,4 +593,63 @@ function NotPlottable({ curve }: { curve: EquityCurve }) {
       ) : null}
     </div>
   )
+}
+
+
+/**
+ * État de la liaison temps réel, dit sans le farder.
+ *
+ * Une liaison ouverte qui ne reçoit rien ressemble, à l'écran, à une
+ * liaison qui tient les prix à jour. Sur une plateforme de trading,
+ * croire qu'un chiffre est courant alors qu'il date de l'ouverture de la
+ * page est précisément l'erreur qu'on ne peut pas se permettre — d'où
+ * deux mentions distinctes : « connecté » et « à jour ».
+ */
+function LiveBadge({ live }: { live: PortfolioLive }) {
+  const [, tick] = useState(0)
+
+  // Un âge qui ne vieillit pas est un âge faux : on repeint chaque
+  // seconde tant qu'une mesure est arrivée.
+  useEffect(() => {
+    if (live.lastEventAt === null) return
+    const timer = window.setInterval(() => tick((n) => n + 1), 1000)
+    return () => window.clearInterval(timer)
+  }, [live.lastEventAt])
+
+  const { icon: Icon, tone, label } =
+    live.status === "connecting"
+      ? { icon: RefreshCw, tone: "text-muted-foreground", label: "Connexion au flux…" }
+      : live.status === "lost"
+        ? {
+            icon: CloudOff,
+            tone: "text-warning",
+            label: "Flux interrompu — nouvelle tentative",
+          }
+        : live.lastEventAt === null
+          ? {
+              icon: Link2,
+              tone: "text-muted-foreground",
+              label: "Flux ouvert — aucune mise à jour reçue",
+            }
+          : {
+              icon: Zap,
+              tone: "text-gain",
+              label: `À jour ${since(live.lastEventAt)}`,
+            }
+
+  return (
+    <p className={cn("flex items-center gap-1.5 text-xs", tone)}>
+      <Icon className="size-3.5" aria-hidden />
+      {label}
+    </p>
+  )
+}
+
+function since(moment: number): string {
+  const seconds = Math.floor((Date.now() - moment) / 1000)
+  if (seconds < 5) return "à l'instant"
+  if (seconds < 60) return `il y a ${seconds} s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `il y a ${minutes} min`
+  return `il y a ${Math.floor(minutes / 60)} h`
 }

@@ -1088,3 +1088,82 @@ interne, lien externe avec son adresse visible, et
 prévu. Au navigateur, même grammaire sur une conversation réelle.
 
 138 tests Flutter (+18), suite backend verte (+11).
+
+---
+
+## Le temps réel, branché
+
+### Six canaux attendaient
+
+`ws/portfolio/<id>/`, `ws/orders/`, `ws/notifications/`,
+`ws/dashboard/live/`, `ws/ai/radar/` et les bougies existaient depuis
+l'origine, avec leurs émetteurs. **Aucun des deux clients ne s'y
+connectait** — hormis Leo. Le web et le mobile rechargeaient à la main
+ce que le serveur leur poussait déjà.
+
+Ce n'était d'ailleurs pas possible depuis le mobile avant la correction
+du validateur d'origine : un client natif n'envoie pas d'en-tête
+`Origin`, et la poignée de main était refusée en 403.
+
+### Celui qui compte d'abord
+
+`ws/portfolio/<id>/` porte trois émetteurs réels :
+
+| Quand | Qui | Ce qui arrive |
+|---|---|---|
+| Un ordre passe | `execution/outbox.py` | `portfolio.update` |
+| Métriques recalculées | `PortfolioService.refresh_portfolio_metrics` | `metrics_refresh` |
+| Mark-to-market | `update_marks_task` (Celery) | `position.update` |
+
+Les deux premiers tournent dans le cycle de requête : ils n'attendent
+aucun ouvrier Celery. Le troisième, si — et aucun ouvrier ne tourne dans
+cet environnement.
+
+### Corriger, jamais fabriquer
+
+Les données REST restent la source. La socket ne fait que **corriger des
+champs déjà chargés**, et seulement ceux que le serveur a réellement
+envoyés : un champ absent laisse la valeur REST intacte, au lieu d'être
+écrasé par un zéro qui passerait ensuite pour une mesure.
+
+### « Connecté » et « à jour » sont deux choses
+
+Une liaison ouverte qui ne reçoit rien ressemble, à l'écran, à une
+liaison qui tient les prix à jour. Sur une plateforme de trading, croire
+qu'un chiffre est courant alors qu'il date de l'ouverture de l'écran est
+précisément l'erreur qu'on ne peut pas se permettre. D'où quatre
+mentions distinctes, et pas une pastille verte :
+
+```
+Connexion au flux…
+Flux ouvert — aucune mise à jour reçue     ← l'état normal sans Celery
+À jour il y a 12 s
+Flux interrompu — nouvelle tentative
+```
+
+### Mutualisé
+
+La mécanique écrite pour Leo — sous-protocole JWT, refus d'ouvrir sans
+jeton, délais de reconnexion croissants, démontage propre — est sortie
+dans `core/network/realtime.dart` et `api/realtime.ts`. Leo passe
+désormais par là ; le portefeuille aussi. Ce qui reste propre à chaque
+canal, c'est son protocole applicatif.
+
+### Vérifié
+
+Chaîne complète prouvée en direct : un client natif se connecte par
+sous-protocole JWT, reçoit `connection.established`, puis un vrai
+`refresh_portfolio_metrics` déclenche un `metrics_refresh` dont tous les
+montants arrivent **en chaîne** — la forme exacte que les deux clients
+analysent.
+
+`test_realtime_contract.py` épingle cette forme : un champ renommé ou un
+montant passé en nombre ne casserait rien côté serveur, et ferait
+disparaître une valeur de deux interfaces sans un mot.
+
+148 tests Flutter (+10), suite backend verte (+13), build web OK.
+
+**Non vérifié à l'écran** : le téléphone s'est déconnecté en cours de
+route et l'émulateur sans accélération matérielle ne tient pas la charge.
+Le bandeau de liaison n'a donc pas été vu sur un appareil — seulement ses
+quatre états sous test.
